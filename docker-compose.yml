@@ -1,0 +1,22 @@
+version: "3.9"
+services:
+  fitness-center-db:
+    image: postgres:16-alpine
+    container_name: fitness-center-db
+    environment:
+      POSTGRES_DB: fitness_center_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5544:5432"
+    volumes:
+      - fitness-center-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  fitness-center-db-data:

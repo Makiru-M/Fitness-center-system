@@ -1,0 +1,1958 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FitnessClub IS — Інформаційна система фітнес-клубу</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Global Caret & Cursor Management */
+    *:not(input):not(textarea):not([contenteditable="true"]) {
+      caret-color: transparent;
+    }
+    input, textarea, [contenteditable="true"] {
+      caret-color: auto;
+    }
+    body, div, p, span, h1, h2, h3, h4, h5, h6, table, th, td, ul, ol, li, .card, .badge, .role-view, .grid > div {
+      cursor: default;
+      user-select: text;
+    }
+    button, a, select, [role="button"], [onclick], .cursor-pointer, .btn, .nav-tab-btn {
+      cursor: pointer;
+    }
+    input[type="text"], input[type="number"], input[type="email"], input[type="password"], input[type="search"], input[type="tel"], input[type="url"], input[type="date"], input[type="datetime-local"], input[type="time"], textarea {
+      cursor: text;
+      user-select: auto;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <!-- Header / Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <!-- Logo -->
+        <div class="flex items-center space-x-3 cursor-pointer" onclick="navigateHome()">
+          <div class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xl shadow-md">
+            <i class="fa-solid fa-dumbbell"></i>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold text-slate-900 leading-tight">FitnessClub <span class="text-blue-600">IS</span></h1>
+            <p class="text-xs text-slate-500 font-medium">Система управління фітнес-клубом v17.0</p>
+          </div>
+        </div>
+
+        <!-- Connection Status Indicator -->
+        <div class="flex items-center space-x-3">
+          <div id="mode-badge" class="hidden sm:inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-300 cursor-pointer shadow-sm hover:shadow transition" onclick="openApiModal()" title="Налаштування з'єднання з REST API">
+            <span id="mode-status-dot" class="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></span>
+            <span id="mode-label">API: Онлайн</span>
+            <i class="fa-solid fa-gear ml-2 text-slate-400 hover:text-slate-600"></i>
+          </div>
+
+          <!-- Quick Role Selector (Convenient Switcher for Testing) -->
+          <div class="relative inline-block text-left">
+            <select id="quick-role-select" onchange="quickSwitchRole(this.value)" class="text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 px-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="" disabled>-- Швидка зміна ролі --</option>
+              <option value="guest">Гість (Guest)</option>
+              <option value="client">Клієнт - user_oleksandr</option>
+              <option value="manager">Менеджер - manager_petro</option>
+              <option value="hr">HR Менеджер - admin_olena</option>
+              <option value="coach">Тренер - coach_maksym</option>
+              <option value="director">Керівник - boss_ivan</option>
+            </select>
+          </div>
+
+          <!-- Current User Info & Logout -->
+          <div id="user-profile-widget" class="flex items-center space-x-3 pl-2 border-l border-slate-200">
+            <div class="text-right hidden md:block">
+              <div id="current-user-name" class="text-sm font-semibold text-slate-800">Гість</div>
+              <div id="current-user-role" class="text-xs text-slate-500 uppercase tracking-wider">GUEST</div>
+            </div>
+            <button id="auth-action-btn" onclick="handleAuthAction()" class="btn btn-sm btn-primary">
+              <i class="fa-solid fa-right-to-bracket mr-1"></i> <span id="auth-btn-label">Вхід</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- ========================================================================= -->
+    <!-- 0. LOGIN / AUTH SCREEN (When unauthenticated and not in guest mode) -->
+    <!-- ========================================================================= -->
+    <section id="view-login" class="hidden my-8">
+      <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden grid grid-cols-1 md:grid-cols-2">
+        <!-- Left Banner -->
+        <div class="bg-gradient-to-br from-blue-600 to-indigo-800 p-8 text-white flex flex-col justify-between">
+          <div>
+            <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center font-bold text-2xl mb-4 backdrop-blur-sm">
+              <i class="fa-solid fa-dumbbell"></i>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">FitnessClub IS</h2>
+            <p class="text-blue-100 text-sm mb-6">Комплексна автоматизована система обліку клієнтів, тренерів, розкладу та фінансової звітності.</p>
+            
+            <div class="space-y-3 text-xs text-blue-100">
+              <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+                <span>Рольовий доступ (RLS & БД Рівні)</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-chart-pie text-amber-400"></i>
+                <span>Повна аналітика D1-D12 для директора</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <i class="fa-solid fa-calendar-check text-sky-400"></i>
+                <span>Оперативне планування тренувань</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-8 pt-6 border-t border-white/20">
+            <p class="text-xs text-blue-200">Потрібно просто оглянути клуб?</p>
+            <button onclick="loginAsGuest()" class="mt-2 w-full py-2 px-4 rounded-lg bg-white/10 hover:bg-white/20 border border-white/30 text-white text-xs font-semibold flex items-center justify-center space-x-2 transition">
+              <i class="fa-regular fa-compass"></i>
+              <span>Продовжити як Гість (G1-G4)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Right Form -->
+        <div class="p-8">
+          <h3 class="text-xl font-bold text-slate-800 mb-1">Авторизація в системі</h3>
+          <p class="text-xs text-slate-500 mb-6">Введіть ваш системний логін та пароль або виберіть тестовий профіль</p>
+
+          <form id="form-login" onsubmit="handleLoginForm(event)" class="space-y-4">
+            <div>
+              <label class="form-label text-xs">Логін користувача (DB_User)</label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <i class="fa-solid fa-user"></i>
+                </div>
+                <input type="text" id="login-username" required class="form-control pl-9 text-sm" placeholder="напр., admin_olena, boss_ivan">
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label text-xs">Пароль</label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <i class="fa-solid fa-lock"></i>
+                </div>
+                <input type="password" id="login-password" required class="form-control pl-9 text-sm" placeholder="••••••••" value="demo123">
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label text-xs">Роль у системі</label>
+              <select id="login-role" class="form-control text-sm font-medium">
+                <option value="manager">Менеджер клієнтів (manager_role)</option>
+                <option value="director">Керівник клубу (director_role)</option>
+                <option value="coach">Тренер (coach_role)</option>
+                <option value="hr">HR Менеджер</option>
+                <option value="client">Клієнт клубу (client_role)</option>
+              </select>
+            </div>
+
+            <button type="submit" class="w-full btn btn-primary py-2.5 mt-2 shadow-md">
+              <i class="fa-solid fa-right-to-bracket mr-2"></i> Увійти в систему
+            </button>
+          </form>
+
+          <div class="mt-6 pt-4 border-t border-slate-100">
+            <p class="text-xs text-slate-400 font-medium mb-2 text-center">Швидкий тестовий вхід в один клік:</p>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <button onclick="fillAndLogin('boss_ivan', 'director')" class="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-left">
+                <span class="font-bold text-slate-700 block">boss_ivan</span>
+                <span class="text-slate-400">Керівник (директор)</span>
+              </button>
+              <button onclick="fillAndLogin('manager_petro', 'manager')" class="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-left">
+                <span class="font-bold text-slate-700 block">manager_petro</span>
+                <span class="text-slate-400">Менеджер клієнтів</span>
+              </button>
+              <button onclick="fillAndLogin('admin_olena', 'hr')" class="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-left">
+                <span class="font-bold text-slate-700 block">admin_olena</span>
+                <span class="text-slate-400">HR Менеджер</span>
+              </button>
+              <button onclick="fillAndLogin('coach_maksym', 'coach')" class="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-left">
+                <span class="font-bold text-slate-700 block">coach_maksym</span>
+                <span class="text-slate-400">Тренер</span>
+              </button>
+              <button onclick="fillAndLogin('user_oleksandr', 'client')" class="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-left">
+                <span class="font-bold text-slate-700 block">user_oleksandr</span>
+                <span class="text-slate-400">Клієнт</span>
+              </button>
+              <button onclick="loginAsGuest()" class="p-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-left">
+                <span class="font-bold text-slate-700 block">guest_user</span>
+                <span class="text-slate-400">Гість клубу</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- 0.1 SERVER UNAVAILABLE FALLBACK VIEW -->
+    <!-- ========================================================================= -->
+    <section id="view-server-unavailable" class="hidden my-8">
+      <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl border border-rose-200 overflow-hidden text-center p-8 sm:p-12">
+        <div class="w-20 h-20 mx-auto rounded-full bg-rose-50 border-2 border-rose-200 flex items-center justify-center text-rose-500 text-3xl mb-6 shadow-inner">
+          <i class="fa-solid fa-server animate-pulse"></i>
+        </div>
+        <div class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 mb-4">
+          <span class="w-2 h-2 rounded-full bg-rose-500 mr-2 animate-ping"></span> З'єднання відсутнє (Офлайн)
+        </div>
+        <h2 class="text-2xl font-bold text-slate-800 mb-3">Сервер тимчасово недоступний</h2>
+        <p class="text-slate-600 text-sm max-w-lg mx-auto mb-6">
+          Сервер недоступний або бекенд не запущено. Застосунок налаштовано на роботу виключно через REST API.
+        </p>
+
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 max-w-md mx-auto mb-6 text-left text-xs font-mono space-y-2">
+          <div class="flex items-center justify-between text-slate-600">
+            <span class="font-sans font-semibold text-slate-500">API Endpoint:</span>
+            <span id="unavailable-api-endpoint" class="text-blue-600 font-bold">http://localhost:8080/api</span>
+          </div>
+          <div class="flex items-center justify-between text-slate-600">
+            <span class="font-sans font-semibold text-slate-500">Health Endpoint:</span>
+            <span id="unavailable-health-endpoint" class="text-slate-700">http://localhost:8080/api/health</span>
+          </div>
+          <div class="pt-2 border-t border-slate-200 text-slate-500 font-sans text-[11px] leading-relaxed">
+            <i class="fa-solid fa-circle-info text-blue-500 mr-1"></i>
+            Перевірте запуск Spring Boot застосунку командою:<br/>
+            <code class="bg-slate-200 px-1.5 py-0.5 rounded text-slate-800 mt-1 inline-block font-mono">mvn spring-boot:run</code>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <button id="btn-retry-connection" onclick="retryServerConnection()" class="btn btn-primary px-6 py-2.5 text-sm font-semibold shadow-md flex items-center justify-center space-x-2">
+            <i class="fa-solid fa-rotate-right mr-1"></i>
+            <span id="btn-retry-label">Повторити спробу</span>
+          </button>
+          <button onclick="openApiModal()" class="btn btn-secondary px-5 py-2.5 text-sm flex items-center justify-center space-x-2">
+            <i class="fa-solid fa-gear mr-1"></i>
+            <span>Налаштувати адресу API</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- 1. GUEST VIEW (G1 - G4) -->
+    <!-- ========================================================================= -->
+    <section id="view-guest" class="role-view hidden space-y-6">
+      <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 text-white shadow-lg flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <span class="bg-white/20 text-xs font-semibold px-2.5 py-1 rounded-full uppercase tracking-wider">Гостьовий режим</span>
+          <h2 class="text-2xl font-bold mt-2">Ласкаво просимо до FitnessClub IS!</h2>
+          <p class="text-blue-100 text-sm mt-1 max-w-xl">Ознайомтесь з нашими залами, тренерським складом та прайс-листом або зареєструйтесь онлайн (G1) для отримання абонемента.</p>
+        </div>
+        <button onclick="switchGuestTab('g1')" class="btn bg-white text-blue-600 hover:bg-blue-50 font-bold px-5 py-2.5 shadow-md">
+          <i class="fa-solid fa-user-plus mr-1.5"></i> Стати клієнтом (G1)
+        </button>
+      </div>
+
+      <!-- Unified Guest Navigation Tabs -->
+      <div class="nav-tabs-container">
+        <button onclick="switchGuestTab('g3')" id="tab-btn-g3" class="nav-tab-btn active">
+          <i class="fa-solid fa-tags"></i> G3: Прайс-лист та абонементи
+        </button>
+        <button onclick="switchGuestTab('g4')" id="tab-btn-g4" class="nav-tab-btn">
+          <i class="fa-solid fa-building"></i> G4: Зали клубу
+        </button>
+        <button onclick="switchGuestTab('g2')" id="tab-btn-g2" class="nav-tab-btn">
+          <i class="fa-solid fa-users-line"></i> G2: Тренери клубу
+        </button>
+        <button onclick="switchGuestTab('g1')" id="tab-btn-g1" class="nav-tab-btn">
+          <i class="fa-solid fa-id-card"></i> G1: Онлайн реєстрація
+        </button>
+      </div>
+
+      <!-- G3 Content: Price List -->
+      <div id="subtab-g3" class="guest-pane space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-lg font-bold text-slate-800">Доступні абонементи та послуги</h3>
+          <span class="text-xs text-slate-500">Актуальні ціни клубу</span>
+        </div>
+        <div id="guest-pricelist-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- G4 Content: Halls -->
+      <div id="subtab-g4" class="guest-pane hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-lg font-bold text-slate-800">Тренувальні зони та зали клубу</h3>
+          <span class="text-xs text-slate-500">G4: Інформація про місткість та оснащення</span>
+        </div>
+        <div id="guest-halls-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- G2 Content: Coaches -->
+      <div id="subtab-g2" class="guest-pane hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-lg font-bold text-slate-800">Наша команда тренерів</h3>
+          <span class="text-xs text-slate-500">G2: Спеціалізації, кваліфікація та популярність</span>
+        </div>
+        <div id="guest-coaches-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- G1 Content: Registration -->
+      <div id="subtab-g1" class="guest-pane hidden">
+        <div class="card p-6 max-w-2xl mx-auto">
+          <div class="border-b border-slate-100 pb-4 mb-4">
+            <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-user-plus text-blue-600 mr-2"></i> Задача G1: Онлайн реєстрація та придбання абонемента</h3>
+            <p class="text-xs text-slate-500 mt-1">Створіть свій особистий профіль, вкажіть застереження та оберіть стартовий абонемент.</p>
+          </div>
+
+          <form id="form-g1-registration" onsubmit="handleG1Registration(event)" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">ПІБ клієнта *</label>
+                <input type="text" id="g1-fullname" required class="form-control" placeholder="напр. Бондар Андрій Васильович">
+              </div>
+              <div>
+                <label class="form-label">Номер телефону *</label>
+                <input type="tel" id="g1-phone" required class="form-control" placeholder="+380991234567">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Дата народження *</label>
+                <input type="date" id="g1-birthdate" required class="form-control" value="2000-01-01">
+              </div>
+              <div>
+                <label class="form-label">Стать *</label>
+                <select id="g1-gender" class="form-control">
+                  <option value="Male">Чоловіча</option>
+                  <option value="Female">Жіноча</option>
+                  <option value="Other">Інша</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label">Медичні застереження / обмеження (MedicalNotes)</label>
+              <textarea id="g1-mednotes" class="form-control" rows="2" placeholder="Травми, алергії, проблеми з тиском (або залиште порожнім)"></textarea>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Оберіть абонемент *</label>
+                <select id="g1-subscription" name="g1-item" required class="form-control" onchange="updateG1PriceCalculation()">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Промокод (якщо є)</label>
+                <div class="flex gap-2">
+                  <input type="text" id="g1-promo" class="form-control uppercase" placeholder="FIT2026">
+                  <button type="button" onclick="checkG1Promo()" class="btn btn-secondary btn-sm">Перевірити</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-blue-50 p-4 rounded-xl flex justify-between items-center text-sm border border-blue-100">
+              <div>
+                <span class="text-slate-600 block">Сума до сплати:</span>
+                <span id="g1-price-display" class="text-xl font-bold text-blue-700">0.00 грн</span>
+              </div>
+              <div id="g1-promo-applied-badge" class="hidden">
+                <span class="badge badge-active">Знижка застосована!</span>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full py-3 text-base font-bold shadow-md">
+              <i class="fa-solid fa-check mr-2"></i> Зареєструватися та активувати абонемент
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- 2. CLIENT VIEW (Cl1 - Cl6) -->
+    <!-- ========================================================================= -->
+    <section id="view-client" class="role-view hidden space-y-6">
+      <!-- Client Header Profile Card -->
+      <div class="card p-6 bg-white border border-slate-200">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div class="flex items-center space-x-4">
+            <div class="w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-2xl border-2 border-blue-500">
+              <i class="fa-solid fa-user"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 id="client-name-heading" class="text-xl font-bold text-slate-800">Остапенко Віталій</h2>
+                <span id="client-sub-badge" class="badge badge-active">Активний абонемент</span>
+              </div>
+              <p id="client-details-sub" class="text-xs text-slate-500 mt-1">Телефон: +380671111111 | ID: #1</p>
+              <div id="client-medical-alert" class="mt-2 text-xs text-amber-700 bg-amber-50 px-2.5 py-1 rounded inline-flex items-center gap-1.5 border border-amber-200">
+                <i class="fa-solid fa-notes-medical"></i> <span>Медичні обмеження: Відсутні</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subscription Quick Metrics -->
+          <div class="flex gap-3 text-center">
+            <div class="bg-slate-50 px-4 py-2 rounded-lg border border-slate-200">
+              <span class="text-xs text-slate-500 block">Діє до</span>
+              <span id="client-metric-expiry" class="text-sm font-bold text-slate-800">2026-12-31</span>
+            </div>
+            <div class="bg-slate-50 px-4 py-2 rounded-lg border border-slate-200">
+              <span class="text-xs text-slate-500 block">Днів заморозки</span>
+              <span id="client-metric-freezing" class="text-sm font-bold text-blue-600">14</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Client Navigation Tabs -->
+      <div class="nav-tabs-container">
+        <button onclick="switchClientTab('cl-dash')" id="tab-btn-cl-dash" class="nav-tab-btn active"><i class="fa-solid fa-house"></i> Мій кабінет</button>
+        <button onclick="switchClientTab('cl1')" id="tab-btn-cl1" class="nav-tab-btn"><i class="fa-solid fa-user-pen"></i> Cl1: Профіль</button>
+        <button onclick="switchClientTab('cl2')" id="tab-btn-cl2" class="nav-tab-btn"><i class="fa-solid fa-arrows-rotate"></i> Cl2: Продовжити</button>
+        <button onclick="switchClientTab('cl3')" id="tab-btn-cl3" class="nav-tab-btn"><i class="fa-solid fa-snowflake"></i> Cl3: Заморозити</button>
+        <button onclick="switchClientTab('cl45')" id="tab-btn-cl45" class="nav-tab-btn"><i class="fa-solid fa-calendar-plus"></i> Cl4/5: Запис</button>
+        <button onclick="switchClientTab('cl6')" id="tab-btn-cl6" class="nav-tab-btn"><i class="fa-solid fa-calendar-xmark"></i> Cl6: Скасувати</button>
+      </div>
+
+      <!-- Client Main Dashboard: Active Bookings & History -->
+      <div id="subtab-cl-dash" class="client-pane space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Active upcoming trainings -->
+          <div class="card p-5">
+            <h3 class="font-bold text-slate-800 text-sm mb-3 flex items-center justify-between">
+              <span><i class="fa-solid fa-calendar-days text-blue-600 mr-2"></i> Мої найближчі тренування</span>
+              <button onclick="switchClientTab('cl45')" class="text-xs text-blue-600 hover:underline">+ Записатись</button>
+            </h3>
+            <div id="client-upcoming-list" class="space-y-2">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Quick Actions & Stats -->
+          <div class="card p-5">
+            <h3 class="font-bold text-slate-800 text-sm mb-3"><i class="fa-solid fa-bolt text-amber-500 mr-2"></i> Швидкі дії</h3>
+            <div class="grid grid-cols-2 gap-3">
+              <button onclick="switchClientTab('cl45')" class="p-3 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-left font-medium text-xs transition border border-blue-200">
+                <i class="fa-solid fa-user-clock text-lg block mb-1"></i> Запис на персональне (Cl5)
+              </button>
+              <button onclick="switchClientTab('cl45')" class="p-3 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-left font-medium text-xs transition border border-indigo-200">
+                <i class="fa-solid fa-people-group text-lg block mb-1"></i> Запис на групове (Cl4)
+              </button>
+              <button onclick="switchClientTab('cl3')" class="p-3 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 rounded-xl text-left font-medium text-xs transition border border-cyan-200">
+                <i class="fa-solid fa-snowflake text-lg block mb-1"></i> Заморозити абонемент (Cl3)
+              </button>
+              <button onclick="switchClientTab('cl2')" class="p-3 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-xl text-left font-medium text-xs transition border border-emerald-200">
+                <i class="fa-solid fa-cart-shopping text-lg block mb-1"></i> Продовжити дію (Cl2)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cl1: Update Client Profile -->
+      <div id="subtab-cl1" class="client-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-user-pen text-blue-600 mr-2"></i> Задача Cl1: Зміна власних контактних даних</h3>
+          <p class="text-xs text-slate-500 mb-4">Оновіть ПІБ, телефон та актуальні медичні застереження для тренерів.</p>
+
+          <form id="form-cl1-profile" onsubmit="handleCl1Profile(event)" class="space-y-4">
+            <div>
+              <label class="form-label">ПІБ *</label>
+              <input type="text" id="cl1-name" required class="form-control" placeholder="Прізвище, ім'я та по батькові">
+            </div>
+            <div>
+              <label class="form-label">Номер телефону *</label>
+              <input type="tel" id="cl1-phone" required class="form-control">
+            </div>
+            <div>
+              <label class="form-label">Медичні примітки / застереження (MedicalNotes)</label>
+              <textarea id="cl1-mednotes" class="form-control" rows="3" placeholder="Зазначте травми, особливості здоров'я"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Зберегти зміни профілю</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Cl2: Renew Subscription -->
+      <div id="subtab-cl2" class="client-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-arrows-rotate text-emerald-600 mr-2"></i> Задача Cl2: Продовжити абонемент</h3>
+          <p class="text-xs text-slate-500 mb-4">Оберіть потрібний термін дії та застосуйте промокод для знижки.</p>
+
+          <form id="form-cl2-renew" onsubmit="handleCl2Renew(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Тип абонемента</label>
+              <select id="cl2-item" class="form-control" onchange="updateCl2Price()">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Дата початку дії</label>
+              <input type="date" id="cl2-startdate" required class="form-control">
+            </div>
+            <div>
+              <label class="form-label">Промокод</label>
+              <div class="flex gap-2">
+                <input type="text" id="cl2-promo" class="form-control uppercase" placeholder="PROMO2026">
+                <button type="button" onclick="checkCl2Promo()" class="btn btn-secondary btn-sm">Застосувати</button>
+              </div>
+            </div>
+            <div class="bg-emerald-50 p-4 rounded-xl flex justify-between items-center text-sm border border-emerald-200">
+              <div>
+                <span class="text-slate-600 block">Фінальна вартість:</span>
+                <span id="cl2-price-display" class="text-xl font-bold text-emerald-700">0.00 грн</span>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-success w-full font-bold">Оплатити та продовжити</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Cl3: Freeze Subscription -->
+      <div id="subtab-cl3" class="client-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-snowflake text-cyan-600 mr-2"></i> Задача Cl3: Заморозити абонемент</h3>
+          <p class="text-xs text-slate-500 mb-4">Тимчасово призупиніть дію абонемента на час відпустки або хвороби.</p>
+
+          <form id="form-cl3-freeze" onsubmit="handleCl3Freeze(event)" class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Початок заморозки *</label>
+                <input type="date" id="cl3-start" required class="form-control">
+              </div>
+              <div>
+                <label class="form-label">Кінець заморозки *</label>
+                <input type="date" id="cl3-end" required class="form-control">
+              </div>
+            </div>
+            <div>
+              <label class="form-label">Причина заморозки *</label>
+              <textarea id="cl3-reason" required class="form-control" rows="2" placeholder="Відрядження / хвороба / відпустка"></textarea>
+            </div>
+            <div class="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <i class="fa-solid fa-info-circle text-blue-500 mr-1"></i> Доступний залишок днів заморозки: <b id="cl3-freezing-days-left" class="text-slate-800">14</b> дн.
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Підтвердити заморозку</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Cl4 / Cl5: Book Class / Personal -->
+      <div id="subtab-cl45" class="client-pane hidden space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Cl4: Group Class Booking -->
+          <div class="card p-5">
+            <h3 class="font-bold text-slate-800 text-sm mb-2"><i class="fa-solid fa-people-group text-blue-600 mr-2"></i> Задача Cl4: Запис на групове тренування</h3>
+            <p class="text-xs text-slate-500 mb-4">Оберіть заняття з розкладу на поточний тиждень</p>
+            <form id="form-cl4-group" onsubmit="handleCl4Booking(event)" class="space-y-3">
+              <div>
+                <label class="form-label">Доступне заняття *</label>
+                <select id="cl4-instance" required class="form-control text-xs">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary w-full btn-sm">Записатися на заняття</button>
+            </form>
+          </div>
+
+          <!-- Cl5: Personal Training Booking -->
+          <div class="card p-5">
+            <h3 class="font-bold text-slate-800 text-sm mb-2"><i class="fa-solid fa-user-clock text-indigo-600 mr-2"></i> Задача Cl5: Запис на персональне тренування</h3>
+            <p class="text-xs text-slate-500 mb-4">Індивідуальне заняття з тренером у зручний час</p>
+            <form id="form-cl5-personal" onsubmit="handleCl5Booking(event)" class="space-y-3">
+              <div>
+                <label class="form-label">Оберіть тренера *</label>
+                <select id="cl5-coach" required class="form-control text-xs">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="form-label">Дата та час *</label>
+                  <input type="datetime-local" id="cl5-datetime" required class="form-control text-xs">
+                </div>
+                <div>
+                  <label class="form-label">Зал клубу *</label>
+                  <select id="cl5-hall" required class="form-control text-xs">
+                    <!-- Populated by JS -->
+                  </select>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary w-full btn-sm">Забронювати тренування</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cl6: Cancel Booking -->
+      <div id="subtab-cl6" class="client-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-calendar-xmark text-rose-600 mr-2"></i> Задача Cl6: Скасувати запис на заняття</h3>
+          <p class="text-xs text-slate-500 mb-4">Оберіть заплановане тренування та вкажіть причину скасування.</p>
+
+          <form id="form-cl6-cancel" onsubmit="handleCl6Cancel(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Оберіть активне тренування *</label>
+              <select id="cl6-booking" required class="form-control">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Причина скасування *</label>
+              <textarea id="cl6-reason" required class="form-control" rows="2" placeholder="Зміна планів / погане самопочуття"></textarea>
+            </div>
+            <button type="submit" class="btn btn-danger w-full">Підтвердити скасування</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- 3. MANAGER VIEW (M1 - M8) -->
+    <!-- ========================================================================= -->
+    <section id="view-manager" class="role-view hidden space-y-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div>
+          <h2 class="text-xl font-bold text-slate-800">Робоче місце Менеджера клієнтів</h2>
+          <p class="text-xs text-slate-500">Задачі M1-M8: Оформлення, продажі, check-in, розклад, заморозка</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge badge-active"><i class="fa-solid fa-user-tie mr-1"></i> Роль: manager_role</span>
+        </div>
+      </div>
+
+      <!-- Manager Navigation Tabs -->
+      <div class="nav-tabs-container">
+        <button onclick="switchManagerTab('m4')" id="tab-btn-m4" class="nav-tab-btn active"><i class="fa-solid fa-barcode"></i> M4: Check-in</button>
+        <button onclick="switchManagerTab('m1')" id="tab-btn-m1" class="nav-tab-btn"><i class="fa-solid fa-user-plus"></i> M1: Новий</button>
+        <button onclick="switchManagerTab('m2')" id="tab-btn-m2" class="nav-tab-btn"><i class="fa-solid fa-users"></i> M2: Клієнти</button>
+        <button onclick="switchManagerTab('m3')" id="tab-btn-m3" class="nav-tab-btn"><i class="fa-solid fa-cash-register"></i> M3: Продаж</button>
+        <button onclick="switchManagerTab('m5')" id="tab-btn-m5" class="nav-tab-btn"><i class="fa-solid fa-people-roof"></i> M5: Групове</button>
+        <button onclick="switchManagerTab('m6')" id="tab-btn-m6" class="nav-tab-btn"><i class="fa-solid fa-user-clock"></i> M6: Персон.</button>
+        <button onclick="switchManagerTab('m7')" id="tab-btn-m7" class="nav-tab-btn"><i class="fa-solid fa-snowflake"></i> M7: Заморозка</button>
+        <button onclick="switchManagerTab('m8')" id="tab-btn-m8" class="nav-tab-btn"><i class="fa-solid fa-calendar-xmark"></i> M8: Зміни</button>
+      </div>
+
+      <!-- M4: Express Check-in -->
+      <div id="subtab-m4" class="manager-pane space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="card p-6 lg:col-span-1">
+            <h3 class="text-base font-bold text-slate-800 mb-1"><i class="fa-solid fa-qrcode text-blue-600 mr-2"></i> M4: Експрес Check-in клієнта</h3>
+            <p class="text-xs text-slate-500 mb-4">Швидка фіксація входу клієнта до залу з перевіркою чинності абонемента.</p>
+
+            <form id="form-m4-checkin" onsubmit="handleM4CheckIn(event)" class="space-y-4">
+              <div>
+                <label class="form-label">Клієнт клубу *</label>
+                <select id="m4-client" required class="form-control text-sm" onchange="previewM4ClientStatus(this.value)">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+              <div id="m4-client-status-card" class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1">
+                <div class="flex justify-between">
+                  <span class="text-slate-500">Абонемент:</span>
+                  <span id="m4-sub-name" class="font-bold text-slate-700">—</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-500">Статус:</span>
+                  <span id="m4-sub-status" class="badge badge-active">—</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-500">Діє до:</span>
+                  <span id="m4-sub-end" class="font-bold text-slate-700">—</span>
+                </div>
+              </div>
+              <div>
+                <label class="form-label">Зал відвідування *</label>
+                <select id="m4-hall" required class="form-control text-sm">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+              <button type="submit" class="btn btn-success w-full py-2.5 font-bold shadow-sm">
+                <i class="fa-solid fa-arrow-right-to-bracket mr-1.5"></i> Здійснити Check-in (M4)
+              </button>
+            </form>
+          </div>
+
+          <!-- Recent Visits List -->
+          <div class="card p-6 lg:col-span-2">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-clock-rotate-left text-slate-500 mr-2"></i> Журнал останніх відвідувань</h3>
+              <span class="text-xs text-slate-500" id="m4-visits-count">Всього: 0</span>
+            </div>
+            <div class="table-responsive max-h-96">
+              <table id="m4-visits-table">
+                <thead>
+                  <tr>
+                    <th>Час входу</th>
+                    <th>Клієнт</th>
+                    <th>Зал</th>
+                    <th>Послуга/Абонемент</th>
+                  </tr>
+                </thead>
+                <tbody id="m4-visits-tbody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- M1: Register New Client -->
+      <div id="subtab-m1" class="manager-pane hidden">
+        <div class="card p-6 max-w-2xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-user-plus text-blue-600 mr-2"></i> Задача M1: Оформлення нового клієнта</h3>
+          <p class="text-xs text-slate-500 mb-4">Створення профілю клієнта з унікальним ID та фіксацією медичних обмежень у таблицю MedicalNotes.</p>
+
+          <form id="form-m1-newclient" onsubmit="handleM1NewClient(event)" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">ПІБ клієнта *</label>
+                <input type="text" id="m1-fullname" required class="form-control" placeholder="Мельник Тарас Григорович">
+              </div>
+              <div>
+                <label class="form-label">Номер телефону *</label>
+                <input type="tel" id="m1-phone" required class="form-control" placeholder="+380671234567">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Дата народження *</label>
+                <input type="date" id="m1-birthdate" required class="form-control" value="1995-05-15">
+              </div>
+              <div>
+                <label class="form-label">Стать *</label>
+                <select id="m1-gender" class="form-control">
+                  <option value="Male">Чоловіча</option>
+                  <option value="Female">Жіноча</option>
+                  <option value="Other">Інша</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label">Системний логін (DB_User) *</label>
+              <input type="text" id="m1-dbuser" required class="form-control" placeholder="client_taras">
+            </div>
+
+            <div>
+              <label class="form-label">Медичні обмеження (MedicalNotes)</label>
+              <textarea id="m1-mednotes" class="form-control" rows="2" placeholder="Вкажіть особливості (якщо є)"></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full py-2.5 font-bold">Оформити клієнта (M1)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- M2: Clients Directory & Edit -->
+      <div id="subtab-m2" class="manager-pane hidden space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-users text-blue-600 mr-2"></i> Задача M2: Редагування та перегляд бази клієнтів</h3>
+            <p class="text-xs text-slate-500">Пошук за ПІБ або телефоном, зміна даних клієнта та мед. застережень.</p>
+          </div>
+          <div class="w-full sm:w-64">
+            <input type="text" id="m2-search-input" oninput="filterM2Clients(this.value)" class="form-control text-xs" placeholder="🔍 Пошук за ПІБ або телефоном...">
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>ПІБ клієнта</th>
+                <th>Телефон</th>
+                <th>Абонемент</th>
+                <th>Статус</th>
+                <th>Медичні застереження</th>
+                <th>Дії</th>
+              </tr>
+            </thead>
+            <tbody id="m2-clients-tbody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- M3: Sell Subscription -->
+      <div id="subtab-m3" class="manager-pane hidden">
+        <div class="card p-6 max-w-2xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-cash-register text-emerald-600 mr-2"></i> Задача M3: Продаж або продовження абонемента</h3>
+          <p class="text-xs text-slate-500 mb-4">Фіксація продажу в Sales, застосування промокоду в AppliedPromo та оновлення ClientSubscriptions.</p>
+
+          <form id="form-m3-sale" onsubmit="handleM3Sale(event)" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Клієнт *</label>
+                <select id="m3-client" required class="form-control text-sm">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Менеджер оформлення *</label>
+                <select id="m3-staff" name="m3-staff" required class="form-control text-sm">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Оберіть послугу / абонемент *</label>
+                <select id="m3-item" required class="form-control text-sm" onchange="updateM3Price()">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Дата початку дії *</label>
+                <input type="date" id="m3-startdate" required class="form-control text-sm">
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label">Промокод (якщо є)</label>
+              <div class="flex gap-2">
+                <input type="text" id="m3-promo" class="form-control uppercase text-sm" placeholder="SUMMER10">
+                <button type="button" onclick="checkM3Promo()" class="btn btn-secondary btn-sm">Перевірити</button>
+              </div>
+            </div>
+
+            <div class="bg-emerald-50 p-4 rounded-xl flex justify-between items-center text-sm border border-emerald-200">
+              <div>
+                <span class="text-slate-600 block text-xs">Фінальна вартість продажу (SalePrice):</span>
+                <span id="m3-price-display" class="text-xl font-bold text-emerald-700">0.00 грн</span>
+              </div>
+              <div id="m3-promo-status-badge"></div>
+            </div>
+
+            <button type="submit" class="btn btn-success w-full py-2.5 font-bold shadow-sm">
+              <i class="fa-solid fa-receipt mr-1.5"></i> Оформити продаж (M3)
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- M5: Book Group Class for Client -->
+      <div id="subtab-m5" class="manager-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-people-roof text-blue-600 mr-2"></i> Задача M5: Запис клієнта на групове заняття</h3>
+          <p class="text-xs text-slate-500 mb-4">Внесення запису клієнта до GroupClassBookings на основі розкладу.</p>
+
+          <form id="form-m5-booking" onsubmit="handleM5Booking(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Клієнт *</label>
+              <select id="m5-client" required class="form-control">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Заняття з розкладу *</label>
+              <select id="m5-instance" required class="form-control">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Записати на групове (M5)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- M6: Book Personal Training for Client -->
+      <div id="subtab-m6" class="manager-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-user-clock text-indigo-600 mr-2"></i> Задача M6: Запис на персональне тренування</h3>
+          <p class="text-xs text-slate-500 mb-4">Перевірка медичних обмежень клієнта та створення запису у PersonalTrainings.</p>
+
+          <form id="form-m6-personal" onsubmit="handleM6Booking(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Клієнт *</label>
+              <select id="m6-client" required class="form-control" onchange="checkM6MedicalAlert(this.value)">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div id="m6-med-warning" class="hidden p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2">
+              <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
+              <span id="m6-med-warning-text"></span>
+            </div>
+            <div>
+              <label class="form-label">Тренер *</label>
+              <select id="m6-coach" required class="form-control">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Дата та час *</label>
+                <input type="datetime-local" id="m6-datetime" required class="form-control">
+              </div>
+              <div>
+                <label class="form-label">Зал клубу *</label>
+                <select id="m6-hall" required class="form-control">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Оформити персональне (M6)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- M7: Freezing Subscription -->
+      <div id="subtab-m7" class="manager-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-snowflake text-cyan-600 mr-2"></i> Задача M7: Заморозка абонемента</h3>
+          <p class="text-xs text-slate-500 mb-4">Фіксація заморозки в FreezingLogs, перерахунок кінцевої дати дії абонемента.</p>
+
+          <form id="form-m7-freeze" onsubmit="handleM7Freeze(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Клієнт для заморозки абонемента *</label>
+              <select id="m7-client" required class="form-control" onchange="previewM7Freeze(this.value)">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Дата початку *</label>
+                <input type="date" id="m7-startdate" required class="form-control">
+              </div>
+              <div>
+                <label class="form-label">Дата завершення *</label>
+                <input type="date" id="m7-enddate" required class="form-control">
+              </div>
+            </div>
+            <div>
+              <label class="form-label">Причина заморозки *</label>
+              <textarea id="m7-reason" required class="form-control" rows="2" placeholder="Заява клієнта (відпустка, лікарняний)"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Заморозити абонемент (M7)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- M8: Reschedule / Cancel -->
+      <div id="subtab-m8" class="manager-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-calendar-xmark text-rose-600 mr-2"></i> Задача M8: Скасування або перенесення тренування</h3>
+          <p class="text-xs text-slate-500 mb-4">Зміна часу чи статусу заняття з обов'язковим записом у PT_Changelog та PT_TimeChangeDetails.</p>
+
+          <form id="form-m8-action" onsubmit="handleM8Action(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Оберіть персональне тренування *</label>
+              <select id="m8-training" required class="form-control">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Дія *</label>
+              <select id="m8-action-type" class="form-control" onchange="toggleM8NewTime(this.value)">
+                <option value="Cancel">Скасувати тренування</option>
+                <option value="Reschedule">Перенести на новий час</option>
+              </select>
+            </div>
+            <div id="m8-newtime-container" class="hidden">
+              <label class="form-label">Нова дата та час *</label>
+              <input type="datetime-local" id="m8-newtime" class="form-control">
+            </div>
+            <div>
+              <label class="form-label">Причина зміни *</label>
+              <textarea id="m8-reason" required class="form-control" rows="2" placeholder="Вкажіть обґрунтування"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Виконати дію (M8)</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- 4. HR MANAGER VIEW (HR1 - HR6) -->
+    <!-- ========================================================================= -->
+    <section id="view-hr" class="role-view hidden space-y-6">
+      <div class="flex justify-between items-center">
+        <div>
+          <h2 class="text-xl font-bold text-slate-800">Кадровий облік (HR Менеджер)</h2>
+          <p class="text-xs text-slate-500">Задачі HR1-HR6: Найм, зміна даних та звільнення тренерів і адміністраторів</p>
+        </div>
+        <span class="badge badge-active"><i class="fa-solid fa-address-card mr-1"></i> HR Відділ</span>
+      </div>
+
+      <!-- HR Navigation Tabs -->
+      <div class="nav-tabs-container">
+        <button onclick="switchHrTab('hr_coaches')" id="tab-btn-hr-coaches" class="nav-tab-btn active"><i class="fa-solid fa-person-running"></i> Штат тренерів (HR2)</button>
+        <button onclick="switchHrTab('hr1')" id="tab-btn-hr1" class="nav-tab-btn"><i class="fa-solid fa-user-plus"></i> HR1: Найм тренера</button>
+        <button onclick="switchHrTab('hr3')" id="tab-btn-hr3" class="nav-tab-btn"><i class="fa-solid fa-user-minus"></i> HR3: Звільн. тренера</button>
+        <button onclick="switchHrTab('hr_staff')" id="tab-btn-hr-staff" class="nav-tab-btn"><i class="fa-solid fa-users-gear"></i> Штат менеджерів (HR5)</button>
+        <button onclick="switchHrTab('hr4')" id="tab-btn-hr4" class="nav-tab-btn"><i class="fa-solid fa-user-plus"></i> HR4: Найм менед.</button>
+        <button onclick="switchHrTab('hr6')" id="tab-btn-hr6" class="nav-tab-btn"><i class="fa-solid fa-user-minus"></i> HR6: Звільн. менед.</button>
+      </div>
+
+      <!-- Coaches List & Edit (HR2) -->
+      <div id="subtab-hr-coaches" class="hr-pane space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-base font-bold text-slate-800">Штат тренерів (HR2: Перегляд та редагування)</h3>
+          <button onclick="switchHrTab('hr1')" class="btn btn-primary btn-sm">+ Найняти нового тренера</button>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>ПІБ</th>
+                <th>Телефон</th>
+                <th>Спеціалізація</th>
+                <th>Статус</th>
+                <th>Дата прийому</th>
+                <th>Дії</th>
+              </tr>
+            </thead>
+            <tbody id="hr-coaches-tbody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- HR1: Hire Coach -->
+      <div id="subtab-hr1" class="hr-pane hidden">
+        <div class="card p-6 max-w-2xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-user-plus text-blue-600 mr-2"></i> Задача HR1: Прийняти тренера на роботу</h3>
+          <p class="text-xs text-slate-500 mb-4">Створення запису у Staff та Coaches з прив'язкою до спеціалізації.</p>
+
+          <form id="form-hr1-hire" onsubmit="handleHr1Hire(event)" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">ПІБ тренера *</label>
+                <input type="text" id="hr1-fullname" required class="form-control" placeholder="Лисенко Роман Васильович">
+              </div>
+              <div>
+                <label class="form-label">Номер телефону *</label>
+                <input type="tel" id="hr1-phone" required class="form-control" placeholder="+380509999910">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Дата народження *</label>
+                <input type="date" id="hr1-birthdate" required class="form-control" value="1992-04-10">
+              </div>
+              <div>
+                <label class="form-label">Спеціалізація *</label>
+                <select id="hr1-spec" required class="form-control">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Логін користувача (DB_User) *</label>
+                <input type="text" id="hr1-dbuser" required class="form-control" placeholder="coach_roman">
+              </div>
+              <div>
+                <label class="form-label">Дата прийому на роботу *</label>
+                <input type="date" id="hr1-hiredate" required class="form-control">
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label">Біографія / Досягнення тренера</label>
+              <textarea id="hr1-bio" class="form-control" rows="3" placeholder="Кандидат у майстри спорту, досвід 5 років..."></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full py-2.5 font-bold">Прийняти тренера на роботу (HR1)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- HR3: Dismiss Coach -->
+      <div id="subtab-hr3" class="hr-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-user-minus text-rose-600 mr-2"></i> Задача HR3: Звільнити тренера</h3>
+          <p class="text-xs text-slate-500 mb-4">Встановлення дати FireDate та блокування системного доступу.</p>
+
+          <form id="form-hr3-dismiss" onsubmit="handleHr3Dismiss(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Оберіть тренера *</label>
+              <select id="hr3-coach" required class="form-control">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <input type="hidden" id="hr3-firedate">
+            <div>
+              <label class="form-label">Причина звільнення *</label>
+              <textarea id="hr3-reason" required class="form-control" rows="2" placeholder="За власним бажанням / скорочення"></textarea>
+            </div>
+            <button type="submit" class="btn btn-danger w-full">Звільнити тренера (HR3)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Managers List (HR5) -->
+      <div id="subtab-hr-staff" class="hr-pane hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-base font-bold text-slate-800">Штат менеджерів та адміністрації (HR5: Перегляд/Редагування)</h3>
+          <button onclick="switchHrTab('hr4')" class="btn btn-primary btn-sm">+ Прийняти менеджера</button>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>ПІБ</th>
+                <th>Посада</th>
+                <th>Телефон</th>
+                <th>Статус</th>
+                <th>Дата прийому</th>
+                <th>Дії</th>
+              </tr>
+            </thead>
+            <tbody id="hr-staff-tbody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- HR4: Hire Manager -->
+      <div id="subtab-hr4" class="hr-pane hidden">
+        <div class="card p-6 max-w-2xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-user-plus text-blue-600 mr-2"></i> Задача HR4: Прийняти менеджера на роботу</h3>
+          <p class="text-xs text-slate-500 mb-4">Створення запису у Staff з посадою Адміністратор / Менеджер.</p>
+
+          <form id="form-hr4-hire" onsubmit="handleHr4Hire(event)" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">ПІБ менеджера *</label>
+                <input type="text" id="hr4-fullname" required class="form-control" placeholder="Гончар Максим Олександрович">
+              </div>
+              <div>
+                <label class="form-label">Номер телефону *</label>
+                <input type="tel" id="hr4-phone" required class="form-control" placeholder="+380503333344">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Дата народження *</label>
+                <input type="date" id="hr4-birthdate" required class="form-control" value="1996-08-20">
+              </div>
+              <div>
+                <label class="form-label">Посада *</label>
+                <select id="hr4-position" required class="form-control">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Логін користувача (DB_User) *</label>
+                <input type="text" id="hr4-dbuser" required class="form-control" placeholder="admin_maksym">
+              </div>
+              <div>
+                <label class="form-label">Дата прийому *</label>
+                <input type="date" id="hr4-hiredate" required class="form-control">
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full py-2.5 font-bold">Прийняти менеджера (HR4)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- HR6: Dismiss Manager -->
+      <div id="subtab-hr6" class="hr-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-user-minus text-rose-600 mr-2"></i> Задача HR6: Звільнити менеджера</h3>
+          <p class="text-xs text-slate-500 mb-4">Встановлення дати FireDate та припинення повноважень менеджера.</p>
+
+          <form id="form-hr6-dismiss" onsubmit="handleHr6Dismiss(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Оберіть менеджера *</label>
+              <select id="hr6-staff" required class="form-control">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <input type="hidden" id="hr6-firedate">
+            <div>
+              <label class="form-label">Причина звільнення *</label>
+              <textarea id="hr6-reason" required class="form-control" rows="2" placeholder="За власним бажанням"></textarea>
+            </div>
+            <button type="submit" class="btn btn-danger w-full">Звільнити менеджера (HR6)</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- 5. COACH VIEW (C1 - C5) -->
+    <!-- ========================================================================= -->
+    <section id="view-coach" class="role-view hidden space-y-6">
+      <div class="flex justify-between items-center">
+        <div>
+          <h2 class="text-xl font-bold text-slate-800">Кабінет тренера клубу</h2>
+          <p class="text-xs text-slate-500">Задачі C1-C5: Розклад, списки відвідувачів, відмітки проведення, запити на перенесення</p>
+        </div>
+        <div id="coach-active-name-badge" class="badge badge-active"><i class="fa-solid fa-stopwatch mr-1"></i> Тренер: Коваленко А.</div>
+      </div>
+
+      <!-- Coach Navigation Tabs -->
+      <div class="nav-tabs-container">
+        <button onclick="switchCoachTab('c1')" id="tab-btn-c1" class="nav-tab-btn active"><i class="fa-solid fa-calendar-week"></i> C1: Розклад</button>
+        <button onclick="switchCoachTab('c2')" id="tab-btn-c2" class="nav-tab-btn"><i class="fa-solid fa-clipboard-user"></i> C2: Список клієнтів</button>
+        <button onclick="switchCoachTab('c3')" id="tab-btn-c3" class="nav-tab-btn"><i class="fa-solid fa-check-double"></i> C3: Відмітка персонального</button>
+        <button onclick="switchCoachTab('c4')" id="tab-btn-c4" class="nav-tab-btn"><i class="fa-solid fa-users-viewfinder"></i> C4: Відмітка групового</button>
+        <button onclick="switchCoachTab('c5')" id="tab-btn-c5" class="nav-tab-btn"><i class="fa-solid fa-code-pull-request"></i> C5: Запит на зміни</button>
+      </div>
+
+      <!-- C1: Schedule -->
+      <div id="subtab-c1" class="coach-pane space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-base font-bold text-slate-800">Мій розклад занять (Персональні та групові)</h3>
+          <span class="text-xs text-slate-500">C1: Фільтр за поточним тренером</span>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Час / Дата</th>
+                <th>Тип заняття</th>
+                <th>Опис / Клієнт</th>
+                <th>Зал</th>
+                <th>Поточний статус</th>
+                <th>Дія</th>
+              </tr>
+            </thead>
+            <tbody id="coach-schedule-tbody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- C2: Client List & Medical Alerts -->
+      <div id="subtab-c2" class="coach-pane hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-base font-bold text-slate-800">Список клієнтів на заняття та медичні застереження</h3>
+          <span class="text-xs text-slate-500">C2: Контроль безпеки здоров'я клієнтів</span>
+        </div>
+        <div class="card p-4">
+          <label class="form-label text-xs">Оберіть конкретне заняття з вашого розкладу:</label>
+          <select id="c2-class-select" onchange="renderC2ClientList(this.value)" class="form-control text-sm">
+            <!-- Populated by JS -->
+          </select>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>ПІБ клієнта</th>
+                <th>Телефон</th>
+                <th>Медичні застереження (MedicalNotes)</th>
+                <th>Статус запису</th>
+              </tr>
+            </thead>
+            <tbody id="coach-clients-tbody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- C3: Mark Personal Training -->
+      <div id="subtab-c3" class="coach-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-check-double text-blue-600 mr-2"></i> Задача C3: Відмітити індивідуальне тренування</h3>
+          <p class="text-xs text-slate-500 mb-4">Оновлення статусу в таблиці PersonalTrainings (Completed, No-show).</p>
+
+          <form id="form-c3-mark" onsubmit="handleC3Mark(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Оберіть персональне тренування *</label>
+              <select id="c3-training" required class="form-control">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Результат проведення *</label>
+              <select id="c3-status" required class="form-control">
+                <option value="Completed">Проведено (Completed)</option>
+                <option value="No-show">Неявка клієнта (No-show)</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Коментар тренера</label>
+              <textarea id="c3-comment" class="form-control" rows="2" placeholder="Особливості заняття, рекомендації"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Зберегти результат (C3)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- C4: Mark Group Class -->
+      <div id="subtab-c4" class="coach-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-users-viewfinder text-indigo-600 mr-2"></i> Задача C4: Відмітити групове заняття</h3>
+          <p class="text-xs text-slate-500 mb-4">Внесення статусу та фактичної кількості відвідувачів у GroupClassInstances.</p>
+
+          <form id="form-c4-mark" onsubmit="handleC4Mark(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Оберіть групове заняття *</label>
+              <select id="c4-instance" required class="form-control">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Статус *</label>
+                <select id="c4-status" class="form-control">
+                  <option value="Completed">Проведено (Completed)</option>
+                  <option value="Cancelled">Скасовано (Cancelled)</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Фактична кількість присутніх *</label>
+                <input type="number" id="c4-attendance" required min="0" class="form-control" value="8">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Зберегти звіт (C4)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- C5: Request Change -->
+      <div id="subtab-c5" class="coach-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-code-pull-request text-amber-600 mr-2"></i> Задача C5: Подати запит на перенесення / скасування</h3>
+          <p class="text-xs text-slate-500 mb-4">Фіксація запиту тренера в PT_Changelog та PT_TimeChangeDetails.</p>
+
+          <form id="form-c5-request" onsubmit="handleC5Request(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Оберіть тренування *</label>
+              <select id="c5-training" required class="form-control">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Тип запиту *</label>
+              <select id="c5-type" class="form-control" onchange="toggleC5NewTime(this.value)">
+                <option value="Reschedule">Перенесення на інший час</option>
+                <option value="Cancel">Скасування заняття</option>
+              </select>
+            </div>
+            <div id="c5-newtime-container">
+              <label class="form-label">Бажаний новий час тренування *</label>
+              <input type="datetime-local" id="c5-newtime" class="form-control">
+            </div>
+            <div>
+              <label class="form-label">Причина запиту *</label>
+              <textarea id="c5-reason" required class="form-control" rows="2" placeholder="Хвороба тренера, термінові змагання тощо"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Надіслати запит менеджеру (C5)</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- 6. DIRECTOR VIEW (D1 - D12) -->
+    <!-- ========================================================================= -->
+    <section id="view-director" class="role-view hidden space-y-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div>
+          <h2 class="text-xl font-bold text-slate-800">Панель управління Керівника</h2>
+          <p class="text-xs text-slate-500">Задачі D1-D12: Аналітичні звіти, аудит дій та конфігурація довідників клубу</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="window.print()" class="btn btn-secondary btn-sm"><i class="fa-solid fa-print mr-1"></i> Друк звіту</button>
+          <span class="badge badge-active"><i class="fa-solid fa-crown mr-1"></i> director_role</span>
+        </div>
+      </div>
+
+      <!-- Director Navigation Tabs (Reports & Settings) -->
+      <div class="nav-tabs-container">
+        <button onclick="switchDirectorTab('d1')" id="tab-btn-d1" class="nav-tab-btn active"><i class="fa-solid fa-coins"></i> D1: Виручка</button>
+        <button onclick="switchDirectorTab('d2')" id="tab-btn-d2" class="nav-tab-btn"><i class="fa-solid fa-chart-line"></i> D2: Відвідуваність</button>
+        <button onclick="switchDirectorTab('d3')" id="tab-btn-d3" class="nav-tab-btn"><i class="fa-solid fa-ranking-star"></i> D3: Тренери</button>
+        <button onclick="switchDirectorTab('d4')" id="tab-btn-d4" class="nav-tab-btn"><i class="fa-solid fa-chart-pie"></i> D4: Зали</button>
+        <button onclick="switchDirectorTab('d5')" id="tab-btn-d5" class="nav-tab-btn"><i class="fa-solid fa-triangle-exclamation"></i> D5: Проблеми</button>
+        <button onclick="switchDirectorTab('d6')" id="tab-btn-d6" class="nav-tab-btn"><i class="fa-solid fa-shield-halved"></i> D6: Аудит</button>
+        <button onclick="switchDirectorTab('d7')" id="tab-btn-d7" class="nav-tab-btn"><i class="fa-solid fa-plus-circle"></i> D7: Абонемент</button>
+        <button onclick="switchDirectorTab('d8')" id="tab-btn-d8" class="nav-tab-btn"><i class="fa-solid fa-door-open"></i> D8: Зал</button>
+        <button onclick="switchDirectorTab('d9')" id="tab-btn-d9" class="nav-tab-btn"><i class="fa-solid fa-ticket"></i> D9: Промокод</button>
+        <button onclick="switchDirectorTab('d10')" id="tab-btn-d10" class="nav-tab-btn"><i class="fa-solid fa-list-check"></i> D10: Прайс</button>
+        <button onclick="switchDirectorTab('d11')" id="tab-btn-d11" class="nav-tab-btn"><i class="fa-solid fa-calendar-days"></i> D11: Розклад груп</button>
+        <button onclick="switchDirectorTab('d12')" id="tab-btn-d12" class="nav-tab-btn"><i class="fa-solid fa-clock"></i> D12: Графік інд.</button>
+      </div>
+
+      <!-- D1: Revenue Report -->
+      <div id="subtab-d1" class="director-pane space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="card p-5 bg-blue-50 border-blue-200">
+            <span class="text-xs text-blue-600 font-bold uppercase tracking-wider block">Загальна виручка</span>
+            <span id="d1-total-revenue" class="text-2xl font-bold text-blue-900 mt-1 block">0.00 грн</span>
+            <span class="text-xs text-blue-600 mt-1 block">За весь період</span>
+          </div>
+          <div class="card p-5 bg-emerald-50 border-emerald-200">
+            <span class="text-xs text-emerald-600 font-bold uppercase tracking-wider block">Кількість продажів</span>
+            <span id="d1-total-sales-count" class="text-2xl font-bold text-emerald-900 mt-1 block">0</span>
+            <span class="text-xs text-emerald-600 mt-1 block">Успішних угод у Sales</span>
+          </div>
+          <div class="card p-5 bg-purple-50 border-purple-200">
+            <span class="text-xs text-purple-600 font-bold uppercase tracking-wider block">Надані знижки</span>
+            <span id="d1-total-discounts" class="text-2xl font-bold text-purple-900 mt-1 block">0.00 грн</span>
+            <span class="text-xs text-purple-600 mt-1 block">Економія через промокоди</span>
+          </div>
+        </div>
+
+        <div class="card p-5">
+          <h3 class="font-bold text-slate-800 text-sm mb-3">Виручка за категоріями послуг</h3>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Категорія</th>
+                  <th>Кількість угод</th>
+                  <th>Базова вартість</th>
+                  <th>Фактична виручка</th>
+                  <th>Знижки</th>
+                  <th>Використань промо</th>
+                </tr>
+              </thead>
+              <tbody id="d1-category-tbody">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- D2: Attendance Report -->
+      <div id="subtab-d2" class="director-pane hidden space-y-4">
+        <div class="card p-5">
+          <h3 class="font-bold text-slate-800 text-sm mb-3"><i class="fa-solid fa-chart-line text-blue-600 mr-2"></i> Задача D2: Звіт по відвідуваності клубу</h3>
+          <p class="text-xs text-slate-500 mb-4">Унікальні відвідувачі, середня завантаженість залів та загальна кількість візитів.</p>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Назва залу</th>
+                  <th>Загальна кількість візитів</th>
+                  <th>Унікальних клієнтів</th>
+                  <th>Середній час пік</th>
+                  <th>Завантаженість</th>
+                </tr>
+              </thead>
+              <tbody id="d2-attendance-tbody">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- D3: Coaches Popularity -->
+      <div id="subtab-d3" class="director-pane hidden space-y-4">
+        <div class="card p-5">
+          <h3 class="font-bold text-slate-800 text-sm mb-3"><i class="fa-solid fa-ranking-star text-amber-500 mr-2"></i> Задача D3: Рейтинг та продуктивність тренерів</h3>
+          <p class="text-xs text-slate-500 mb-4">Кількість проведених тренувань, клієнтська база та заповнюваність груп.</p>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>ПІБ тренера</th>
+                  <th>Спеціалізація</th>
+                  <th>Персональних занять</th>
+                  <th>Групових занять</th>
+                  <th>Всього занять</th>
+                  <th>KPI</th>
+                </tr>
+              </thead>
+              <tbody id="d3-coaches-tbody">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- D4: Halls Popularity -->
+      <div id="subtab-d4" class="director-pane hidden space-y-4">
+        <div class="card p-5">
+          <h3 class="font-bold text-slate-800 text-sm mb-3"><i class="fa-solid fa-chart-pie text-cyan-600 mr-2"></i> Задача D4: Популярність та завантаженість залів</h3>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Зал</th>
+                  <th>Місткість</th>
+                  <th>Відвідувань (Visits)</th>
+                  <th>Групових слотів</th>
+                  <th>% Завантаженості</th>
+                </tr>
+              </thead>
+              <tbody id="d4-halls-tbody">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- D5: Problem Spots Analysis -->
+      <div id="subtab-d5" class="director-pane hidden space-y-4">
+        <div class="card p-5">
+          <h3 class="font-bold text-slate-800 text-sm mb-3"><i class="fa-solid fa-triangle-exclamation text-rose-600 mr-2"></i> Задача D5: Аналіз проблемних місць та ризиків</h3>
+          <p class="text-xs text-slate-500 mb-4">Прострочені абонементи, клієнти з частими неявками та скасовані заняття.</p>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Клієнт</th>
+                  <th>Телефон</th>
+                  <th>Тип проблеми</th>
+                  <th>Деталі / Прострочка</th>
+                  <th>Рекомендована дія</th>
+                </tr>
+              </thead>
+              <tbody id="d5-problems-tbody">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- D6: Audit Changelog -->
+      <div id="subtab-d6" class="director-pane hidden space-y-4">
+        <div class="card p-5">
+          <h3 class="font-bold text-slate-800 text-sm mb-3"><i class="fa-solid fa-shield-halved text-slate-600 mr-2"></i> Задача D6: Журнал аудиту змін та перенесень (PT_Changelog)</h3>
+          <p class="text-xs text-slate-500 mb-4">Фіксація ініціаторів, причин, змін дати та часу тренувань.</p>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Час запису</th>
+                  <th>ID тренування</th>
+                  <th>Тип дії</th>
+                  <th>Ініціатор</th>
+                  <th>Причина</th>
+                  <th>Новий час (TimeChange)</th>
+                </tr>
+              </thead>
+              <tbody id="d6-audit-tbody">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- D7: Create Subscription Type -->
+      <div id="subtab-d7" class="director-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-plus-circle text-blue-600 mr-2"></i> Задача D7: Створення нових типів абонементів</h3>
+          <p class="text-xs text-slate-500 mb-4">Додавання запису до PriceList та PriceListSubs.</p>
+
+          <form id="form-d7-sub" onsubmit="handleD7CreateSub(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Назва абонемента *</label>
+              <input type="text" id="d7-name" required class="form-control" placeholder="Преміум Річний Безліміт">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Тривалість (днів) *</label>
+                <input type="number" id="d7-duration" required min="1" class="form-control" value="365">
+              </div>
+              <div>
+                <label class="form-label">Вартість (грн) *</label>
+                <input type="number" id="d7-price" required min="0" step="0.01" class="form-control" value="9500.00">
+              </div>
+            </div>
+            <div>
+              <label class="form-label">Ліміт днів заморозки (MaxFreezingDays) *</label>
+              <input type="number" id="d7-maxfreeze" required min="0" class="form-control" value="30">
+            </div>
+            <div>
+              <label class="form-label">Опис абонемента</label>
+              <textarea id="d7-desc" class="form-control" rows="2" placeholder="Повний доступ до всіх зон, басейну та сауни"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Створити тип абонемента (D7)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- D8: Introduce Hall -->
+      <div id="subtab-d8" class="director-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-door-open text-emerald-600 mr-2"></i> Задача D8: Введення залу в експлуатацію</h3>
+          <p class="text-xs text-slate-500 mb-4">Реєстрація нового тренувального залу в таблиці Halls.</p>
+
+          <form id="form-d8-hall" onsubmit="handleD8CreateHall(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Назва залу *</label>
+              <input type="text" id="d8-name" required class="form-control" placeholder="Spinning & Cycle Studio">
+            </div>
+            <div>
+              <label class="form-label">Максимальна місткість (осіб) *</label>
+              <input type="number" id="d8-capacity" required min="1" class="form-control" value="20">
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Ввести зал в експлуатацію (D8)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- D9: Create Promo Code -->
+      <div id="subtab-d9" class="director-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-ticket text-purple-600 mr-2"></i> Задача D9: Створення промокоду</h3>
+          <p class="text-xs text-slate-500 mb-4">Додавання знижкових кодів у таблицю PromoCodes.</p>
+
+          <form id="form-d9-promo" onsubmit="handleD9CreatePromo(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Код промокоду (слово) *</label>
+              <input type="text" id="d9-code" required class="form-control uppercase" placeholder="FITNESS2026">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Відсоток знижки (1-100%) *</label>
+                <input type="number" id="d9-discount" required min="1" max="100" class="form-control" value="15">
+              </div>
+              <div>
+                <label class="form-label">Термін дії (ExpiryDate) *</label>
+                <input type="date" id="d9-expiry" required class="form-control" value="2026-12-31">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Створити промокод (D9)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- D10: Manage Price List -->
+      <div id="subtab-d10" class="director-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-list-check text-blue-600 mr-2"></i> Задача D10: Формування прайсу (додаткові послуги)</h3>
+          <p class="text-xs text-slate-500 mb-4">Додавання окремих послуг (тренування, оренда шафки, масаж тощо) у PriceList.</p>
+
+          <form id="form-d10-service" onsubmit="handleD10CreateService(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Назва послуги *</label>
+              <input type="text" id="d10-name" required class="form-control" placeholder="Консультація дієтолога">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Категорія *</label>
+                <select id="d10-category" class="form-control">
+                  <option value="Personal training">Personal training</option>
+                  <option value="Group training">Group training</option>
+                  <option value="Extra">Extra (Додаткові)</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Вартість (грн) *</label>
+                <input type="number" id="d10-price" required min="0" step="0.01" class="form-control" value="500.00">
+              </div>
+            </div>
+            <div>
+              <label class="form-label">Опис послуги</label>
+              <textarea id="d10-desc" class="form-control" rows="2" placeholder="Опис умов надання послуги"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Додати до прайсу (D10)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- D11: Group Schedule Templates -->
+      <div id="subtab-d11" class="director-pane hidden">
+        <div class="card p-6 max-w-2xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-calendar-days text-indigo-600 mr-2"></i> Задача D11: Формування розкладу групових тренувань</h3>
+          <p class="text-xs text-slate-500 mb-4">Створення розкладу в GroupScheduleTemplates та автоматична генерація занять.</p>
+
+          <form id="form-d11-template" onsubmit="handleD11CreateTemplate(event)" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Тип заняття *</label>
+                <select id="d11-classtype" required class="form-control">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+              <div>
+                <label class="form-label">День тижня *</label>
+                <select id="d11-dayofweek" class="form-control">
+                  <option value="1">Понеділок</option>
+                  <option value="2">Вівторок</option>
+                  <option value="3">Середа</option>
+                  <option value="4">Четвер</option>
+                  <option value="5">П'ятниця</option>
+                  <option value="6">Субота</option>
+                  <option value="7">Неділя</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Час початку (StartTime) *</label>
+                <input type="time" id="d11-time" required class="form-control" value="10:00">
+              </div>
+              <div>
+                <label class="form-label">Тривалість (хв) *</label>
+                <input type="number" id="d11-duration" required min="15" class="form-control" value="60">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Зал клубу *</label>
+                <select id="d11-hall" required class="form-control">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Тренер *</label>
+                <select id="d11-coach" required class="form-control">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full py-2.5 font-bold">Створити регулярне групове заняття (D11)</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- D12: Personal Schedule Slot -->
+      <div id="subtab-d12" class="director-pane hidden">
+        <div class="card p-6 max-w-xl mx-auto">
+          <h3 class="text-lg font-bold text-slate-800 mb-1"><i class="fa-solid fa-clock text-blue-600 mr-2"></i> Задача D12: Формування шаблонів персональних тренувань</h3>
+          <p class="text-xs text-slate-500 mb-4">Налаштування слотів доступності тренера та закріплення чергових зон.</p>
+
+          <form id="form-d12-slot" onsubmit="handleD12Slot(event)" class="space-y-4">
+            <div>
+              <label class="form-label">Тренер *</label>
+              <select id="d12-coach" required class="form-control">
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Зал закріплення *</label>
+                <select id="d12-hall" required class="form-control">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Робочі години *</label>
+                <input type="text" id="d12-hours" required class="form-control" value="09:00 - 18:00">
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Зберегти шаблон графіка (D12)</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- MODALS -->
+  <!-- ========================================================================= -->
+
+  <!-- API Settings & Connectivity Modal -->
+  <div id="modal-api-settings" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-server text-blue-600 mr-2"></i> Налаштування з'єднання з REST API</h3>
+        <button onclick="closeApiModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+      </div>
+      <div class="modal-body space-y-4">
+        <div>
+          <label class="form-label">Базовий URL REST API:</label>
+          <input type="text" id="api-base-url-input" class="form-control text-xs" value="http://localhost:8080/api" placeholder="http://localhost:8080/api">
+          <p class="text-[11px] text-slate-500 mt-1">Вкажіть адресу запущеного сервера Spring Boot (за замовчуванням http://localhost:8080/api).</p>
+        </div>
+
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-slate-700">Статус зв'язку:</span>
+            <span id="api-ping-status" class="badge badge-warning">Не перевірено</span>
+          </div>
+          <p class="text-slate-500 text-[11px]">Натисніть кнопку нижче, щоб перевірити доступність бекенду.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="testApiConnection()" class="btn btn-secondary btn-sm"><i class="fa-solid fa-plug mr-1"></i> Перевірити ping</button>
+        <button onclick="saveApiSettings()" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk mr-1"></i> Зберегти</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- M2: Edit Client Profile Modal -->
+  <div id="modal-edit-client" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-user-pen text-blue-600 mr-2"></i> Редагування профілю клієнта (M2)</h3>
+        <button onclick="closeEditClientModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+      </div>
+      <div class="modal-body space-y-3">
+        <input type="hidden" id="edit-client-id">
+        <div>
+          <label class="form-label">ПІБ клієнта *</label>
+          <input type="text" id="edit-client-fullname" required class="form-control text-xs" placeholder="Прізвище Ім'я По батькові">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="form-label">Номер телефону *</label>
+            <input type="tel" id="edit-client-phone" required class="form-control text-xs" placeholder="+380671112233">
+          </div>
+          <div>
+            <label class="form-label">Дата народження *</label>
+            <input type="date" id="edit-client-birthdate" required class="form-control text-xs">
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Стать *</label>
+          <select id="edit-client-gender" class="form-control text-xs">
+            <option value="Male">Чоловіча</option>
+            <option value="Female">Жіноча</option>
+            <option value="Other">Інша</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Медичні обмеження (MedicalNotes):</label>
+          <textarea id="edit-client-mednotes" class="form-control text-xs" rows="3" placeholder="Застереження по здоров'ю або залиште порожнім"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="closeEditClientModal()" class="btn btn-secondary btn-sm">Скасувати</button>
+        <button onclick="saveEditClientModal()" class="btn btn-primary btn-sm">Зберегти зміни (M2)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HR2: Edit Coach Modal -->
+  <div id="modal-edit-coach" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-user-gear text-indigo-600 mr-2"></i> Редагування даних тренера (HR2)</h3>
+        <button onclick="closeEditCoachModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+      </div>
+      <div class="modal-body space-y-3">
+        <input type="hidden" id="edit-coach-id">
+        <div>
+          <label class="form-label">ПІБ тренера *</label>
+          <input type="text" id="edit-coach-fullname" required class="form-control text-xs" placeholder="Прізвище Ім'я По батькові">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="form-label">Телефон *</label>
+            <input type="tel" id="edit-coach-phone" required class="form-control text-xs" placeholder="+380501112233">
+          </div>
+          <div>
+            <label class="form-label">Дата народження *</label>
+            <input type="date" id="edit-coach-birthdate" required class="form-control text-xs">
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Спеціалізація *</label>
+          <select id="edit-coach-spec" required class="form-control text-xs">
+            <option value="1">Тренажерний зал & Силові</option>
+            <option value="2">Йога та медитація</option>
+            <option value="3">Пілатес</option>
+            <option value="4">Кроссфіт</option>
+            <option value="5">Бокс та єдиноборства</option>
+            <option value="6">Плавання</option>
+            <option value="7">Стретчинг</option>
+            <option value="8">Дитячий фітнес</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Біографія / Досягнення:</label>
+          <textarea id="edit-coach-bio" class="form-control text-xs" rows="3" placeholder="Кваліфікація, досвід роботи, регалії"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="closeEditCoachModal()" class="btn btn-secondary btn-sm">Скасувати</button>
+        <button onclick="saveEditCoachModal()" class="btn btn-primary btn-sm">Зберегти тренера (HR2)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HR5: Edit Staff/Manager Modal -->
+  <div id="modal-edit-staff" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-id-badge text-emerald-600 mr-2"></i> Редагування даних співробітника (HR5)</h3>
+        <button onclick="closeEditStaffModal()" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+      </div>
+      <div class="modal-body space-y-3">
+        <input type="hidden" id="edit-staff-id">
+        <div>
+          <label class="form-label">ПІБ співробітника *</label>
+          <input type="text" id="edit-staff-fullname" required class="form-control text-xs" placeholder="Прізвище Ім'я По батькові">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="form-label">Телефон *</label>
+            <input type="tel" id="edit-staff-phone" required class="form-control text-xs" placeholder="+380501112233">
+          </div>
+          <div>
+            <label class="form-label">Дата народження *</label>
+            <input type="date" id="edit-staff-birthdate" required class="form-control text-xs">
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Посада *</label>
+          <select id="edit-staff-position" required class="form-control text-xs">
+            <option value="4">Адміністратор рецепції</option>
+            <option value="1">HR Менеджер</option>
+            <option value="2">Старший тренер</option>
+            <option value="5">Директор клубу</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="closeEditStaffModal()" class="btn btn-secondary btn-sm">Скасувати</button>
+        <button onclick="saveEditStaffModal()" class="btn btn-primary btn-sm">Зберегти дані (HR5)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
+      <p>FitnessClub IS &copy; 2026. Курсовий проєкт з дисципліни «Проектування інформаційних систем».</p>
+      <p class="mt-1 text-[11px] text-slate-400">Рольовий доступ: Гість (G1-G4) | Клієнт (Cl1-Cl6) | Менеджер (M1-M8) | HR (HR1-HR6) | Тренер (C1-C5) | Керівник (D1-D12)</p>
+    </div>
+  </footer>
+
+  <!-- Application Logic (Modular ES6 SPA) -->
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

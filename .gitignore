@@ -1,0 +1,56 @@
+# Maven build targets
+/target/
+/backend/target/
+target/
+*.class
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+
+# Access database & VBA files
+*.accdb
+*.laccdb
+*.vba
+
+# Office documents & PDFs
+*.docx
+*.doc
+*.pdf
+*.xlsx
+*.xls
+*.pptx
+
+# Diagrams & temporary scripts/reports
+*.mermaid
+*.log
+Lab_*
+task_*
+test_*.js
+regression_test_results.json
+*summary*.txt
+*Summary*.md
+*Structure*.md
+*Requirements*.md
+*Analysis*.md
+*Model*.md
+*Mapping*.md
+
+# Auxiliary folders
+/scratch/
+/docs/
+/agent_knowledge_base/
+
+# Fragmentary SQL scripts (consolidated into fitness_schema_and_roles.sql)
+analytical_queries.sql
+data_init.sql
+indexes_init.sql
+policies_*.sql
+rls_init.sql
+roles_init.sql
+tables_init.sql

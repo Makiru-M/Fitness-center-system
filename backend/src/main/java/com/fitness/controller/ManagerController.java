@@ -1,0 +1,120 @@
+package com.fitness.controller;
+
+import com.fitness.model.ManagerDto.*;
+import com.fitness.repository.ManagerRepository;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/manager")
+public class ManagerController {
+
+    private final ManagerRepository managerRepository;
+
+    public ManagerController(ManagerRepository managerRepository) {
+        this.managerRepository = managerRepository;
+    }
+
+    /**
+     * M1: Register client as a new club member
+     */
+    @PostMapping("/clients")
+    public ResponseEntity<Map<String, Object>> createClient(@RequestBody CreateClientRequest req) {
+        Integer clientId = managerRepository.createClient(req);
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "clientId", clientId,
+                "message", "Клієнта успішно зареєстровано."
+        ));
+    }
+
+    /**
+     * M2: Edit client details
+     */
+    @PutMapping("/clients")
+    public ResponseEntity<Map<String, String>> updateClient(@RequestBody UpdateClientRequest req) {
+        managerRepository.updateClient(req);
+        return ResponseEntity.ok(Map.of("message", "Дані клієнта успішно оновлено."));
+    }
+
+    /**
+     * Search / list clients
+     */
+    @GetMapping("/clients")
+    public ResponseEntity<List<ClientSummaryDto>> getClients(@RequestParam(value = "search", required = false) String search) {
+        List<ClientSummaryDto> clients = managerRepository.searchClients(search);
+        return ResponseEntity.ok(clients);
+    }
+
+    /**
+     * M3: Sell or extend subscription
+     */
+    @PostMapping("/sales/subscription")
+    public ResponseEntity<Map<String, Object>> sellSubscription(@RequestBody SellSubscriptionRequest req) {
+        Integer saleId = managerRepository.sellSubscription(req);
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "saleId", saleId,
+                "message", "Абонемент успішно оформлено та активовано."
+        ));
+    }
+
+    /**
+     * M4: Check-in client visit
+     */
+    @PostMapping("/visits/check-in")
+    public ResponseEntity<CheckInResult> checkIn(@RequestBody CheckInRequest req) {
+        CheckInResult result = managerRepository.checkInVisit(req);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * M5: Book client into group class
+     */
+    @PostMapping("/bookings/group")
+    public ResponseEntity<Map<String, String>> bookGroupClass(
+            @RequestParam("clientId") Integer clientId,
+            @RequestParam("instanceId") Integer instanceId
+    ) {
+        managerRepository.bookGroupClass(clientId, instanceId);
+        return ResponseEntity.ok(Map.of("message", "Клієнта успішно записано на групове заняття."));
+    }
+
+    /**
+     * M6: Book client into personal training
+     */
+    @PostMapping("/bookings/personal")
+    public ResponseEntity<Map<String, Object>> bookPersonalTraining(
+            @RequestParam("clientId") Integer clientId,
+            @RequestParam("coachId") Integer coachId,
+            @RequestParam("hallId") Integer hallId,
+            @RequestParam("dateTime") LocalDateTime dateTime
+    ) {
+        Integer ptId = managerRepository.bookPersonalTraining(clientId, coachId, hallId, dateTime);
+        return ResponseEntity.ok(Map.of(
+                "personalId", ptId,
+                "message", "Персональне тренування успішно призначено."
+        ));
+    }
+
+    /**
+     * M7: Freeze subscription
+     */
+    @PostMapping("/subscriptions/freeze")
+    public ResponseEntity<Map<String, String>> freezeSubscription(@RequestBody FreezeRequest req) {
+        managerRepository.freezeSubscription(req);
+        return ResponseEntity.ok(Map.of("message", "Абонемент успішно заморожено."));
+    }
+
+    /**
+     * M8: Cancel or reschedule booking
+     */
+    @PostMapping("/bookings/change")
+    public ResponseEntity<Map<String, String>> changeBooking(@RequestBody BookingChangeRequest req) {
+        managerRepository.changeBooking(req);
+        return ResponseEntity.ok(Map.of("message", "Статус бронювання успішно змінено."));
+    }
+}
