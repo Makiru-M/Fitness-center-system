@@ -80,6 +80,21 @@ export async function initApp() {
   try {
     await checkHealth();
     setServerOnline(true);
+
+    // If an authenticated user was persisted, ensure fresh session token from backend
+    if (AppState.currentUser && AppState.currentUser.dbUser && AppState.currentUser.pass) {
+      try {
+        const loginRes = await authApi.login(AppState.currentUser.dbUser, AppState.currentUser.pass);
+        if (loginRes && loginRes.token) {
+          setAuthToken(loginRes.token);
+        }
+      } catch (authErr) {
+        console.warn('Initial session refresh note:', authErr);
+      }
+    }
+
+    // Guarantee hero pass price is fetched strictly from API immediately
+    renderGuestPriceList().catch(e => console.warn('Hero price load error:', e));
     switchRoleView(AppState.activeRole);
   } catch (err) {
     console.warn('Initial server check failed: backend is offline', err);
@@ -97,17 +112,17 @@ export function setServerOnline(isOnline) {
 
   if (isOnline) {
     if (badge) {
-      badge.className = 'hidden sm:inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-300 cursor-pointer shadow-sm hover:shadow transition';
+      badge.className = 'hidden sm:inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 cursor-pointer shadow-sm hover:border-emerald-400 transition font-mono';
     }
     if (label) label.textContent = 'API: Онлайн';
-    if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse';
+    if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-400 mr-2 animate-pulse';
 
     if (unavailableView) {
       unavailableView.classList.add('hidden');
     }
   } else {
     if (badge) {
-      badge.className = 'hidden sm:inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-300 cursor-pointer shadow-sm hover:shadow transition';
+      badge.className = 'hidden sm:inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30 cursor-pointer shadow-sm hover:border-rose-400 transition font-mono';
     }
     if (label) label.textContent = 'API: Офлайн';
     if (dot) dot.className = 'w-2 h-2 rounded-full bg-rose-500 mr-2 animate-ping';
@@ -138,6 +153,7 @@ export async function retryServerConnection() {
   try {
     await checkHealth();
     setServerOnline(true);
+    renderGuestPriceList().catch(e => console.warn('Hero price load error:', e));
     showToast('З\'єднання з сервером успішно відновлено!', 'success');
     updateHeaderUI();
     switchRoleView(AppState.previousRole || AppState.activeRole || 'guest');
@@ -189,25 +205,26 @@ export function switchRoleView(role) {
     return;
   }
 
-  setActiveRole(role);
+  const cleanRole = (role || 'guest').replace(/_role$/, '').toLowerCase();
+  setActiveRole(cleanRole);
   document.querySelectorAll('.role-view').forEach(view => view.classList.add('hidden'));
   const loginView = document.getElementById('view-login');
   if (loginView) loginView.classList.add('hidden');
   const unavailableView = document.getElementById('view-server-unavailable');
   if (unavailableView) unavailableView.classList.add('hidden');
 
-  const targetView = document.getElementById(`view-${role}`);
+  const targetView = document.getElementById(`view-${cleanRole}`);
   if (targetView) {
     targetView.classList.remove('hidden');
-    refreshRoleData(role);
+    refreshRoleData(cleanRole);
 
     // Default tabs per role
-    if (role === 'guest') switchGuestTab('g3');
-    else if (role === 'client') switchClientTab('cl-dash');
-    else if (role === 'manager') switchManagerTab('m4');
-    else if (role === 'hr') switchHrTab('hr_coaches');
-    else if (role === 'coach') switchCoachTab('c1');
-    else if (role === 'director') switchDirectorTab('d1');
+    if (cleanRole === 'guest') switchGuestTab('g3');
+    else if (cleanRole === 'client') switchClientTab('cl-dash');
+    else if (cleanRole === 'manager') switchManagerTab('m4');
+    else if (cleanRole === 'hr') switchHrTab('hr_coaches');
+    else if (cleanRole === 'coach') switchCoachTab('c1');
+    else if (cleanRole === 'director') switchDirectorTab('d1');
   }
 }
 
@@ -270,10 +287,11 @@ export async function handleAuthAction() {
 }
 
 export async function quickSwitchRole(role) {
-  let matchedUserKey = Object.keys(TEST_ACCOUNTS).find(k => TEST_ACCOUNTS[k].role === role);
-  if (!matchedUserKey && role === 'guest') matchedUserKey = 'guest_user';
+  const targetRole = (role || 'guest').replace(/_role$/, '').toLowerCase();
+  let matchedUserKey = Object.keys(TEST_ACCOUNTS).find(k => TEST_ACCOUNTS[k].role === targetRole);
+  if (!matchedUserKey && targetRole === 'guest') matchedUserKey = 'guest_user';
 
-  if (role === 'guest') {
+  if (targetRole === 'guest') {
     setCurrentUser(null);
     setAuthToken(null);
     setActiveRole('guest');
@@ -286,33 +304,34 @@ export async function quickSwitchRole(role) {
       const userObj = {
         dbUser: res.username,
         name: res.fullName,
-        role: (res.role || role).toLowerCase(),
+        role: targetRole,
         pos: res.role ? res.role.toUpperCase() : account.pos,
         entityId: res.entityId,
         pass: account.pass
       };
       setCurrentUser(userObj);
-      setActiveRole(userObj.role);
+      setActiveRole(targetRole);
       showToast(`Авторизовано через API: ${account.name} (${account.pos})`, 'success');
     } catch (err) {
       // Fallback: set basic auth credentials for session
-      const userObj = { dbUser: matchedUserKey, ...account };
+      const userObj = { dbUser: matchedUserKey, ...account, role: targetRole };
       setCurrentUser(userObj);
-      setActiveRole(role);
-      showToast(`Профіль активтовано: ${account.name}`, 'info');
+      setActiveRole(targetRole);
+      showToast(`Профіль активовано: ${account.name}`, 'info');
     }
   } else {
-    setActiveRole(role);
+    setActiveRole(targetRole);
   }
 
   updateHeaderUI();
   renderRoleNav();
-  switchRoleView(role);
+  switchRoleView(targetRole);
 }
 
 export async function fillAndLogin(dbUser, role) {
   const account = TEST_ACCOUNTS[dbUser];
   if (!account) return;
+  const targetRole = (role || account.role || 'guest').replace(/_role$/, '').toLowerCase();
 
   try {
     const res = await authApi.login(dbUser, account.pass);
@@ -320,24 +339,24 @@ export async function fillAndLogin(dbUser, role) {
     const userObj = {
       dbUser: res.username,
       name: res.fullName,
-      role: (res.role || role).toLowerCase(),
+      role: targetRole,
       pos: res.role ? res.role.toUpperCase() : account.pos,
       entityId: res.entityId,
       pass: account.pass
     };
     setCurrentUser(userObj);
-    setActiveRole(userObj.role);
+    setActiveRole(targetRole);
     showToast(`Успішний вхід через REST API: ${res.fullName} (${res.role})`, 'success');
   } catch (err) {
-    const userObj = { dbUser, ...account };
+    const userObj = { dbUser, ...account, role: targetRole };
     setCurrentUser(userObj);
-    setActiveRole(role);
+    setActiveRole(targetRole);
     showToast(`Вхід виконано: ${account.name} (${account.pos})`, 'info');
   }
 
   updateHeaderUI();
   renderRoleNav();
-  switchRoleView(role);
+  switchRoleView(targetRole);
 }
 
 export async function handleLoginForm(e) {
@@ -349,20 +368,21 @@ export async function handleLoginForm(e) {
   try {
     const res = await authApi.login(dbUser, pass);
     setAuthToken(res.token);
+    const targetRole = (res.role || role || 'guest').replace(/_role$/, '').toLowerCase();
     const userObj = {
       dbUser: res.username,
       name: res.fullName,
-      role: (res.role || role).toLowerCase(),
+      role: targetRole,
       pos: res.role ? res.role.toUpperCase() : 'КОРИСТУВАЧ',
       entityId: res.entityId,
       pass: pass
     };
     setCurrentUser(userObj);
-    setActiveRole(userObj.role);
+    setActiveRole(targetRole);
     showToast(`Успішний вхід через REST API: ${res.fullName} (${res.role})`, 'success');
     updateHeaderUI();
     renderRoleNav();
-    switchRoleView(AppState.activeRole);
+    switchRoleView(targetRole);
   } catch (err) {
     console.warn('API Login failed:', err);
     showToast(`Помилка авторизації: ${err.message}`, 'danger');

@@ -107,9 +107,9 @@ export async function renderHrCoachesTable() {
       const row = document.createElement('tr');
       const isFired = !c.isActive || !!c.fireDate;
       row.innerHTML = `
-        <td class="font-mono text-xs">#${c.coachId || c.staffId}</td>
-        <td class="font-bold text-slate-800">${c.fullName}</td>
-        <td>${c.phone}</td>
+        <td class="font-mono text-xs text-slate-400">#${c.coachId || c.staffId}</td>
+        <td class="font-bold text-white font-heading">${c.fullName}</td>
+        <td class="font-mono text-xs text-slate-300">${c.phone}</td>
         <td><span class="badge badge-scheduled">${c.specName || 'Тренер'}</span></td>
         <td><span class="badge ${isFired ? 'badge-cancelled' : 'badge-active'}">${isFired ? 'Звільнений' : 'Працює'}</span></td>
         <td>${c.hireDate || '—'} ${isFired ? `(до ${c.fireDate})` : ''}</td>
@@ -151,9 +151,9 @@ export async function renderHrStaffTable() {
       const row = document.createElement('tr');
       const isFired = !st.isActive || !!st.fireDate;
       row.innerHTML = `
-        <td class="font-mono text-xs">#${st.staffId}</td>
-        <td class="font-bold text-slate-800">${st.fullName}</td>
-        <td>${st.phone}</td>
+        <td class="font-mono text-xs text-slate-400">#${st.staffId}</td>
+        <td class="font-bold text-white font-heading">${st.fullName}</td>
+        <td class="font-mono text-xs text-slate-300">${st.phone}</td>
         <td><span class="badge badge-neutral">${st.positionName || 'Менеджер'}</span></td>
         <td><span class="badge ${isFired ? 'badge-cancelled' : 'badge-active'}">${isFired ? 'Звільнений' : 'Працює'}</span></td>
         <td>${st.hireDate || '—'} ${isFired ? `(до ${st.fireDate})` : ''}</td>

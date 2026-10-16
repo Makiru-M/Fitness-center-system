@@ -59,14 +59,21 @@ export async function renderClientDashboard() {
     const detailsSub = document.getElementById('client-details-sub');
     if (detailsSub) detailsSub.textContent = `Телефон: ${profile.phone} | ID: #${profile.clientId} | Логін: ${profile.dbUser}`;
 
+function isTrivialMedNotes(str) {
+  if (!str) return true;
+  const s = str.trim().toLowerCase();
+  return s === '' || s === 'none' || s === '-' || s === 'немає' || s === 'немає обмежень' || s === 'відсутні' || s === 'обмежень немає';
+}
+
     const medAlertEl = document.getElementById('client-medical-alert');
     if (medAlertEl) {
-      if (profile.medicalNotes) {
-        medAlertEl.innerHTML = `<i class="fa-solid fa-notes-medical text-rose-500"></i> <span class="font-medium">Медичні застереження: ${profile.medicalNotes}</span>`;
-        medAlertEl.className = 'mt-2 text-xs text-rose-700 bg-rose-50 px-2.5 py-1 rounded inline-flex items-center gap-1.5 border border-rose-200';
+      const hasMed = profile.medicalNotes && profile.medicalNotes.trim() && !isTrivialMedNotes(profile.medicalNotes);
+      if (hasMed) {
+        medAlertEl.innerHTML = `<i class="fa-solid fa-notes-medical text-rose-400"></i> <span class="font-medium">Медичні застереження: ${profile.medicalNotes}</span>`;
+        medAlertEl.className = 'mt-2 text-xs text-rose-300 bg-rose-500/10 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5 border border-rose-500/30 font-mono';
       } else {
-        medAlertEl.innerHTML = `<i class="fa-solid fa-notes-medical text-emerald-500"></i> <span>Медичні обмеження: Відсутні</span>`;
-        medAlertEl.className = 'mt-2 text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded inline-flex items-center gap-1.5 border border-slate-200';
+        medAlertEl.innerHTML = `<i class="fa-solid fa-circle-check text-slate-400"></i> <span>Медичні обмеження: Відсутні</span>`;
+        medAlertEl.className = 'mt-2 text-xs text-slate-400 bg-slate-500/10 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5 border border-slate-500/20 font-mono';
       }
     }
 
@@ -105,16 +112,18 @@ export async function renderClientDashboard() {
     if (listEl) {
       listEl.innerHTML = '';
       if (!bookings || !bookings.length) {
-        listEl.innerHTML = '<p class="text-xs text-slate-400 p-2 italic">Немає запланованих занять. Запишіться у розділі Cl4/Cl5!</p>';
+        listEl.innerHTML = '<p class="text-xs text-slate-500 p-3 italic font-mono">Немає запланованих занять. Запишіться у розділі Cl4/Cl5!</p>';
       } else {
         bookings.forEach(b => {
           const item = document.createElement('div');
-          item.className = 'p-3 rounded-lg border border-slate-100 bg-slate-50 flex justify-between items-center text-xs';
+          item.className = 'p-3 rounded-lg border border-subtle bg-surface-elevated flex justify-between items-center text-xs';
+          item.style.backgroundColor = '#131a2e';
+          item.style.borderColor = '#1a2236';
           item.innerHTML = `
             <div>
-              <span class="font-bold text-slate-800">[${b.activityType}] ${b.title}</span>
-              <div class="text-slate-500 mt-0.5">Тренер: <b>${b.coachName || '—'}</b> | Зал: <b>${b.hallName || '—'}</b></div>
-              <div class="text-[11px] text-blue-600 font-semibold mt-1"><i class="fa-regular fa-clock mr-1"></i> ${b.trainingDateTime || '—'}</div>
+              <span class="font-bold text-white font-heading">[${b.activityType}] ${b.title}</span>
+              <div class="text-slate-400 mt-0.5">Тренер: <b class="text-slate-200">${b.coachName || '—'}</b> | Зал: <b class="text-slate-200">${b.hallName || '—'}</b></div>
+              <div class="text-[11px] text-cyan-400 font-semibold font-mono mt-1"><i class="fa-regular fa-clock mr-1"></i> ${b.trainingDateTime || '—'}</div>
             </div>
             <span class="badge badge-${(b.status || 'Active').toLowerCase()}">${b.status}</span>
           `;

@@ -64,11 +64,25 @@ export async function apiFetch(endpoint, options = {}) {
     ...(options.headers || {})
   };
 
-  if (AppState.authToken) {
-    headers['X-Auth-Token'] = AppState.authToken;
-    headers['Authorization'] = `Bearer ${AppState.authToken}`;
-  } else if (AppState.currentUser && AppState.currentUser.pass) {
-    headers['Authorization'] = 'Basic ' + btoa(`${AppState.currentUser.dbUser}:${AppState.currentUser.pass}`);
+  const activeToken = AppState.authToken || localStorage.getItem('fc_auth_token') || sessionStorage.getItem('fc_auth_token');
+  let activeUser = AppState.currentUser;
+  if (!activeUser) {
+    try {
+      const saved = sessionStorage.getItem('fc_current_user');
+      if (saved) activeUser = JSON.parse(saved);
+    } catch (e) {}
+  }
+
+  if (activeToken) {
+    headers['X-Auth-Token'] = activeToken;
+  }
+
+  if (activeUser && activeUser.pass) {
+    headers['Authorization'] = 'Basic ' + btoa(`${activeUser.dbUser}:${activeUser.pass}`);
+    headers['X-Auth-User'] = activeUser.dbUser;
+    headers['X-Auth-Password'] = activeUser.pass;
+  } else if (activeToken) {
+    headers['Authorization'] = `Bearer ${activeToken}`;
   }
 
   console.log(`%c[API Request] 🚀 ${method} ${fullUrl}`, 'color: #2563eb; font-weight: bold;', {
@@ -80,22 +94,48 @@ export async function apiFetch(endpoint, options = {}) {
     const res = await fetch(fullUrl, { ...options, headers });
     const contentType = res.headers.get('content-type') || '';
     const isJson = contentType.includes('application/json');
-    const data = isJson ? await res.json() : await res.text();
+    const data = isJson ? await res.json().catch(() => ({})) : await res.text();
 
     if (res.ok) {
       console.log(`%c[API Response] ✅ ${res.status} ${fullUrl}`, 'color: #16a34a; font-weight: bold;', data);
       if (!AppState.isServerOnline && typeof window.setServerOnline === 'function') {
         window.setServerOnline(true);
       }
-    } else {
-      console.warn(`%c[API Response] ⚠️ ${res.status} ${fullUrl}`, 'color: #dc2626; font-weight: bold;', data);
-      const errorMsg = (typeof data === 'object' && (data.error || data.message))
-        ? (data.error || data.message)
-        : `Помилка сервера HTTP ${res.status}`;
-      throw new Error(errorMsg);
+      return data;
     }
 
-    return data;
+    // Auto-recovery: if token expired or server restarted, silently re-login and retry
+    if ((res.status === 401 || res.status === 403) && activeUser && activeUser.pass && !options._isRetry) {
+      console.warn(`[API Auth] 🔄 Token expired or server restarted (${res.status}). Attempting silent re-auth for [${activeUser.dbUser}]...`);
+      try {
+        const authRes = await fetch(`${AppState.apiBaseUrl}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: activeUser.dbUser,
+            password: activeUser.pass
+          })
+        });
+
+        if (authRes.ok) {
+          const authData = await authRes.json();
+          if (authData.token) {
+            AppState.authToken = authData.token;
+            localStorage.setItem('fc_auth_token', authData.token);
+            console.log(`[API Auth] ✅ Silent re-auth successful, new token acquired. Retrying request...`);
+            return apiFetch(endpoint, { ...options, _isRetry: true });
+          }
+        }
+      } catch (reAuthErr) {
+        console.warn('[API Auth] Silent re-auth failed:', reAuthErr);
+      }
+    }
+
+    console.warn(`%c[API Response] ⚠️ ${res.status} ${fullUrl}`, 'color: #dc2626; font-weight: bold;', data);
+    const errorMsg = (typeof data === 'object' && (data.error || data.message))
+      ? (data.error || data.message)
+      : `Помилка сервера HTTP ${res.status}`;
+    throw new Error(errorMsg);
   } catch (err) {
     console.error(`%c[API Error] ❌ ${method} ${fullUrl}:`, 'color: #dc2626; font-weight: bold;', err.message);
 

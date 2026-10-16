@@ -63,7 +63,33 @@ public class AuthInterceptor implements HandlerInterceptor {
             }
         }
 
-        // 3. Fallback to guest_user credentials for public/guest operations
+        // 2b. Check X-Auth-User and X-Auth-Password headers
+        String xUser = request.getHeader("X-Auth-User");
+        String xPass = request.getHeader("X-Auth-Password");
+        if (xUser != null && !xUser.isBlank() && xPass != null && !xPass.isBlank()) {
+            SecurityContextHolder.setCredentials(new UserCredentials(xUser.trim(), xPass.trim()));
+            log.debug("Authenticated via X-Auth headers as user: [{}]", xUser);
+            return true;
+        }
+
+        // 3. Reject unauthenticated access to protected role endpoints with 401
+        String uri = request.getRequestURI();
+        boolean isProtected = uri.startsWith("/api/director") || uri.startsWith("/api/manager")
+                || uri.startsWith("/api/hr") || uri.startsWith("/api/coach") || uri.startsWith("/api/client");
+
+        if (isProtected) {
+            log.warn("Unauthenticated request to protected endpoint: [{}]", uri);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json;charset=UTF-8");
+            try {
+                response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Потрібна авторизація для доступу до цього ресурсу.\"}");
+            } catch (Exception e) {
+                log.error("Failed to write 401 response: {}", e.getMessage());
+            }
+            return false;
+        }
+
+        // 4. Fallback to guest_user credentials for public/guest operations
         SecurityContextHolder.setCredentials(new UserCredentials(
                 dataSourceService.getGuestUsername(),
                 dataSourceService.getGuestPassword()

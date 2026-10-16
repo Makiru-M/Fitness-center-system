@@ -48,9 +48,9 @@ export async function renderCoachSchedule() {
       const isPersonal = it.activityType === 'Personal';
       const isScheduled = (it.status || '').toLowerCase() === 'scheduled';
       row.innerHTML = `
-        <td class="font-mono text-xs">${it.scheduleDate} ${it.startTime || ''}</td>
+        <td class="font-mono text-xs text-cyan-400">${it.scheduleDate} ${it.startTime || ''}</td>
         <td><span class="badge ${isPersonal ? 'badge-scheduled' : 'badge-active'}">${isPersonal ? 'Персональне' : 'Групове'}</span></td>
-        <td><span class="font-bold text-slate-800">${it.title}</span></td>
+        <td><span class="font-bold text-white font-heading">${it.title}</span></td>
         <td>${it.hallName || '—'}</td>
         <td><span class="badge badge-${(it.status || 'Active').toLowerCase()}">${it.status}</span></td>
         <td>
@@ -143,12 +143,30 @@ export async function renderC2ClientList(val) {
       return;
     }
 
+function isTrivialMedNotes(str) {
+  if (!str) return true;
+  const s = str.trim().toLowerCase();
+  return s === '' || s === 'none' || s === '-' || s === 'немає' || s === 'немає обмежень' || s === 'відсутні' || s === 'обмежень немає';
+}
+
     participants.forEach(p => {
       const row = document.createElement('tr');
+      const hasMed = p.medicalNotes && p.medicalNotes.trim() && !isTrivialMedNotes(p.medicalNotes);
       row.innerHTML = `
-        <td class="font-bold text-slate-800">${p.clientName || 'Клієнт'}</td>
-        <td>${p.phone || '—'}</td>
-        <td>${p.medicalNotes ? `<span class="text-xs text-rose-700 bg-rose-50 px-2 py-1 rounded block"><i class="fa-solid fa-notes-medical mr-1"></i> ${p.medicalNotes}</span>` : '<span class="text-xs text-emerald-600">Немає обмежень</span>'}</td>
+        <td class="font-bold text-white font-heading">${p.clientName || 'Клієнт'}</td>
+        <td class="font-mono text-xs text-slate-300">${p.phone || '—'}</td>
+        <td>
+          ${hasMed ? `
+            <span class="badge-medical-alert max-w-[170px] truncate" title="${p.medicalNotes}">
+              <i class="fa-solid fa-notes-medical text-rose-400 mr-1 flex-shrink-0"></i>
+              <span class="truncate">${p.medicalNotes}</span>
+            </span>
+          ` : `
+            <span class="badge-medical-none">
+              <i class="fa-solid fa-circle-check text-slate-400 mr-1"></i> Відсутні
+            </span>
+          `}
+        </td>
         <td><span class="badge badge-${(p.bookingStatus || 'active').toLowerCase()}">${p.bookingStatus || 'Active'}</span></td>
       `;
       tbody.appendChild(row);

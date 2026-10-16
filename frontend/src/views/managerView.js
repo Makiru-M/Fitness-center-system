@@ -172,15 +172,15 @@ export function previewM4ClientStatus() {
 
   container.innerHTML = `
     <div class="flex items-center justify-between">
-      <span class="font-bold text-slate-800">${client.fullName}</span>
+      <span class="font-bold text-white font-heading">${client.fullName}</span>
       <span class="badge ${isSubActive ? 'badge-active' : 'badge-expired'}">${client.activeSubStatus || 'Немає абонемента'}</span>
     </div>
-    <div class="text-[11px] text-slate-500 mt-1">
-      Абонемент: <b>${client.activeSubName || 'Відсутній'}</b> ${client.activeSubEndDate ? `(дійсний до ${client.activeSubEndDate})` : ''}
+    <div class="text-[11px] text-slate-400 mt-1 font-mono">
+      Абонемент: <b class="text-slate-200">${client.activeSubName || 'Відсутній'}</b> ${client.activeSubEndDate ? `(дійсний до ${client.activeSubEndDate})` : ''}
     </div>
-    ${client.medicalNotes ? `
-      <div class="text-[11px] text-rose-700 bg-rose-50 p-1.5 rounded mt-1 border border-rose-200">
-        <i class="fa-solid fa-notes-medical mr-1"></i> <b>Застереження:</b> ${client.medicalNotes}
+    ${client.medicalNotes && !isTrivialMedNotes(client.medicalNotes) ? `
+      <div class="badge-medical-alert p-2 rounded-lg mt-1.5 w-full">
+        <i class="fa-solid fa-notes-medical mr-1 text-rose-400"></i> <b>Застереження:</b> ${client.medicalNotes}
       </div>
     ` : ''}
   `;
@@ -227,10 +227,10 @@ export function renderM4VisitsTable() {
   recentVisits.forEach(v => {
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td class="font-mono text-xs">#${v.id}</td>
-      <td class="font-bold text-slate-800">${v.clientName}</td>
+      <td class="font-mono text-xs text-slate-400">#${v.id}</td>
+      <td class="font-bold text-white font-heading">${v.clientName}</td>
       <td>${v.hallName}</td>
-      <td class="font-mono text-xs">${v.time}</td>
+      <td class="font-mono text-xs text-cyan-400">${v.time}</td>
       <td><span class="badge badge-active">${v.status || 'Active'}</span></td>
     `;
     tbody.appendChild(row);
@@ -266,6 +266,12 @@ export async function handleM1NewClient(e) {
   }
 }
 
+function isTrivialMedNotes(str) {
+  if (!str) return true;
+  const s = str.trim().toLowerCase();
+  return s === '' || s === 'none' || s === '-' || s === 'немає' || s === 'немає обмежень' || s === 'відсутні' || s === 'обмежень немає';
+}
+
 export async function renderM2ClientsTable(searchTerm = '') {
   const tbody = document.getElementById('m2-clients-tbody');
   if (!tbody) return;
@@ -282,30 +288,38 @@ export async function renderM2ClientsTable(searchTerm = '') {
 
     cachedClients.forEach(c => {
       const isSubActive = (c.activeSubStatus || '').toLowerCase() === 'active';
+      const hasMedNotes = c.medicalNotes && c.medicalNotes.trim() && !isTrivialMedNotes(c.medicalNotes);
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td class="font-mono text-xs">#${c.clientId}</td>
-        <td class="font-bold text-slate-800">${c.fullName}</td>
-        <td>${c.phone}</td>
+        <td class="font-mono text-xs text-slate-400">#${c.clientId}</td>
+        <td>
+          <span class="font-bold text-white font-heading text-sm block leading-snug">${c.fullName}</span>
+        </td>
+        <td class="font-mono text-xs text-slate-300">${c.phone}</td>
         <td>
           ${c.activeSubName ? `
-            <span class="font-medium text-xs text-slate-700">${c.activeSubName}</span>
-            <span class="block text-[10px] text-slate-400">до ${c.activeSubEndDate || '—'}</span>
-          ` : '<span class="text-xs text-slate-400">Немає</span>'}
+            <span class="font-semibold text-xs text-cyan-300 block">${c.activeSubName}</span>
+            <span class="block text-[10px] text-slate-400 font-mono">до ${c.activeSubEndDate || '—'}</span>
+          ` : '<span class="text-xs text-slate-500 font-mono">Немає</span>'}
         </td>
         <td>
           <span class="badge ${isSubActive ? 'badge-active' : 'badge-expired'}">${c.activeSubStatus || 'Немає'}</span>
         </td>
         <td>
-          ${c.medicalNotes ? `
-            <span class="text-xs text-rose-700 bg-rose-50 px-2 py-1 rounded inline-block max-w-[150px] truncate" title="${c.medicalNotes}">
-              <i class="fa-solid fa-notes-medical mr-1"></i> ${c.medicalNotes}
+          ${hasMedNotes ? `
+            <span class="badge-medical-alert max-w-[170px] truncate" title="${c.medicalNotes}">
+              <i class="fa-solid fa-notes-medical text-rose-400 mr-1 flex-shrink-0"></i>
+              <span class="truncate">${c.medicalNotes}</span>
             </span>
-          ` : '<span class="text-xs text-emerald-600">Обмежень немає</span>'}
+          ` : `
+            <span class="badge-medical-none">
+              <i class="fa-solid fa-circle-check text-slate-400 mr-1"></i> Відсутні
+            </span>
+          `}
         </td>
         <td>
-          <button onclick="openEditClientModal(${c.clientId})" class="btn btn-primary btn-sm" title="Редагувати профіль клієнта">
-            <i class="fa-solid fa-user-pen mr-1"></i> Редагувати
+          <button onclick="openEditClientModal(${c.clientId})" class="btn btn-secondary btn-sm" title="Редагувати профіль клієнта">
+            <i class="fa-solid fa-user-pen mr-1 text-cyan-400"></i> Редагувати
           </button>
         </td>
       `;

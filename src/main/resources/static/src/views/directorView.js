@@ -51,12 +51,12 @@ export async function renderD1Revenue() {
 
       rowsHtml += `
         <tr>
-          <td class="font-bold text-slate-800">${d.category}</td>
+          <td class="font-bold text-white font-heading">${d.category}</td>
           <td>${count}</td>
-          <td>${full.toFixed(2)} грн</td>
-          <td class="font-bold text-emerald-700">${actual.toFixed(2)} грн</td>
-          <td class="text-purple-600">${disc.toFixed(2)} грн</td>
-          <td>${d.promoCodeUsage || 0}</td>
+          <td class="font-mono">${full.toFixed(2)} грн</td>
+          <td class="font-bold text-emerald-400 font-mono">${actual.toFixed(2)} грн</td>
+          <td class="text-cyan-400 font-mono">${disc.toFixed(2)} грн</td>
+          <td class="font-mono">${d.promoCodeUsage || 0}</td>
         </tr>
       `;
     });
@@ -102,16 +102,16 @@ export async function renderD2Attendance() {
 
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td class="font-bold text-slate-800">${d.hallName || '—'}</td>
-        <td><b>${visits}</b></td>
-        <td>${uniqueClients}</td>
-        <td>${peakHour}</td>
+        <td class="font-bold text-white font-heading">${d.hallName || '—'}</td>
+        <td class="font-mono"><b>${visits}</b></td>
+        <td class="font-mono">${uniqueClients}</td>
+        <td class="font-mono text-xs text-slate-300">${peakHour}</td>
         <td>
           <div class="flex items-center space-x-2">
-            <div class="w-24 bg-slate-100 rounded-full h-2 overflow-hidden">
-              <div class="bg-blue-600 h-2 rounded-full" style="width: ${occupancyNum}%"></div>
+            <div class="w-24 bg-void border border-subtle rounded-full h-2 overflow-hidden">
+              <div class="bg-blue-500 h-2 rounded-full" style="width: ${occupancyNum}%"></div>
             </div>
-            <span class="text-xs font-semibold text-slate-600">${occupancyNum}%</span>
+            <span class="text-xs font-semibold font-mono text-cyan-400">${occupancyNum}%</span>
           </div>
         </td>
       `;
@@ -149,11 +149,11 @@ export async function renderD3Coaches() {
 
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td class="font-bold text-slate-800">#${coachId} ${coachName}</td>
+        <td class="font-bold text-white font-heading">#${coachId} ${coachName}</td>
         <td><span class="badge badge-scheduled">${specName}</span></td>
-        <td><b>${personalCount}</b></td>
-        <td><b>${groupCount}</b></td>
-        <td><b>${totalClasses}</b></td>
+        <td class="font-mono"><b>${personalCount}</b></td>
+        <td class="font-mono"><b>${groupCount}</b></td>
+        <td class="font-mono"><b>${totalClasses}</b></td>
         <td><span class="badge badge-active">${kpi}</span></td>
       `;
       tbody.appendChild(row);
@@ -187,17 +187,17 @@ export async function renderD4Halls() {
 
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td class="font-mono text-xs font-bold text-slate-500">${hallId}</td>
-        <td><strong>${hallName}</strong></td>
-        <td>${maxCapacity}</td>
-        <td><b>${visits}</b></td>
-        <td><b>${groupSlots}</b></td>
+        <td class="font-mono text-xs font-bold text-slate-400">#${hallId}</td>
+        <td><strong class="text-white font-heading">${hallName}</strong></td>
+        <td class="font-mono">${maxCapacity}</td>
+        <td class="font-mono"><b>${visits}</b></td>
+        <td class="font-mono"><b>${groupSlots}</b></td>
         <td>
           <div class="flex items-center gap-2">
-            <div class="w-20 bg-slate-100 rounded-full h-2 overflow-hidden">
-              <div class="bg-cyan-600 h-2 rounded-full" style="width: ${occNum}%"></div>
+            <div class="w-20 bg-void border border-subtle rounded-full h-2 overflow-hidden">
+              <div class="bg-cyan-500 h-2 rounded-full" style="width: ${occNum}%"></div>
             </div>
-            <span class="text-xs font-semibold text-slate-700">${occPercent}%</span>
+            <span class="text-xs font-semibold font-mono text-cyan-400">${occPercent}%</span>
           </div>
         </td>
       `;
@@ -217,7 +217,7 @@ export async function renderD5Problems() {
     tbody.innerHTML = '';
 
     if (!items || !items.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-xs text-emerald-600 py-6"><i class="fa-solid fa-check-circle mr-1"></i> Проблемних абонементів та критичних показників не виявлено</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-xs text-emerald-400 py-6"><i class="fa-solid fa-check-circle mr-1"></i> Проблемних абонементів та критичних показників не виявлено</td></tr>';
       return;
     }
 
@@ -230,10 +230,10 @@ export async function renderD5Problems() {
 
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td class="font-bold text-slate-800">${client}</td>
-        <td class="font-mono text-xs text-slate-600">${phone}</td>
+        <td class="font-bold text-white font-heading">${client}</td>
+        <td class="font-mono text-xs text-slate-300">${phone}</td>
         <td><span class="badge badge-danger">${problemType}</span></td>
-        <td class="text-xs text-slate-600">${details}</td>
+        <td class="text-xs text-slate-300">${details}</td>
         <td><span class="badge badge-scheduled">${recommendedAction}</span></td>
       `;
       tbody.appendChild(row);
@@ -270,12 +270,12 @@ export async function renderD6Audit() {
 
       const row = document.createElement('tr');
       row.innerHTML = `
-        <td class="font-mono text-xs">${timeStamp}</td>
-        <td class="font-mono text-xs font-bold text-slate-700">${trainingId}</td>
+        <td class="font-mono text-xs text-slate-300">${timeStamp}</td>
+        <td class="font-mono text-xs font-bold text-cyan-400">${trainingId}</td>
         <td><span class="badge ${badgeClass}">${actionType}</span></td>
         <td><span class="badge badge-active">${initiator}</span></td>
-        <td class="text-xs text-slate-600">${reason}</td>
-        <td class="text-xs font-mono text-slate-700">${newTime}</td>
+        <td class="text-xs text-slate-300">${reason}</td>
+        <td class="text-xs font-mono text-slate-300">${newTime}</td>
       `;
       tbody.appendChild(row);
     });

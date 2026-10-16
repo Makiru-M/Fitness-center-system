@@ -147,7 +147,7 @@ class Combobox {
 
     // Dropdown list
     this.dropdown = document.createElement('ul');
-    this.dropdown.className = 'combobox-dropdown absolute z-50 w-full max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-xl hidden mt-1 py-1';
+    this.dropdown.className = 'combobox-dropdown absolute z-50 w-full max-h-60 overflow-y-auto rounded-lg shadow-2xl hidden mt-1 py-1';
     this.dropdown.setAttribute('role', 'listbox');
 
     // Assemble in wrapper
@@ -358,7 +358,7 @@ class Combobox {
     if (this.filteredItems.length === 0) {
       const emptyLi = document.createElement('li');
       emptyLi.className = 'combobox-empty p-3 text-center text-xs text-slate-400 select-none';
-      emptyLi.innerHTML = '<i class="fa-solid fa-magnifying-glass text-slate-300 mr-1.5"></i> Збігів не знайдено';
+      emptyLi.innerHTML = '<i class="fa-solid fa-magnifying-glass text-slate-500 mr-1.5"></i> Збігів не знайдено';
       this.dropdown.appendChild(emptyLi);
       return;
     }

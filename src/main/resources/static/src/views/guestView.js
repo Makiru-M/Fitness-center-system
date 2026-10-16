@@ -20,23 +20,30 @@ export async function switchGuestTab(tabId, selectedItemId = null) {
   if (pane) pane.classList.remove('hidden');
   if (btn) btn.classList.add('active');
 
-  if (tabId === 'g1' && selectedItemId) {
+  if (tabId === 'g3') {
+    renderGuestPriceList();
+  } else if (tabId === 'g4') {
+    renderGuestHalls();
+  } else if (tabId === 'g2') {
+    renderGuestCoaches();
+  } else if (tabId === 'g1') {
     await populateG1SubscriptionSelect();
-    const select = document.getElementById('g1-subscription') || document.getElementById('g1-item');
-    if (select) {
-      select.value = String(selectedItemId);
-      updateG1PriceCalculation();
+    if (selectedItemId) {
+      const select = document.getElementById('g1-subscription') || document.getElementById('g1-item');
+      if (select) {
+        select.value = String(selectedItemId);
+        updateG1PriceCalculation();
+      }
     }
   }
 }
 
 export async function renderGuestPriceList() {
   const container = document.getElementById('guest-pricelist-cards');
-  if (!container) return;
 
   try {
     const data = await guestApi.getPriceList();
-    cachedPriceList = data.map(item => ({
+    cachedPriceList = (data || []).map(item => ({
       id: item.itemId,
       name: item.itemName,
       category: item.category,
@@ -46,36 +53,61 @@ export async function renderGuestPriceList() {
       maxFreezingDays: item.maxFreezingDays
     }));
 
+    // Dynamically bind Hero Featured Pass strictly from API
+    const annualSub = cachedPriceList.find(i => (i.durationDays && i.durationDays >= 360) || (i.name && i.name.toLowerCase().includes('річн'))) 
+      || cachedPriceList.find(i => i.category === 'Membership') 
+      || cachedPriceList[0];
+
+    if (annualSub) {
+      const heroName = document.getElementById('hero-pass-name');
+      const heroPrice = document.getElementById('hero-pass-price');
+      const heroFreezing = document.getElementById('hero-pass-freezing');
+      const heroDuration = document.getElementById('hero-pass-duration');
+      const heroBtn = document.getElementById('hero-pass-cta-btn');
+
+      if (heroName) heroName.textContent = annualSub.name;
+      if (heroPrice) heroPrice.textContent = parseFloat(annualSub.price).toFixed(2);
+      if (heroFreezing) heroFreezing.textContent = `${annualSub.maxFreezingDays || 0} днів гарантованої заморозки`;
+      if (heroDuration) heroDuration.textContent = `${annualSub.durationDays || 365} днів повного доступу до всіх зон`;
+      if (heroBtn) {
+        heroBtn.setAttribute('onclick', `switchGuestTab('g1', ${annualSub.id})`);
+      }
+    }
+
+    if (!container) return;
+
     container.innerHTML = '';
     if (!cachedPriceList.length) {
-      container.innerHTML = '<div class="col-span-3 text-center text-slate-400 py-8">Прайс-лист порожній у базі даних</div>';
+      container.innerHTML = '<div class="col-span-3 text-center text-slate-500 py-8 font-mono text-xs">Прайс-лист порожній у базі даних</div>';
       return;
     }
 
     cachedPriceList.forEach(item => {
       const card = document.createElement('div');
-      card.className = 'card p-5 flex flex-col justify-between border-slate-200 hover:border-blue-300';
+      card.className = 'card card-interactive p-5 flex flex-col justify-between';
       card.innerHTML = `
         <div>
           <div class="flex justify-between items-start mb-2">
-            <span class="badge ${item.category === 'Membership' ? 'badge-active' : 'badge-scheduled'}">${item.category}</span>
-            <span class="text-xs text-slate-400 font-mono">#${item.id}</span>
+            <span class="badge ${item.category === 'Membership' ? 'badge-cyan' : 'badge-scheduled'}">${item.category}</span>
+            <span class="text-xs text-slate-500 font-mono">#${item.id}</span>
           </div>
-          <h4 class="font-bold text-slate-800 text-sm mb-1">${item.name}</h4>
-          <p class="text-xs text-slate-500 mb-3">${item.desc || '—'}</p>
+          <h4 class="font-bold text-white text-base font-heading mb-1">${item.name}</h4>
+          <p class="text-xs text-slate-400 mb-3 leading-relaxed">${item.desc || '—'}</p>
           ${item.durationDays ? `
-            <div class="text-[11px] text-slate-600 space-y-1 mb-3 bg-slate-50 p-2 rounded">
-              <div><i class="fa-regular fa-clock text-blue-500 mr-1"></i> Тривалість: <b>${item.durationDays} днів</b></div>
-              <div><i class="fa-regular fa-snowflake text-cyan-500 mr-1"></i> Заморозка: <b>до ${item.maxFreezingDays || 0} днів</b></div>
+            <div class="text-[11px] text-slate-300 space-y-1 mb-4 bg-void p-2.5 rounded-lg border border-subtle font-mono" style="background-color: #060913 !important; border: 1px solid #1a2236 !important;">
+              <div><i class="fa-regular fa-clock text-cyan-400 mr-1.5"></i> Тривалість: <b class="text-white">${item.durationDays} днів</b></div>
+              <div><i class="fa-regular fa-snowflake text-blue-400 mr-1.5"></i> Заморозка: <b class="text-white">до ${item.maxFreezingDays || 0} днів</b></div>
             </div>
           ` : ''}
         </div>
-        <div class="pt-3 border-t border-slate-100 flex items-center justify-between mt-2">
+        <div class="pt-3 border-t border-subtle flex items-center justify-between mt-2">
           <div>
-            <span class="text-lg font-bold text-blue-600">${parseFloat(item.price).toFixed(2)}</span>
-            <span class="text-xs text-slate-500">грн</span>
+            <span class="text-xl font-bold font-mono text-cyan-400">${parseFloat(item.price).toFixed(2)}</span>
+            <span class="text-xs text-slate-500 font-mono ml-1">грн</span>
           </div>
-          <button onclick="switchGuestTab('g1', ${item.id})" class="btn btn-primary btn-sm">Купити (G1)</button>
+          <button onclick="switchGuestTab('g1', ${item.id})" class="btn btn-primary btn-sm">
+            <span>Купити</span> <i class="fa-solid fa-arrow-right text-[10px]"></i>
+          </button>
         </div>
       `;
       container.appendChild(card);
@@ -110,25 +142,25 @@ export async function renderGuestHalls() {
 
     container.innerHTML = '';
     if (!halls.length) {
-      container.innerHTML = '<div class="col-span-3 text-center text-slate-400 py-8">Немає зареєстрованих залів</div>';
+      container.innerHTML = '<div class="col-span-3 text-center text-slate-500 py-8 font-mono text-xs">Немає зареєстрованих залів</div>';
       return;
     }
 
     halls.forEach(hall => {
       const icon = hallIcons[hall.name] || 'fa-building';
       const card = document.createElement('div');
-      card.className = 'card p-5 border-slate-200 hover:border-indigo-300';
+      card.className = 'card card-interactive p-5';
       card.innerHTML = `
         <div class="flex items-center space-x-3 mb-3">
-          <div class="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg">
+          <div class="w-11 h-11 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/25 flex items-center justify-center text-lg shadow-[0_0_15px_rgba(6,182,212,0.15)]">
             <i class="fa-solid ${icon}"></i>
           </div>
           <div>
-            <h4 class="font-bold text-slate-800 text-sm">${hall.name}</h4>
-            <span class="text-xs text-slate-500">Місткість: <b>${hall.maxCapacity}</b> осіб</span>
+            <h4 class="font-bold text-white text-base font-heading">${hall.name}</h4>
+            <span class="text-xs text-slate-400 font-mono">Місткість: <b class="text-cyan-400">${hall.maxCapacity}</b> осіб</span>
           </div>
         </div>
-        <p class="text-xs text-slate-600 leading-relaxed">${hall.desc || 'Сучасне обладнання світових виробників.'}</p>
+        <p class="text-xs text-slate-400 leading-relaxed">${hall.desc || 'Сучасне обладнання світових виробників.'}</p>
       `;
       container.appendChild(card);
     });
@@ -154,29 +186,29 @@ export async function renderGuestCoaches() {
 
     container.innerHTML = '';
     if (!coaches.length) {
-      container.innerHTML = '<div class="col-span-3 text-center text-slate-400 py-8">Немає зареєстрованих тренерів</div>';
+      container.innerHTML = '<div class="col-span-3 text-center text-slate-500 py-8 font-mono text-xs">Немає зареєстрованих тренерів</div>';
       return;
     }
 
     coaches.forEach(coach => {
       const card = document.createElement('div');
-      card.className = 'card p-5 border-slate-200 hover:border-blue-300';
+      card.className = 'card card-interactive p-5';
       card.innerHTML = `
         <div class="flex items-start justify-between mb-3">
           <div class="flex items-center space-x-3">
-            <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 text-cyan-300 border border-cyan-500/30 flex items-center justify-center font-bold text-lg font-mono shadow-[0_0_15px_rgba(6,182,212,0.15)]">
               ${coach.fullName.charAt(0)}
             </div>
             <div>
-              <h4 class="font-bold text-slate-800 text-sm leading-tight">${coach.fullName}</h4>
-              <span class="badge badge-active text-[10px] mt-1">${coach.specName}</span>
+              <h4 class="font-bold text-white text-base leading-tight font-heading">${coach.fullName}</h4>
+              <span class="badge badge-cyan text-[10px] mt-1">${coach.specName}</span>
             </div>
           </div>
         </div>
-        <p class="text-xs text-slate-600 mb-4 line-clamp-3">${coach.bio || 'Професійний інструктор з багаторічним досвідом.'}</p>
-        <div class="pt-3 border-t border-slate-100 grid grid-cols-2 text-center text-xs text-slate-500">
-          <div>Індивідуальних: <b class="text-slate-700">${coach.ptCount}</b></div>
-          <div>Групових: <b class="text-slate-700">${coach.groupCount}</b></div>
+        <p class="text-xs text-slate-400 mb-4 line-clamp-3 leading-relaxed">${coach.bio || 'Професійний інструктор з багаторічним досвідом.'}</p>
+        <div class="pt-3 border-t border-subtle grid grid-cols-2 text-center text-xs text-slate-400 font-mono">
+          <div>Індивідуальних: <b class="text-cyan-400">${coach.ptCount}</b></div>
+          <div>Групових: <b class="text-blue-400">${coach.groupCount}</b></div>
         </div>
       `;
       container.appendChild(card);

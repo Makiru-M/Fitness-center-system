@@ -18,9 +18,9 @@ export function showToast(message, type = 'info') {
   toast.innerHTML = `
     <i class="fa-solid ${icon} mt-0.5 text-base"></i>
     <div class="flex-1">
-      <div class="text-xs font-semibold text-slate-800">${message}</div>
+      <div class="text-xs font-medium text-white">${message}</div>
     </div>
-    <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-slate-600 text-xs ml-2">&times;</button>
+    <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white text-base leading-none ml-2">&times;</button>
   `;
 
   container.appendChild(toast);
