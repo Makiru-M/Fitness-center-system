@@ -141,7 +141,7 @@ public class GuestRepository {
      */
     public List<HallDto> getHalls() {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = "SELECT ID_Hall, HallName, MaxCapacity FROM Halls ORDER BY MaxCapacity DESC";
+        String sql = "SELECT ID_Hall, HallName, MaxCapacity FROM Halls WHERE IsActive IS NULL OR IsActive = TRUE ORDER BY MaxCapacity DESC";
 
         return jdbc.query(sql, (rs, rowNum) -> new HallDto(
                 rs.getInt("ID_Hall"),

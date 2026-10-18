@@ -58,7 +58,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <!-- Custom Athletic Styles -->
-  <link rel="stylesheet" href="styles.css?v=20261018_v7">
+  <link rel="stylesheet" href="styles.css?v=20261018_v11">
 </head>
 <body class="bg-base text-slate-100 min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
 
@@ -1781,11 +1781,6 @@
               <span>D3: Рейтинг тренерів</span>
               <span class="task-badge">D3</span>
             </button>
-            <button onclick="switchDirectorTab('d4')" id="tab-btn-d4" class="nav-tab-btn">
-              <i class="fa-solid fa-chart-pie"></i>
-              <span>D4: Завантаження залів</span>
-              <span class="task-badge">D4</span>
-            </button>
             <button onclick="switchDirectorTab('d5')" id="tab-btn-d5" class="nav-tab-btn">
               <i class="fa-solid fa-triangle-exclamation"></i>
               <span>D5: Проблемні місця</span>
@@ -1803,7 +1798,7 @@
             </button>
             <button onclick="switchDirectorTab('d8')" id="tab-btn-d8" class="nav-tab-btn">
               <i class="fa-solid fa-door-open"></i>
-              <span>D8: Введення залу</span>
+              <span>D8: Керування залами</span>
               <span class="task-badge">D8</span>
             </button>
             <button onclick="switchDirectorTab('d9')" id="tab-btn-d9" class="nav-tab-btn">
@@ -1884,6 +1879,7 @@
                   <thead>
                     <tr>
                       <th>Назва залу</th>
+                      <th>Місткість</th>
                       <th>Загальна кількість візитів</th>
                       <th>Унікальних клієнтів</th>
                       <th>Середній час пік</th>
@@ -1923,29 +1919,6 @@
             </div>
           </div>
 
-          <!-- D4: Halls Popularity -->
-          <div id="subtab-d4" class="director-pane hidden space-y-4">
-            <div class="card p-5 border-subtle">
-              <h3 class="font-bold text-white text-sm font-heading mb-3"><i class="fa-solid fa-chart-pie text-cyan-400 mr-2"></i> Задача D4: Популярність та завантаженість залів</h3>
-              <div class="table-responsive">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Зал</th>
-                      <th>Місткість</th>
-                      <th>Відвідувань (Visits)</th>
-                      <th>Групових слотів</th>
-                      <th>% Завантаженості</th>
-                    </tr>
-                  </thead>
-                  <tbody id="d4-halls-tbody">
-                    <!-- Populated by JS -->
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
 
           <!-- D5: Problem Spots Analysis -->
           <div id="subtab-d5" class="director-pane hidden space-y-4">
@@ -2046,6 +2019,22 @@
                   <input type="number" id="d8-capacity" required min="1" class="font-mono text-sm" value="20">
                 </div>
                 <button type="submit" class="btn btn-primary w-full">Ввести зал в експлуатацію (D8)</button>
+              </form>
+            </div>
+
+            <div class="card p-6 max-w-xl mx-auto border-medium shadow-xl mt-6">
+              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-door-closed text-rose-400 mr-2"></i> Виведення залу з експлуатації</h3>
+              <p class="text-xs text-slate-400 mb-4">Переведення залу в архів (IsActive = FALSE). Зал стає недоступним для нових бронювань та розкладу.</p>
+              <form id="form-d8-decommission" onsubmit="handleD8DecommissionHall(event)" class="space-y-4">
+                <div class="form-group">
+                  <label class="form-label">Оберіть зал для виведення з експлуатації *</label>
+                  <select id="d8-decom-hall" required class="font-mono text-sm">
+                    <!-- Populated by JS -->
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-danger w-full py-2.5 font-bold shadow-md">
+                  <i class="fa-solid fa-ban mr-1.5"></i> Вивести зал з експлуатації (D8)
+                </button>
               </form>
             </div>
           </div>
@@ -2378,6 +2367,6 @@
   </footer>
 
   <!-- Application Logic (Modular ES6 SPA) -->
-  <script type="module" src="src/main.js?v=20261018_v7"></script>
+  <script type="module" src="src/main.js?v=20261018_v11"></script>
 </body>
 </html>

@@ -49,7 +49,6 @@ import {
   renderD1Revenue,
   renderD2Attendance,
   renderD3Coaches,
-  renderD4Halls,
   renderD5Problems,
   renderD6Audit,
   populateDirectorDropdowns
@@ -253,7 +252,6 @@ export function refreshRoleData(role) {
     renderD1Revenue();
     renderD2Attendance();
     renderD3Coaches();
-    renderD4Halls();
     renderD5Problems();
     renderD6Audit();
     populateDirectorDropdowns();

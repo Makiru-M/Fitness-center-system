@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS Specializations (
 CREATE TABLE IF NOT EXISTS Halls (
     ID_Hall SERIAL PRIMARY KEY,
     HallName VARCHAR(50) NOT NULL UNIQUE,
-    MaxCapacity INTEGER NOT NULL CHECK (MaxCapacity > 0)
+    MaxCapacity INTEGER NOT NULL CHECK (MaxCapacity > 0),
+    IsActive BOOLEAN DEFAULT TRUE
 );
 
 -- Види групових занять

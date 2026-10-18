@@ -109,6 +109,18 @@ public class DirectorController {
     }
 
     /**
+     * D8: Decommission hall from operation (archive)
+     */
+    @DeleteMapping("/halls/{hallId}")
+    public ResponseEntity<Map<String, Object>> decommissionHall(@PathVariable Integer hallId) {
+        directorRepository.decommissionHall(hallId);
+        return ResponseEntity.ok(Map.of(
+                "hallId", hallId,
+                "message", "Зал успішно виведено з експлуатації та переведено в архів."
+        ));
+    }
+
+    /**
      * D9: Create promo code
      */
     @PostMapping("/promos")

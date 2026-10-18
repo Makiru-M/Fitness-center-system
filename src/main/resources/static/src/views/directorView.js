@@ -24,7 +24,6 @@ export function switchDirectorTab(tabId) {
   if (tabId === 'd1') renderD1Revenue();
   else if (tabId === 'd2') renderD2Attendance();
   else if (tabId === 'd3') renderD3Coaches();
-  else if (tabId === 'd4') renderD4Halls();
   else if (tabId === 'd5') renderD5Problems();
   else if (tabId === 'd6') renderD6Audit();
 }
@@ -85,7 +84,7 @@ export async function renderD2Attendance() {
     tbody.innerHTML = '';
 
     if (!items || !items.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-xs text-slate-400 py-4">Немає записів відвідуваності</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-xs text-slate-400 py-4">Немає записів відвідуваності</td></tr>';
       if (metricTotal) metricTotal.textContent = '0';
       if (metricHalls) metricHalls.textContent = '0';
       return;
@@ -103,6 +102,7 @@ export async function renderD2Attendance() {
       const row = document.createElement('tr');
       row.innerHTML = `
         <td class="font-bold text-white font-heading">${d.hallName || '—'}</td>
+        <td class="font-mono">${d.maxCapacity || '—'}</td>
         <td class="font-mono"><b>${visits}</b></td>
         <td class="font-mono">${uniqueClients}</td>
         <td class="font-mono text-xs text-slate-300">${peakHour}</td>
@@ -164,48 +164,7 @@ export async function renderD3Coaches() {
 }
 
 export async function renderD4Halls() {
-  const tbody = document.getElementById('d4-halls-tbody');
-  if (!tbody) return;
-
-  try {
-    const items = await directorApi.getHallOccupancy();
-    tbody.innerHTML = '';
-
-    if (!items || !items.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-xs text-slate-400 py-4">Немає даних завантаженості залів</td></tr>';
-      return;
-    }
-
-    items.forEach((h, idx) => {
-      const hallId = h.hallId ?? h.id ?? (idx + 1);
-      const hallName = h.hallName || '—';
-      const maxCapacity = h.maxCapacity || '—';
-      const visits = h.visitsCount ?? h.totalAttendees ?? h.totalVisitors ?? 0;
-      const groupSlots = h.groupSlotsCount ?? h.groupActivitiesCount ?? h.totalTrainingsCount ?? 0;
-      const occPercent = h.occupancyPercent != null ? h.occupancyPercent : 0;
-      const occNum = Math.min(100, Math.max(0, Math.round(parseFloat(occPercent))));
-
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td class="font-mono text-xs font-bold text-slate-400">#${hallId}</td>
-        <td><strong class="text-white font-heading">${hallName}</strong></td>
-        <td class="font-mono">${maxCapacity}</td>
-        <td class="font-mono"><b>${visits}</b></td>
-        <td class="font-mono"><b>${groupSlots}</b></td>
-        <td>
-          <div class="flex items-center gap-2">
-            <div class="w-20 bg-void border border-subtle rounded-full h-2 overflow-hidden">
-              <div class="bg-cyan-500 h-2 rounded-full" style="width: ${occNum}%"></div>
-            </div>
-            <span class="text-xs font-semibold font-mono text-cyan-400">${occPercent}%</span>
-          </div>
-        </td>
-      `;
-      tbody.appendChild(row);
-    });
-  } catch (err) {
-    console.warn('API D4 error:', err);
-  }
+  // Deprecated: D4 merged into D2
 }
 
 export async function renderD5Problems() {
@@ -320,6 +279,18 @@ export async function populateDirectorDropdowns() {
       });
     }
 
+    // D8 Decommission Hall
+    const d8Decom = document.getElementById('d8-decom-hall');
+    if (d8Decom) {
+      d8Decom.innerHTML = '<option value="" disabled selected>-- Оберіть зал для виведення --</option>';
+      halls.forEach(h => {
+        const opt = document.createElement('option');
+        opt.value = h.hallId;
+        opt.textContent = `${h.hallName} (ID: ${h.hallId}, місткість: ${h.maxCapacity})`;
+        d8Decom.appendChild(opt);
+      });
+    }
+
     // D11 & D12 Coaches
     const d11Coach = document.getElementById('d11-coach');
     const d12Coach = document.getElementById('d12-coach');
@@ -380,11 +351,40 @@ export async function handleD8CreateHall(e) {
     });
 
     showToast(`Зал '${name}' успішно введено в експлуатацію! Код #${res.hallId} (D8)`, 'success');
+    document.getElementById('d8-name').value = '';
     await populateDirectorDropdowns();
     await populateManagerDropdowns();
     await renderGuestHalls();
+    await renderD4Halls();
   } catch (err) {
     showToast(`Помилка введення залу: ${err.message}`, 'danger');
+  }
+}
+
+export async function handleD8DecommissionHall(e) {
+  e.preventDefault();
+  const select = document.getElementById('d8-decom-hall');
+  if (!select) return;
+  const hallId = parseInt(select.value);
+  if (!hallId) {
+    showToast('Будь ласка, оберіть зал зі списку.', 'warning');
+    return;
+  }
+
+  const hallText = select.options[select.selectedIndex]?.text || `ID #${hallId}`;
+  const confirmed = confirm(`Ви впевнені, що бажаєте вивести зал "${hallText}" з експлуатації та перевести його в архів? Зал стане недоступним для нових бронювань та розкладу.`);
+  if (!confirmed) return;
+
+  try {
+    const res = await directorApi.decommissionHall(hallId);
+    showToast(res.message || `Зал #${hallId} успішно переведено в архів! (D8)`, 'success');
+    await populateDirectorDropdowns();
+    await populateManagerDropdowns();
+    await renderGuestHalls();
+    await renderD4Halls();
+    await renderD2Attendance();
+  } catch (err) {
+    showToast(`Помилка виведення залу з експлуатації: ${err.message}`, 'danger');
   }
 }
 

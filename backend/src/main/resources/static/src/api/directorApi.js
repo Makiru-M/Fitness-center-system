@@ -48,6 +48,12 @@ export const directorApi = {
     });
   },
 
+  decommissionHall(hallId) {
+    return apiFetch(`/director/halls/${hallId}`, {
+      method: 'DELETE'
+    });
+  },
+
   createPromo(data) {
     return apiFetch('/director/promos', {
       method: 'POST',

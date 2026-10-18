@@ -81,6 +81,7 @@ public class DirectorRepository {
         String sql = """
             SELECT 
                 h.HallName,
+                h.MaxCapacity,
                 COUNT(v.ID_Visit) AS TotalVisits,
                 COUNT(DISTINCT s.ID_Client) AS UniqueClients,
                 COALESCE(
@@ -92,6 +93,7 @@ public class DirectorRepository {
             FROM Halls h
             LEFT JOIN Visits v ON h.ID_Hall = v.ID_Hall
             LEFT JOIN Sales s ON v.ID_Sale = s.ID_Sale
+            WHERE (h.IsActive IS NULL OR h.IsActive = TRUE)
             GROUP BY h.ID_Hall, h.HallName, h.MaxCapacity
             ORDER BY TotalVisits DESC, h.HallName ASC
             """;
@@ -101,7 +103,8 @@ public class DirectorRepository {
                 rs.getLong("TotalVisits"),
                 rs.getLong("UniqueClients"),
                 rs.getString("PeakHours"),
-                rs.getDouble("OccupancyPercent")
+                rs.getDouble("OccupancyPercent"),
+                rs.getObject("MaxCapacity") != null ? rs.getInt("MaxCapacity") : null
         ));
     }
 
@@ -212,6 +215,7 @@ public class DirectorRepository {
             FROM Halls h
             LEFT JOIN HallVisits hv ON h.ID_Hall = hv.ID_Hall
             LEFT JOIN HallGroups hg ON h.ID_Hall = hg.ID_Hall
+            WHERE (h.IsActive IS NULL OR h.IsActive = TRUE)
             ORDER BY RankByTraffic ASC, h.ID_Hall ASC
             """;
 
@@ -362,9 +366,17 @@ public class DirectorRepository {
     public Integer commissionHall(CommissionHallRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         return jdbc.queryForObject(
-                "INSERT INTO Halls (HallName, MaxCapacity) VALUES (?, ?) RETURNING ID_Hall",
+                "INSERT INTO Halls (HallName, MaxCapacity, IsActive) VALUES (?, ?, TRUE) RETURNING ID_Hall",
                 Integer.class, req.hallName(), req.maxCapacity()
         );
+    }
+
+    /**
+     * D8: Decommission hall (archive hall / set IsActive = FALSE)
+     */
+    public void decommissionHall(Integer hallId) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        jdbc.update("UPDATE Halls SET IsActive = FALSE WHERE ID_Hall = ?", hallId);
     }
 
     /**

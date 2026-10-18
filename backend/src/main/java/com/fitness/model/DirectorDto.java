@@ -30,10 +30,15 @@ public class DirectorDto {
             String peakHours,
             String peakHour,
             Double occupancyPercent,
-            Double avgOccupancyRate
+            Double avgOccupancyRate,
+            Integer maxCapacity
     ) {
         public AttendanceReportItem(String hallName, Long totalVisits, Long uniqueClients, String peakHours, Double occupancyPercent) {
-            this(hallName, totalVisits, uniqueClients, uniqueClients, peakHours, peakHours, occupancyPercent, occupancyPercent);
+            this(hallName, totalVisits, uniqueClients, uniqueClients, peakHours, peakHours, occupancyPercent, occupancyPercent, null);
+        }
+
+        public AttendanceReportItem(String hallName, Long totalVisits, Long uniqueClients, String peakHours, Double occupancyPercent, Integer maxCapacity) {
+            this(hallName, totalVisits, uniqueClients, uniqueClients, peakHours, peakHours, occupancyPercent, occupancyPercent, maxCapacity);
         }
     }
 
