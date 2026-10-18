@@ -17,7 +17,14 @@ export function switchHrTab(tabId) {
   document.querySelectorAll('#view-hr .nav-tab-btn').forEach(b => b.classList.remove('active'));
 
   const pane = document.getElementById(`subtab-${norm}`) || document.getElementById(`subtab-${tabId}`);
-  const btn = document.getElementById(`tab-btn-${norm}`) || document.getElementById(`tab-btn-${tabId}`);
+  let btn = document.getElementById(`tab-btn-${norm}`) || document.getElementById(`tab-btn-${tabId}`);
+  if (!btn) {
+    if (norm === 'hr1' || norm === 'hr3') {
+      btn = document.getElementById('tab-btn-hr-coaches');
+    } else if (norm === 'hr4' || norm === 'hr6') {
+      btn = document.getElementById('tab-btn-hr-staff');
+    }
+  }
   if (pane) pane.classList.remove('hidden');
   if (btn) btn.classList.add('active');
 }
@@ -89,17 +96,29 @@ export async function populateHrDropdowns() {
   }
 }
 
-export async function renderHrCoachesTable() {
+export async function renderHrCoachesTable(searchTerm = '') {
   const tbody = document.getElementById('hr-coaches-tbody');
   if (!tbody) return;
 
   try {
-    cachedEmployees = await hrApi.getEmployees();
+    if (!cachedEmployees || !cachedEmployees.length || searchTerm === '') {
+      cachedEmployees = await hrApi.getEmployees();
+    }
     tbody.innerHTML = '';
 
-    const coaches = cachedEmployees.filter(e => e.isCoach);
+    let coaches = (cachedEmployees || []).filter(e => e.isCoach);
+    const term = (typeof searchTerm === 'string' ? searchTerm : '').trim().toLowerCase();
+    if (term) {
+      coaches = coaches.filter(c => 
+        (c.fullName && c.fullName.toLowerCase().includes(term)) ||
+        (c.phone && c.phone.toLowerCase().includes(term))
+      );
+    }
+
     if (!coaches.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-xs text-slate-400 py-6">Немає зареєстрованих тренерів</td></tr>';
+      tbody.innerHTML = term 
+        ? `<tr><td colspan="7" class="text-center text-xs text-slate-400 py-6">Тренерів не знайдено за запитом "${term}"</td></tr>`
+        : '<tr><td colspan="7" class="text-center text-xs text-slate-400 py-6">Немає зареєстрованих тренерів</td></tr>';
       return;
     }
 
@@ -110,8 +129,8 @@ export async function renderHrCoachesTable() {
         <td class="font-mono text-xs text-slate-400">#${c.coachId || c.staffId}</td>
         <td class="font-bold text-white font-heading">${c.fullName}</td>
         <td class="font-mono text-xs text-slate-300">${c.phone}</td>
-        <td><span class="badge badge-scheduled">${c.specName || 'Тренер'}</span></td>
-        <td><span class="badge ${isFired ? 'badge-cancelled' : 'badge-active'}">${isFired ? 'Звільнений' : 'Працює'}</span></td>
+        <td><span class="badge badge-scheduled shrink-0">${c.specName || 'Тренер'}</span></td>
+        <td><span class="badge ${isFired ? 'badge-cancelled' : 'badge-active'} shrink-0">${isFired ? 'Звільнений' : 'Працює'}</span></td>
         <td>${c.hireDate || '—'} ${isFired ? `(до ${c.fireDate})` : ''}</td>
         <td>
           ${!isFired ? `
@@ -123,7 +142,7 @@ export async function renderHrCoachesTable() {
                 <i class="fa-solid fa-user-xmark"></i> Звільнити
               </button>
             </div>
-          ` : '<span class="text-xs text-slate-400">Архівований</span>'}
+          ` : '<span class="text-xs text-slate-500">—</span>'}
         </td>
       `;
       tbody.appendChild(row);
@@ -133,17 +152,41 @@ export async function renderHrCoachesTable() {
   }
 }
 
-export async function renderHrStaffTable() {
+export function filterHrCoaches(term = null) {
+  let search = '';
+  if (typeof term === 'string') {
+    search = term;
+  } else if (term && typeof term === 'object' && term.target) {
+    search = term.target.value || '';
+  } else {
+    search = document.getElementById('hr-coaches-search')?.value || '';
+  }
+  renderHrCoachesTable(search.trim());
+}
+
+export async function renderHrStaffTable(searchTerm = '') {
   const tbody = document.getElementById('hr-staff-tbody');
   if (!tbody) return;
 
   try {
-    cachedEmployees = await hrApi.getEmployees();
+    if (!cachedEmployees || !cachedEmployees.length || searchTerm === '') {
+      cachedEmployees = await hrApi.getEmployees();
+    }
     tbody.innerHTML = '';
 
-    const staffMembers = cachedEmployees.filter(e => !e.isCoach);
+    let staffMembers = (cachedEmployees || []).filter(e => !e.isCoach);
+    const term = (typeof searchTerm === 'string' ? searchTerm : '').trim().toLowerCase();
+    if (term) {
+      staffMembers = staffMembers.filter(st => 
+        (st.fullName && st.fullName.toLowerCase().includes(term)) ||
+        (st.phone && st.phone.toLowerCase().includes(term))
+      );
+    }
+
     if (!staffMembers.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-xs text-slate-400 py-6">Немає зареєстрованого адміністративного персоналу</td></tr>';
+      tbody.innerHTML = term
+        ? `<tr><td colspan="7" class="text-center text-xs text-slate-400 py-6">Співробітників не знайдено за запитом "${term}"</td></tr>`
+        : '<tr><td colspan="7" class="text-center text-xs text-slate-400 py-6">Немає зареєстрованого адміністративного персоналу</td></tr>';
       return;
     }
 
@@ -154,8 +197,8 @@ export async function renderHrStaffTable() {
         <td class="font-mono text-xs text-slate-400">#${st.staffId}</td>
         <td class="font-bold text-white font-heading">${st.fullName}</td>
         <td class="font-mono text-xs text-slate-300">${st.phone}</td>
-        <td><span class="badge badge-neutral">${st.positionName || 'Менеджер'}</span></td>
-        <td><span class="badge ${isFired ? 'badge-cancelled' : 'badge-active'}">${isFired ? 'Звільнений' : 'Працює'}</span></td>
+        <td><span class="badge badge-neutral shrink-0">${st.positionName || 'Менеджер'}</span></td>
+        <td><span class="badge ${isFired ? 'badge-cancelled' : 'badge-active'} shrink-0">${isFired ? 'Звільнений' : 'Працює'}</span></td>
         <td>${st.hireDate || '—'} ${isFired ? `(до ${st.fireDate})` : ''}</td>
         <td>
           ${!isFired ? `
@@ -167,7 +210,7 @@ export async function renderHrStaffTable() {
                 <i class="fa-solid fa-user-xmark"></i> Звільнити
               </button>
             </div>
-          ` : '<span class="text-xs text-slate-400">Архівований</span>'}
+          ` : '<span class="text-xs text-slate-500">—</span>'}
         </td>
       `;
       tbody.appendChild(row);
@@ -175,6 +218,18 @@ export async function renderHrStaffTable() {
   } catch (err) {
     console.warn('Error loading staff table:', err);
   }
+}
+
+export function filterHrStaff(term = null) {
+  let search = '';
+  if (typeof term === 'string') {
+    search = term;
+  } else if (term && typeof term === 'object' && term.target) {
+    search = term.target.value || '';
+  } else {
+    search = document.getElementById('hr-staff-search')?.value || '';
+  }
+  renderHrStaffTable(search.trim());
 }
 
 export async function handleHr1Hire(e) {
@@ -198,6 +253,10 @@ export async function handleHr1Hire(e) {
     });
 
     showToast(`Тренера ${fullName} успішно прийнято на роботу! Код #${res.coachId} (HR1)`, 'success');
+    const form1 = document.getElementById('form-hr1-hire');
+    if (form1) form1.reset();
+    const searchCoach = document.getElementById('hr-coaches-search');
+    if (searchCoach) searchCoach.value = '';
     await populateHrDropdowns();
     await renderHrCoachesTable();
     switchHrTab('hr_coaches');
@@ -262,6 +321,10 @@ export async function handleHr4Hire(e) {
     });
 
     showToast(`Менеджера ${fullName} успішно прийнято на роботу! Код #${res.staffId} (HR4)`, 'success');
+    const form4 = document.getElementById('form-hr4-hire');
+    if (form4) form4.reset();
+    const searchStaff = document.getElementById('hr-staff-search');
+    if (searchStaff) searchStaff.value = '';
     await populateHrDropdowns();
     await renderHrStaffTable();
     switchHrTab('hr_staff');

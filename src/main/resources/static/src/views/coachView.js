@@ -52,7 +52,7 @@ export async function renderCoachSchedule() {
         <td><span class="badge ${isPersonal ? 'badge-scheduled' : 'badge-active'}">${isPersonal ? 'Персональне' : 'Групове'}</span></td>
         <td><span class="font-bold text-white font-heading">${it.title}</span></td>
         <td>${it.hallName || '—'}</td>
-        <td><span class="badge badge-${(it.status || 'Active').toLowerCase()}">${it.status}</span></td>
+        <td><span class="badge badge-${(it.status || 'Active').toLowerCase()} shrink-0">${it.status}</span></td>
         <td>
           ${isScheduled ? (isPersonal ? `<button onclick="quickMarkC3(${it.activityId})" class="btn btn-primary btn-sm">Відмітити (C3)</button>` : `<button onclick="quickMarkC4(${it.activityId})" class="btn btn-secondary btn-sm">Відмітити (C4)</button>`) : '<span class="text-xs text-slate-400">Завершено</span>'}
         </td>
@@ -167,7 +167,7 @@ function isTrivialMedNotes(str) {
             </span>
           `}
         </td>
-        <td><span class="badge badge-${(p.bookingStatus || 'active').toLowerCase()}">${p.bookingStatus || 'Active'}</span></td>
+        <td><span class="badge badge-${(p.bookingStatus || 'active').toLowerCase()} shrink-0">${p.bookingStatus || 'Active'}</span></td>
       `;
       tbody.appendChild(row);
     });

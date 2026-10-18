@@ -58,7 +58,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <!-- Custom Athletic Styles -->
-  <link rel="stylesheet" href="styles.css?v=20261016_v7">
+  <link rel="stylesheet" href="styles.css?v=20261018_v7">
 </head>
 <body class="bg-base text-slate-100 min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
 
@@ -594,11 +594,11 @@
           <div class="flex gap-3 text-center font-mono">
             <div class="metric-box py-2 px-4">
               <span class="metric-label">Діє до</span>
-              <div id="client-metric-expiry" class="text-base font-bold text-white mt-1">2026-12-31</div>
+              <div id="client-metric-expiry" class="text-cyan-400 font-bold text-base mt-1" style="color: #22d3ee !important;">—</div>
             </div>
             <div class="metric-box py-2 px-4">
               <span class="metric-label">Заморозка</span>
-              <div id="client-metric-freezing" class="text-base font-bold text-cyan-400 mt-1">14 дн.</div>
+              <div id="client-metric-freezing" class="text-cyan-400 font-bold text-base mt-1" style="color: #22d3ee !important;">—</div>
             </div>
           </div>
         </div>
@@ -1071,7 +1071,7 @@
           <!-- M3: Sell Subscription -->
           <div id="subtab-m3" class="manager-pane hidden">
             <div class="card p-6 max-w-2xl mx-auto border-medium shadow-xl">
-              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-cash-register text-emerald-400 mr-2"></i> Задача M3: Продаж або продовження абонемента</h3>
+              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-cash-register text-cyan-400 mr-2"></i> Задача M3: Продаж або продовження абонемента</h3>
               <p class="text-xs text-slate-400 mb-4">Фіксація продажу в Sales, застосування промокоду в AppliedPromo та оновлення ClientSubscriptions.</p>
 
               <form id="form-m3-sale" onsubmit="handleM3Sale(event)" class="space-y-4">
@@ -1114,12 +1114,12 @@
                 <div class="bg-void p-4 rounded-xl border border-subtle flex justify-between items-center text-sm font-mono">
                   <div>
                     <span class="text-slate-400 block text-xs">Фінальна вартість продажу (SalePrice):</span>
-                    <span id="m3-price-display" class="text-2xl font-bold text-emerald-400">0.00 грн</span>
+                    <span id="m3-price-display" class="text-2xl font-bold text-cyan-400" style="color: #22d3ee !important;">0.00 грн</span>
                   </div>
                   <div id="m3-promo-status-badge"></div>
                 </div>
 
-                <button type="submit" class="btn btn-success w-full py-2.5 font-bold shadow-md">
+                <button type="submit" class="btn btn-primary w-full py-2.5 font-bold shadow-md">
                   <i class="fa-solid fa-receipt mr-1.5"></i> Оформити продаж (M3)
                 </button>
               </form>
@@ -1282,36 +1282,8 @@
             <div class="text-xs text-slate-400">Задачі HR1 - HR6</div>
           </div>
           <nav class="crm-nav-list">
-            <button onclick="switchHrTab('hr_coaches')" id="tab-btn-hr-coaches" class="nav-tab-btn active">
-              <i class="fa-solid fa-person-running"></i>
-              <span>Штат тренерів</span>
-              <span class="task-badge">HR2</span>
-            </button>
-            <button onclick="switchHrTab('hr1')" id="tab-btn-hr1" class="nav-tab-btn">
-              <i class="fa-solid fa-user-plus"></i>
-              <span>HR1: Найм тренера</span>
-              <span class="task-badge">HR1</span>
-            </button>
-            <button onclick="switchHrTab('hr3')" id="tab-btn-hr3" class="nav-tab-btn">
-              <i class="fa-solid fa-user-minus"></i>
-              <span>HR3: Звільн. тренера</span>
-              <span class="task-badge">HR3</span>
-            </button>
-            <button onclick="switchHrTab('hr_staff')" id="tab-btn-hr-staff" class="nav-tab-btn">
-              <i class="fa-solid fa-users-gear"></i>
-              <span>Штат менеджерів</span>
-              <span class="task-badge">HR5</span>
-            </button>
-            <button onclick="switchHrTab('hr4')" id="tab-btn-hr4" class="nav-tab-btn">
-              <i class="fa-solid fa-user-plus"></i>
-              <span>HR4: Найм менед.</span>
-              <span class="task-badge">HR4</span>
-            </button>
-            <button onclick="switchHrTab('hr6')" id="tab-btn-hr6" class="nav-tab-btn">
-              <i class="fa-solid fa-user-minus"></i>
-              <span>HR6: Звільн. менед.</span>
-              <span class="task-badge">HR6</span>
-            </button>
+            <button onclick="switchHrTab('hr_coaches')" id="tab-btn-hr-coaches" class="nav-tab-btn active"><i class="fa-solid fa-person-running"></i><span>Штат тренерів</span><span class="task-badge">HR2</span></button>
+            <button onclick="switchHrTab('hr_staff')" id="tab-btn-hr-staff" class="nav-tab-btn"><i class="fa-solid fa-users-gear"></i><span>Штат менеджерів</span><span class="task-badge">HR5</span></button>
           </nav>
         </aside>
 
@@ -1320,12 +1292,17 @@
 
           <!-- HR2: Coaches List -->
           <div id="subtab-hr-coaches" class="hr-pane space-y-4">
-            <div class="flex justify-between items-center">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h3 class="text-base font-bold text-white font-heading">Штат тренерів клубу</h3>
                 <p class="text-xs text-slate-400 font-mono">HR2: Перегляд та редагування профілів тренерів</p>
               </div>
-              <button onclick="switchHrTab('hr1')" class="btn btn-primary btn-sm">+ Найняти тренера</button>
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                <div class="w-full sm:w-64">
+                  <input type="text" id="hr-coaches-search" oninput="filterHrCoaches(this.value)" class="text-xs font-mono w-full" placeholder="🔍 Пошук за ПІБ чи тел...">
+                </div>
+                <button onclick="switchHrTab('hr1')" class="btn btn-primary btn-sm whitespace-nowrap">+ Найняти тренера</button>
+              </div>
             </div>
             <div class="table-responsive">
               <table>
@@ -1350,7 +1327,10 @@
           <!-- HR1: Hire Coach -->
           <div id="subtab-hr1" class="hr-pane hidden">
             <div class="card p-6 max-w-2xl mx-auto border-medium shadow-xl">
-              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-user-plus text-cyan-400 mr-2"></i> Задача HR1: Прийняти тренера на роботу</h3>
+              <div class="flex justify-between items-center mb-1">
+                <h3 class="text-lg font-bold text-white font-heading"><i class="fa-solid fa-user-plus text-cyan-400 mr-2"></i> Задача HR1: Прийняти тренера на роботу</h3>
+                <button type="button" onclick="switchHrTab('hr_coaches')" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrow-left mr-1"></i> Назад до списку</button>
+              </div>
               <p class="text-xs text-slate-400 mb-4">Створення запису у Staff та Coaches з прив'язкою до спеціалізації.</p>
 
               <form id="form-hr1-hire" onsubmit="handleHr1Hire(event)" class="space-y-4">
@@ -1394,7 +1374,10 @@
                   <textarea id="hr1-bio" rows="3" placeholder="Кандидат у майстри спорту, досвід 5 років..."></textarea>
                 </div>
 
-                <button type="submit" class="btn btn-primary w-full py-2.5 font-bold">Прийняти тренера на роботу (HR1)</button>
+                <div class="flex gap-3 pt-2">
+                  <button type="submit" class="btn btn-primary flex-1 py-2.5 font-bold">Прийняти тренера на роботу (HR1)</button>
+                  <button type="button" onclick="switchHrTab('hr_coaches')" class="btn btn-secondary px-5 py-2.5">Скасувати</button>
+                </div>
               </form>
             </div>
           </div>
@@ -1402,7 +1385,10 @@
           <!-- HR3: Dismiss Coach -->
           <div id="subtab-hr3" class="hr-pane hidden">
             <div class="card p-6 max-w-xl mx-auto border-medium shadow-xl">
-              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-user-minus text-rose-400 mr-2"></i> Задача HR3: Звільнити тренера</h3>
+              <div class="flex justify-between items-center mb-1">
+                <h3 class="text-lg font-bold text-white font-heading"><i class="fa-solid fa-user-minus text-rose-400 mr-2"></i> Задача HR3: Звільнити тренера</h3>
+                <button type="button" onclick="switchHrTab('hr_coaches')" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrow-left mr-1"></i> Назад до списку</button>
+              </div>
               <p class="text-xs text-slate-400 mb-4">Встановлення дати FireDate та блокування системного доступу.</p>
 
               <form id="form-hr3-dismiss" onsubmit="handleHr3Dismiss(event)" class="space-y-4">
@@ -1417,19 +1403,27 @@
                   <label class="form-label">Причина звільнення *</label>
                   <textarea id="hr3-reason" required rows="2" placeholder="За власним бажанням / скорочення"></textarea>
                 </div>
-                <button type="submit" class="btn btn-danger w-full">Звільнити тренера (HR3)</button>
+                <div class="flex gap-3 pt-2">
+                  <button type="submit" class="btn btn-danger flex-1">Звільнити тренера (HR3)</button>
+                  <button type="button" onclick="switchHrTab('hr_coaches')" class="btn btn-secondary px-5">Скасувати</button>
+                </div>
               </form>
             </div>
           </div>
 
           <!-- HR5: Staff List -->
           <div id="subtab-hr-staff" class="hr-pane hidden space-y-4">
-            <div class="flex justify-between items-center">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h3 class="text-base font-bold text-white font-heading">Штат менеджерів та адміністрації</h3>
                 <p class="text-xs text-slate-400 font-mono">HR5: Перегляд та редагування персоналу</p>
               </div>
-              <button onclick="switchHrTab('hr4')" class="btn btn-primary btn-sm">+ Прийняти менеджера</button>
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                <div class="w-full sm:w-64">
+                  <input type="text" id="hr-staff-search" oninput="filterHrStaff(this.value)" class="text-xs font-mono w-full" placeholder="🔍 Пошук за ПІБ чи тел...">
+                </div>
+                <button onclick="switchHrTab('hr4')" class="btn btn-primary btn-sm whitespace-nowrap">+ Прийняти менеджера</button>
+              </div>
             </div>
             <div class="table-responsive">
               <table>
@@ -1454,7 +1448,10 @@
           <!-- HR4: Hire Staff -->
           <div id="subtab-hr4" class="hr-pane hidden">
             <div class="card p-6 max-w-2xl mx-auto border-medium shadow-xl">
-              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-user-plus text-cyan-400 mr-2"></i> Задача HR4: Прийняти менеджера на роботу</h3>
+              <div class="flex justify-between items-center mb-1">
+                <h3 class="text-lg font-bold text-white font-heading"><i class="fa-solid fa-user-plus text-cyan-400 mr-2"></i> Задача HR4: Прийняти менеджера на роботу</h3>
+                <button type="button" onclick="switchHrTab('hr_staff')" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrow-left mr-1"></i> Назад до списку</button>
+              </div>
               <p class="text-xs text-slate-400 mb-4">Створення запису у Staff з посадою Адміністратор / Менеджер.</p>
 
               <form id="form-hr4-hire" onsubmit="handleHr4Hire(event)" class="space-y-4">
@@ -1493,7 +1490,10 @@
                   </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary w-full py-2.5 font-bold">Прийняти менеджера (HR4)</button>
+                <div class="flex gap-3 pt-2">
+                  <button type="submit" class="btn btn-primary flex-1 py-2.5 font-bold">Прийняти менеджера (HR4)</button>
+                  <button type="button" onclick="switchHrTab('hr_staff')" class="btn btn-secondary px-5 py-2.5">Скасувати</button>
+                </div>
               </form>
             </div>
           </div>
@@ -1501,7 +1501,10 @@
           <!-- HR6: Dismiss Staff -->
           <div id="subtab-hr6" class="hr-pane hidden">
             <div class="card p-6 max-w-xl mx-auto border-medium shadow-xl">
-              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-user-minus text-rose-400 mr-2"></i> Задача HR6: Звільнити менеджера</h3>
+              <div class="flex justify-between items-center mb-1">
+                <h3 class="text-lg font-bold text-white font-heading"><i class="fa-solid fa-user-minus text-rose-400 mr-2"></i> Задача HR6: Звільнити менеджера</h3>
+                <button type="button" onclick="switchHrTab('hr_staff')" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrow-left mr-1"></i> Назад до списку</button>
+              </div>
               <p class="text-xs text-slate-400 mb-4">Встановлення дати FireDate та припинення повноважень менеджера.</p>
 
               <form id="form-hr6-dismiss" onsubmit="handleHr6Dismiss(event)" class="space-y-4">
@@ -1516,7 +1519,10 @@
                   <label class="form-label">Причина звільнення *</label>
                   <textarea id="hr6-reason" required rows="2" placeholder="За власним бажанням"></textarea>
                 </div>
-                <button type="submit" class="btn btn-danger w-full">Звільнити менеджера (HR6)</button>
+                <div class="flex gap-3 pt-2">
+                  <button type="submit" class="btn btn-danger flex-1">Звільнити менеджера (HR6)</button>
+                  <button type="button" onclick="switchHrTab('hr_staff')" class="btn btn-secondary px-5">Скасувати</button>
+                </div>
               </form>
             </div>
           </div>
@@ -2207,7 +2213,7 @@
   <div id="modal-api-settings" class="modal-backdrop hidden">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 class="text-base font-bold text-white font-heading"><i class="fa-solid fa-server text-cyan-400 mr-2"></i> Налаштування з'єднання з REST API</h3>
+        <h3 class="text-base font-bold text-white font-heading" style="color: #22d3ee !important;"><i class="fa-solid fa-server text-cyan-400 mr-2"></i> Налаштування з'єднання з REST API</h3>
         <button onclick="closeApiModal()" class="text-slate-400 hover:text-white text-lg transition">&times;</button>
       </div>
       <div class="modal-body space-y-4">
@@ -2236,7 +2242,7 @@
   <div id="modal-edit-client" class="modal-backdrop hidden">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 class="text-base font-bold text-white font-heading"><i class="fa-solid fa-user-pen text-cyan-400 mr-2"></i> Редагування профілю клієнта (M2)</h3>
+        <h3 class="text-base font-bold text-white font-heading" style="color: #22d3ee !important;"><i class="fa-solid fa-user-pen text-cyan-400 mr-2"></i> Редагування профілю клієнта (M2)</h3>
         <button onclick="closeEditClientModal()" class="text-slate-400 hover:text-white text-lg transition">&times;</button>
       </div>
       <div class="modal-body space-y-3">
@@ -2279,7 +2285,7 @@
   <div id="modal-edit-coach" class="modal-backdrop hidden">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 class="text-base font-bold text-white font-heading"><i class="fa-solid fa-user-gear text-cyan-400 mr-2"></i> Редагування даних тренера (HR2)</h3>
+        <h3 class="text-base font-bold text-white font-heading" style="color: #22d3ee !important;"><i class="fa-solid fa-user-gear text-cyan-400 mr-2"></i> Редагування даних тренера (HR2)</h3>
         <button onclick="closeEditCoachModal()" class="text-slate-400 hover:text-white text-lg transition">&times;</button>
       </div>
       <div class="modal-body space-y-3">
@@ -2327,7 +2333,7 @@
   <div id="modal-edit-staff" class="modal-backdrop hidden">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 class="text-base font-bold text-white font-heading"><i class="fa-solid fa-id-badge text-cyan-400 mr-2"></i> Редагування даних співробітника (HR5)</h3>
+        <h3 class="text-base font-bold text-white font-heading" style="color: #22d3ee !important;"><i class="fa-solid fa-id-badge text-cyan-400 mr-2"></i> Редагування даних співробітника (HR5)</h3>
         <button onclick="closeEditStaffModal()" class="text-slate-400 hover:text-white text-lg transition">&times;</button>
       </div>
       <div class="modal-body space-y-3">
@@ -2372,6 +2378,6 @@
   </footer>
 
   <!-- Application Logic (Modular ES6 SPA) -->
-  <script type="module" src="src/main.js?v=20261016_v7"></script>
+  <script type="module" src="src/main.js?v=20261018_v7"></script>
 </body>
 </html>

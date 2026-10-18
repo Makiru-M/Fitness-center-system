@@ -45,6 +45,57 @@ export function getActiveClient() {
   return AppState.currentUser;
 }
 
+export function formatExpiryDate(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return '—';
+  const clean = dateStr.trim();
+  if (!clean) return '—';
+
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(clean)) return clean;
+
+  const isoMatch = clean.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const [, yyyy, mm, dd] = isoMatch;
+    const m = parseInt(mm, 10);
+    const d = parseInt(dd, 10);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${dd}.${mm}.${yyyy}`;
+    }
+    return '—';
+  }
+
+  const parsed = new Date(clean);
+  if (isNaN(parsed.getTime())) return '—';
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const year = parsed.getFullYear();
+  return `${day}.${month}.${year}`;
+}
+
+export function pluralizeDaysUk(count) {
+  const abs = Math.abs(Math.trunc(count));
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+
+  if (mod100 >= 11 && mod100 <= 14) {
+    return `${count} днів`;
+  }
+  if (mod10 === 1) {
+    return `${count} день`;
+  }
+  if (mod10 >= 2 && mod10 <= 4) {
+    return `${count} дні`;
+  }
+  return `${count} днів`;
+}
+
+export function formatFreezingDays(days) {
+  if (days === null || days === undefined || days === '') return '—';
+  const count = Number(days);
+  if (isNaN(count)) return '—';
+  if (count === 0) return 'Немає';
+  return pluralizeDaysUk(count);
+}
+
 export async function renderClientDashboard() {
   try {
     const profile = await clientApi.getProfile();
@@ -59,11 +110,11 @@ export async function renderClientDashboard() {
     const detailsSub = document.getElementById('client-details-sub');
     if (detailsSub) detailsSub.textContent = `Телефон: ${profile.phone} | ID: #${profile.clientId} | Логін: ${profile.dbUser}`;
 
-function isTrivialMedNotes(str) {
-  if (!str) return true;
-  const s = str.trim().toLowerCase();
-  return s === '' || s === 'none' || s === '-' || s === 'немає' || s === 'немає обмежень' || s === 'відсутні' || s === 'обмежень немає';
-}
+    function isTrivialMedNotes(str) {
+      if (!str) return true;
+      const s = str.trim().toLowerCase();
+      return s === '' || s === 'none' || s === '-' || s === 'немає' || s === 'немає обмежень' || s === 'відсутні' || s === 'обмежень немає';
+    }
 
     const medAlertEl = document.getElementById('client-medical-alert');
     if (medAlertEl) {
@@ -83,21 +134,33 @@ function isTrivialMedNotes(str) {
     const metricFreezing = document.getElementById('client-metric-freezing');
     const freezingLeft = document.getElementById('cl3-freezing-days-left');
 
+    if (metricExpiry) {
+      metricExpiry.className = 'text-cyan-400 font-bold text-base mt-1';
+      metricExpiry.style.setProperty('color', '#22d3ee', 'important');
+    }
+    if (metricFreezing) {
+      metricFreezing.className = 'text-cyan-400 font-bold text-base mt-1';
+      metricFreezing.style.setProperty('color', '#22d3ee', 'important');
+    }
+
     if (activeSub) {
       if (subBadge) {
         subBadge.className = `badge badge-${(activeSub.currentStatus || 'active').toLowerCase()}`;
         subBadge.textContent = activeSub.currentStatus === 'Active' ? `Активний (${activeSub.itemName})` : activeSub.currentStatus;
       }
-      if (metricExpiry) metricExpiry.textContent = activeSub.endDate;
-      if (metricFreezing) metricFreezing.textContent = `${activeSub.remainingFreezingDays || 0} дн.`;
-      if (freezingLeft) freezingLeft.textContent = activeSub.remainingFreezingDays || 0;
+      if (metricExpiry) metricExpiry.textContent = formatExpiryDate(activeSub.endDate);
+      const remDays = (activeSub.remainingFreezingDays !== undefined && activeSub.remainingFreezingDays !== null && activeSub.remainingFreezingDays !== '')
+        ? Number(activeSub.remainingFreezingDays)
+        : 0;
+      if (metricFreezing) metricFreezing.textContent = formatFreezingDays(remDays);
+      if (freezingLeft) freezingLeft.textContent = isNaN(remDays) ? 0 : remDays;
     } else {
       if (subBadge) {
         subBadge.className = 'badge badge-expired';
         subBadge.textContent = 'Немає активного абонемента';
       }
       if (metricExpiry) metricExpiry.textContent = '—';
-      if (metricFreezing) metricFreezing.textContent = '0';
+      if (metricFreezing) metricFreezing.textContent = '—';
       if (freezingLeft) freezingLeft.textContent = '0';
     }
 
@@ -116,16 +179,16 @@ function isTrivialMedNotes(str) {
       } else {
         bookings.forEach(b => {
           const item = document.createElement('div');
-          item.className = 'p-3 rounded-lg border border-subtle bg-surface-elevated flex justify-between items-center text-xs';
+          item.className = 'flex justify-between items-center gap-3 p-3 rounded-lg border border-subtle bg-surface-elevated text-xs';
           item.style.backgroundColor = '#131a2e';
           item.style.borderColor = '#1a2236';
           item.innerHTML = `
-            <div>
+            <div class="min-w-0 flex-1">
               <span class="font-bold text-white font-heading">[${b.activityType}] ${b.title}</span>
               <div class="text-slate-400 mt-0.5">Тренер: <b class="text-slate-200">${b.coachName || '—'}</b> | Зал: <b class="text-slate-200">${b.hallName || '—'}</b></div>
               <div class="text-[11px] text-cyan-400 font-semibold font-mono mt-1"><i class="fa-regular fa-clock mr-1"></i> ${b.trainingDateTime || '—'}</div>
             </div>
-            <span class="badge badge-${(b.status || 'Active').toLowerCase()}">${b.status}</span>
+            <span class="badge badge-${(b.status || 'Active').toLowerCase()} shrink-0">${b.status}</span>
           `;
           listEl.appendChild(item);
         });

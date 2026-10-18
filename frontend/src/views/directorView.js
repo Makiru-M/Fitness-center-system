@@ -265,15 +265,17 @@ export async function renderD6Audit() {
       const reason = item.reason || '—';
       const newTime = item.newTime || item.finalResolution || item.details || (item.requestType === 'Cancel' ? 'Скасовано' : '—');
 
-      const isCancel = actionType === 'Cancel' || actionType === 'Скасовано';
+      const isCancel = actionType === 'Cancel' || actionType === 'Скасовано' ||
+        String(actionType).toLowerCase().includes('cancel') ||
+        String(actionType).toLowerCase().includes('скас');
       const badgeClass = isCancel ? 'badge-cancelled' : 'badge-scheduled';
 
       const row = document.createElement('tr');
       row.innerHTML = `
         <td class="font-mono text-xs text-slate-300">${timeStamp}</td>
         <td class="font-mono text-xs font-bold text-cyan-400">${trainingId}</td>
-        <td><span class="badge ${badgeClass}">${actionType}</span></td>
-        <td><span class="badge badge-active">${initiator}</span></td>
+        <td><span class="badge ${badgeClass} shrink-0">${actionType}</span></td>
+        <td><span class="badge badge-active shrink-0">${initiator}</span></td>
         <td class="text-xs text-slate-300">${reason}</td>
         <td class="text-xs font-mono text-slate-300">${newTime}</td>
       `;

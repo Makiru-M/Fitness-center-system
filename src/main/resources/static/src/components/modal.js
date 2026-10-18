@@ -13,13 +13,26 @@ import { updateHeaderUI, refreshRoleData, setServerOnline } from './navigation.j
 import { renderM2ClientsTable, cachedClients } from '../views/managerView.js';
 import { renderHrCoachesTable, renderHrStaffTable, cachedEmployees } from '../views/hrView.js';
 
+// Helper functions for showing/hiding modals
+function showModal(modal) {
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  modal.classList.add('active');
+}
+
+function hideModal(modal) {
+  if (!modal) return;
+  modal.classList.remove('active');
+  modal.classList.add('hidden');
+}
+
 // ==============================================================================
 // 1. API SETTINGS MODAL
 // ==============================================================================
 
 export function openApiModal() {
   const modal = document.getElementById('modal-api-settings');
-  if (modal) modal.classList.add('active');
+  showModal(modal);
 
   const input = document.getElementById('api-base-url-input');
   if (input) input.value = AppState.apiBaseUrl;
@@ -38,7 +51,7 @@ export function openApiModal() {
 
 export function closeApiModal() {
   const modal = document.getElementById('modal-api-settings');
-  if (modal) modal.classList.remove('active');
+  hideModal(modal);
 }
 
 export function toggleApiModeSelection(mode) {
@@ -146,12 +159,12 @@ export function openEditClientModal(clientId) {
   if (medEl) medEl.value = client.medicalNotes || '';
 
   const modal = document.getElementById('modal-edit-client');
-  if (modal) modal.classList.add('active');
+  showModal(modal);
 }
 
 export function closeEditClientModal() {
   const modal = document.getElementById('modal-edit-client');
-  if (modal) modal.classList.remove('active');
+  hideModal(modal);
   AppState.editingClientId = null;
 }
 
@@ -232,12 +245,12 @@ export function openEditCoachModal(coachId) {
   if (bioEl) bioEl.value = emp.biography || '';
 
   const modal = document.getElementById('modal-edit-coach');
-  if (modal) modal.classList.add('active');
+  showModal(modal);
 }
 
 export function closeEditCoachModal() {
   const modal = document.getElementById('modal-edit-coach');
-  if (modal) modal.classList.remove('active');
+  hideModal(modal);
   AppState.editingCoachId = null;
 }
 
@@ -311,12 +324,12 @@ export function openEditStaffModal(staffId) {
   }
 
   const modal = document.getElementById('modal-edit-staff');
-  if (modal) modal.classList.add('active');
+  showModal(modal);
 }
 
 export function closeEditStaffModal() {
   const modal = document.getElementById('modal-edit-staff');
-  if (modal) modal.classList.remove('active');
+  hideModal(modal);
   AppState.editingStaffId = null;
 }
 

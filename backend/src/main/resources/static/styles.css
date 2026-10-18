@@ -176,6 +176,7 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   letter-spacing: -0.02em;
   font-weight: 700;
+  color: var(--text-main);
 }
 
 .font-mono {
@@ -352,20 +353,44 @@ h1, h2, h3, h4, h5, h6 {
 .badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
-  padding: 0.2rem 0.6rem;
+  padding: 0.18rem 0.5rem;
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.68rem;
+  line-height: 1.2;
   font-weight: 600;
   border-radius: var(--radius-xs);
   letter-spacing: 0.02em;
   text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .badge-active {
   background: rgba(20, 184, 166, 0.15);
   color: #2dd4bf;
   border: 1px solid rgba(20, 184, 166, 0.35);
+}
+
+.badge-completed,
+.badge-attended {
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.badge-cancelled,
+.badge-cancel {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.badge-neutral {
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.25);
 }
 
 .badge-frozen {
@@ -735,6 +760,12 @@ select option {
   letter-spacing: 0.05em;
 }
 
+#client-metric-expiry,
+#client-metric-freezing {
+  color: #22d3ee !important;
+  font-weight: 700 !important;
+}
+
 /* ==============================================================================
    Modals
    ============================================================================== */
@@ -753,6 +784,7 @@ select option {
   transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.modal-backdrop.active,
 .modal-backdrop:not(.hidden) {
   opacity: 1;
   pointer-events: auto;
@@ -772,6 +804,7 @@ select option {
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.modal-backdrop.active .modal-content,
 .modal-backdrop:not(.hidden) .modal-content {
   transform: scale(1) translateY(0);
 }
@@ -782,6 +815,14 @@ select option {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.modal-header h1,
+.modal-header h2,
+.modal-header h3,
+.modal-header h4 {
+  color: #22d3ee !important;
+  font-weight: 700 !important;
 }
 
 .modal-body {
@@ -964,3 +1005,8 @@ select option {
   background: radial-gradient(circle, rgba(6, 182, 212, 0.08) 0%, transparent 60%);
   pointer-events: none;
 }
+
+#m3-price-display {
+  color: #22d3ee !important;
+}
+
