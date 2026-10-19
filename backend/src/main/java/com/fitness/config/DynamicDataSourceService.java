@@ -188,6 +188,13 @@ public class DynamicDataSourceService {
     }
 
     /**
+     * Obtain a JdbcTemplate for system background operations using superuser/admin credentials.
+     */
+    public JdbcTemplate getAdminJdbcTemplate() {
+        return getJdbcTemplateForUser(adminUsername, adminPassword);
+    }
+
+    /**
      * Test connection credentials against PostgreSQL.
      * Throws AuthenticationRequiredException if authentication is rejected.
      */

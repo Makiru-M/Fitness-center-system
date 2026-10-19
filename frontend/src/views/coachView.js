@@ -95,12 +95,49 @@ export function populateCoachDropdowns() {
   const c4Inst = document.getElementById('c4-instance');
   if (c4Inst) {
     c4Inst.innerHTML = '';
-    cachedCoachSchedule.filter(it => it.activityType === 'Group' && it.status === 'Scheduled').forEach(it => {
-      const opt = document.createElement('option');
-      opt.value = it.activityId;
-      opt.textContent = `${it.title} (${it.scheduleDate} о ${it.startTime || ''})`;
-      c4Inst.appendChild(opt);
-    });
+    const scheduledGroups = cachedCoachSchedule.filter(it => it.activityType === 'Group' && it.status === 'Scheduled');
+    if (scheduledGroups.length === 0) {
+      c4Inst.innerHTML = '<option value="" disabled selected>Немає запланованих групових занять</option>';
+    } else {
+      scheduledGroups.forEach(it => {
+        const opt = document.createElement('option');
+        opt.value = it.activityId;
+        opt.textContent = `${it.title} (${it.scheduleDate} о ${it.startTime || ''})`;
+        c4Inst.appendChild(opt);
+      });
+    }
+
+    const updateC4Attendance = () => {
+      const selId = parseInt(c4Inst.value || '0');
+      const item = cachedCoachSchedule.find(it => it.activityId === selId && it.activityType === 'Group');
+      const attInput = document.getElementById('c4-attendance');
+      const statusSelect = document.getElementById('c4-status');
+      if (attInput) {
+        if (statusSelect && statusSelect.value === 'Cancelled') {
+          attInput.value = 0;
+        } else if (item) {
+          attInput.value = item.attendanceOrCapacity || 0;
+        }
+      }
+    };
+
+    c4Inst.onchange = updateC4Attendance;
+
+    const c4Status = document.getElementById('c4-status');
+    if (c4Status) {
+      c4Status.onchange = () => {
+        const attInput = document.getElementById('c4-attendance');
+        if (c4Status.value === 'Cancelled') {
+          if (attInput) attInput.value = 0;
+        } else {
+          updateC4Attendance();
+        }
+      };
+    }
+
+    if (scheduledGroups.length > 0) {
+      updateC4Attendance();
+    }
   }
 
   // C5 Training
@@ -185,7 +222,29 @@ export function quickMarkC3(ptId) {
 export function quickMarkC4(giId) {
   switchCoachTab('c4');
   const sel = document.getElementById('c4-instance');
-  if (sel) sel.value = giId;
+  if (sel) {
+    sel.value = giId;
+    const item = cachedCoachSchedule.find(it => it.activityId === giId && it.activityType === 'Group');
+    const attInput = document.getElementById('c4-attendance');
+    if (attInput && item) {
+      attInput.value = item.attendanceOrCapacity || 0;
+    }
+  }
+}
+
+export function handleC4StatusChange() {
+  const statusSelect = document.getElementById('c4-status');
+  const attInput = document.getElementById('c4-attendance');
+  if (!statusSelect || !attInput) return;
+  if (statusSelect.value === 'Cancelled') {
+    attInput.value = 0;
+  } else {
+    const selId = parseInt(document.getElementById('c4-instance')?.value || '0');
+    const item = cachedCoachSchedule.find(it => it.activityId === selId && it.activityType === 'Group');
+    if (item) {
+      attInput.value = item.attendanceOrCapacity || 0;
+    }
+  }
 }
 
 export async function handleC3Mark(e) {
@@ -212,7 +271,10 @@ export async function handleC4Mark(e) {
   e.preventDefault();
   const giId = parseInt(document.getElementById('c4-instance').value);
   const status = document.getElementById('c4-status').value;
-  const attendance = parseInt(document.getElementById('c4-attendance').value || '0');
+  let attendance = parseInt(document.getElementById('c4-attendance').value || '0');
+  if (isNaN(attendance) || attendance < 0 || status === 'Cancelled') {
+    attendance = 0;
+  }
 
   if (!giId) {
     showToast('Оберіть групове заняття', 'warning');

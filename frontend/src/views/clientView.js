@@ -14,7 +14,6 @@ import { refreshCombobox } from '../components/combobox.js';
 let cachedClientSubscriptions = [];
 let cachedClientBookings = [];
 let cachedPriceList = [];
-const registeredGroupInstances = new Set();
 const bookedCoachSlots = new Set();
 
 const INITIAL_CLIENT_PHONES = [
@@ -143,11 +142,22 @@ export async function renderClientDashboard() {
       metricFreezing.style.setProperty('color', '#22d3ee', 'important');
     }
 
+    // Remove old unfreeze button from header if present
+    const oldUnfreezeBtn = document.getElementById('client-sub-unfreeze-btn');
+    if (oldUnfreezeBtn) oldUnfreezeBtn.remove();
+
     if (activeSub) {
       if (subBadge) {
         subBadge.className = `badge badge-${(activeSub.currentStatus || 'active').toLowerCase()}`;
-        subBadge.textContent = activeSub.currentStatus === 'Active' ? `Активний (${activeSub.itemName})` : activeSub.currentStatus;
+        if (activeSub.currentStatus === 'Frozen') {
+          subBadge.textContent = 'Заморожено';
+        } else if (activeSub.currentStatus === 'Active') {
+          subBadge.textContent = `Активний (${activeSub.itemName})`;
+        } else {
+          subBadge.textContent = activeSub.currentStatus;
+        }
       }
+
       if (metricExpiry) metricExpiry.textContent = formatExpiryDate(activeSub.endDate);
       const remDays = (activeSub.remainingFreezingDays !== undefined && activeSub.remainingFreezingDays !== null && activeSub.remainingFreezingDays !== '')
         ? Number(activeSub.remainingFreezingDays)
@@ -163,6 +173,40 @@ export async function renderClientDashboard() {
       if (metricFreezing) metricFreezing.textContent = '—';
       if (freezingLeft) freezingLeft.textContent = '0';
     }
+
+    // Update Quick Action Cl3 button according to subscription status
+    const quickFreezeBtn = document.getElementById('client-quick-freeze-btn');
+    const quickFreezeIcon = document.getElementById('client-quick-freeze-icon');
+    const quickFreezeTitle = document.getElementById('client-quick-freeze-title');
+    const quickFreezeDesc = document.getElementById('client-quick-freeze-desc');
+
+    if (quickFreezeBtn) {
+      if (activeSub && activeSub.currentStatus === 'Frozen') {
+        if (quickFreezeIcon) {
+          quickFreezeIcon.className = 'fa-solid fa-sun text-lg block mb-1 text-cyan-400 group-hover:scale-110 transition-transform';
+        }
+        if (quickFreezeTitle) {
+          quickFreezeTitle.textContent = 'Розморозити (Cl3)';
+        }
+        if (quickFreezeDesc) {
+          quickFreezeDesc.textContent = 'Відновити дію';
+        }
+        quickFreezeBtn.onclick = () => window.handleCl3Unfreeze(activeSub.clientSubId);
+      } else {
+        if (quickFreezeIcon) {
+          quickFreezeIcon.className = 'fa-solid fa-snowflake text-lg block mb-1 text-cyan-300 group-hover:scale-110 transition-transform';
+        }
+        if (quickFreezeTitle) {
+          quickFreezeTitle.textContent = 'Заморозка (Cl3)';
+        }
+        if (quickFreezeDesc) {
+          quickFreezeDesc.textContent = 'Призупинити';
+        }
+        quickFreezeBtn.onclick = () => window.switchClientTab('cl3');
+      }
+    }
+
+    renderCl3Tab(activeSub);
 
     const cl1Name = document.getElementById('cl1-name') || document.getElementById('cl1-fullname');
     if (cl1Name) cl1Name.value = profile.fullName || '';
@@ -377,23 +421,97 @@ export async function handleCl3Freeze(e) {
   }
 }
 
+export function renderCl3Tab(activeSub) {
+  const form = document.getElementById('form-cl3-freeze');
+  const card = form?.parentElement;
+  if (!card) return;
+
+  let frozenBanner = document.getElementById('cl3-frozen-banner');
+
+  if (activeSub && activeSub.currentStatus === 'Frozen') {
+    if (form) form.classList.add('hidden');
+    if (!frozenBanner) {
+      frozenBanner = document.createElement('div');
+      frozenBanner.id = 'cl3-frozen-banner';
+      card.appendChild(frozenBanner);
+    }
+    frozenBanner.className = 'space-y-4 text-center py-4';
+    frozenBanner.innerHTML = `
+      <div class="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded-xl">
+        <div class="w-12 h-12 mx-auto rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xl mb-3">
+          <i class="fa-solid fa-snowflake"></i>
+        </div>
+        <h4 class="font-bold text-white text-base font-heading">Абонемент наразі заморожено</h4>
+        <p class="text-xs text-slate-300 mt-2">
+          Дія абонемента тимчасово призупинена. Розрахункова дата завершення дії: <b class="text-cyan-400 font-mono">${formatExpiryDate(activeSub.endDate)}</b>.
+        </p>
+        <p class="text-xs text-slate-400 mt-1">
+          Доступний залишок днів заморозки: <b class="text-white font-mono">${formatFreezingDays(activeSub.remainingFreezingDays)}</b>.
+        </p>
+      </div>
+      <button type="button" onclick="handleCl3Unfreeze(${activeSub.clientSubId})" class="btn btn-primary w-full py-2.5 font-bold flex items-center justify-center gap-2">
+        <i class="fa-solid fa-sun text-cyan-400"></i> Відновити дію абонемента (Розморозити)
+      </button>
+    `;
+    frozenBanner.classList.remove('hidden');
+  } else {
+    if (form) form.classList.remove('hidden');
+    if (frozenBanner) frozenBanner.classList.add('hidden');
+  }
+}
+
+export async function handleCl3Unfreeze(clientSubId) {
+  if (!clientSubId && cachedClientSubscriptions.length) {
+    clientSubId = cachedClientSubscriptions[0].clientSubId;
+  }
+  if (!clientSubId) {
+    showToast('Абонемент для розморожування не знайдено.', 'warning');
+    return;
+  }
+
+  const confirmed = confirm('Ви впевнені, що бажаєте достроково розморозити абонемент та відновити його дію?');
+  if (!confirmed) return;
+
+  try {
+    const res = await clientApi.unfreezeSubscription(clientSubId);
+    showToast(res?.message || 'Заморозку успішно скасовано. Абонемент активовано.', 'success');
+    await renderClientDashboard();
+    switchClientTab('cl_dash');
+  } catch (err) {
+    showToast(`Помилка розморожування: ${err.message}`, 'danger');
+  }
+}
+
 export async function populateCl45Options() {
   try {
-    const [halls, coaches] = await Promise.all([
+    const [halls, coaches, groupClasses] = await Promise.all([
       guestApi.getHalls(),
-      guestApi.getCoaches()
+      guestApi.getCoaches(),
+      clientApi.getAvailableGroupClasses().catch(() => [])
     ]);
 
     const cl4Instance = document.getElementById('cl4-instance');
-    if (cl4Instance && (!cl4Instance.children || cl4Instance.children.length === 0)) {
-      cl4Instance.innerHTML = `
-        <option value="1">Hatha Yoga — Пн 09:00 (Yoga Studio)</option>
-        <option value="2">Power Crossfit — Вт 18:00 (Crossfit Box)</option>
-        <option value="3">Morning Stretch — Ср 08:00 (Yoga Studio)</option>
-        <option value="4">Zumba — Чт 19:00 (Fight Zone)</option>
-        <option value="5">Box Training — Пт 17:00 (Main Gym)</option>
-        <option value="6">Pilates Basics — Сб 11:00 (Pilates Room)</option>
-      `;
+    if (cl4Instance) {
+      cl4Instance.innerHTML = '';
+      if (groupClasses && groupClasses.length > 0) {
+        groupClasses.forEach(gc => {
+          const opt = document.createElement('option');
+          opt.value = gc.instanceId;
+          const timeStr = gc.startTime ? gc.startTime.substring(0, 5) : '';
+          const dateObj = new Date(gc.classDate + 'T' + (gc.startTime || '00:00:00'));
+          const dayNames = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+          const dayUa = isNaN(dateObj.getDay()) ? '' : dayNames[dateObj.getDay()] + ' ';
+          const bookedTag = gc.isBookedByMe ? ' [Ви вже записані]' : '';
+          const spotsTag = gc.availableSpots > 0 ? `вільно місць: ${gc.availableSpots}/${gc.maxCapacity}` : 'місць немає';
+          opt.textContent = `${gc.title} — ${dayUa}${gc.classDate} ${timeStr} (${gc.hallName}, тренер: ${gc.coachName}) [${spotsTag}]${bookedTag}`;
+          if (gc.availableSpots <= 0 || gc.isBookedByMe) {
+            opt.disabled = true;
+          }
+          cl4Instance.appendChild(opt);
+        });
+      } else {
+        cl4Instance.innerHTML = '<option value="" disabled selected>Немає запланованих групових занять</option>';
+      }
     }
 
     const cl5Hall = document.getElementById('cl5-hall');
@@ -436,15 +554,18 @@ export async function populateCl45Options() {
 export async function handleCl4Booking(e) {
   e.preventDefault();
   const select = document.getElementById('cl4-instance');
-  const instanceId = parseInt(select?.value || '1');
-  const selectedText = select?.options[select.selectedIndex]?.text || '';
+  const instanceId = parseInt(select?.value || '0');
+  if (!instanceId) {
+    showToast('Будь ласка, оберіть доступне заняття.', 'warning');
+    return;
+  }
 
-  // Cl4: Duplicate booking check
+  // Duplicate check: strictly by instanceId
   const alreadyBooked = (cachedClientBookings || []).some(b => 
     (b.activityType || '').toLowerCase() === 'group' &&
     (b.status || '').toLowerCase() === 'scheduled' &&
-    (b.bookingId === instanceId || (selectedText && b.title && selectedText.includes(b.title)))
-  ) || registeredGroupInstances.has(instanceId);
+    b.instanceId === instanceId
+  );
 
   if (alreadyBooked) {
     showToast('Ви вже записані на це тренування!', 'warning');
@@ -452,8 +573,9 @@ export async function handleCl4Booking(e) {
   }
 
   try {
-    await clientApi.bookGroupClass({ instanceId, saleId: null });
-    registeredGroupInstances.add(instanceId);
+    const activeSub = cachedClientSubscriptions.find(s => s.currentStatus === 'Active' && new Date(s.endDate) >= new Date()) || cachedClientSubscriptions[0];
+    const saleId = activeSub ? activeSub.saleId : null;
+    await clientApi.bookGroupClass({ instanceId, saleId });
     showToast('Успішно записано на групове заняття! (Cl4)', 'success');
     await renderClientDashboard();
     switchClientTab('cl_dash');
@@ -488,11 +610,13 @@ export async function handleCl5Booking(e) {
   }
 
   try {
+    const activeSub = cachedClientSubscriptions.find(s => s.currentStatus === 'Active' && new Date(s.endDate) >= new Date()) || cachedClientSubscriptions[0];
+    const saleId = activeSub ? activeSub.saleId : null;
     await clientApi.bookPersonalTraining({
       coachId,
       hallId,
       trainingDateTime: dt,
-      saleId: null
+      saleId
     });
     bookedCoachSlots.add(slotKey);
     showToast('Персональне тренування успішно заброньовано! (Cl5)', 'success');
@@ -500,7 +624,7 @@ export async function handleCl5Booking(e) {
     switchClientTab('cl_dash');
   } catch (err) {
     if (err.message && (err.message.includes('зайнятий') || err.message.includes('конфлікт') || err.message.includes('conflict'))) {
-      showToast('Обраний тренер уже має призначене тренування на цей час. Будь ласка, оберіть інший слот', 'warning');
+      showToast(err.message, 'warning');
     } else {
       showToast(`Помилка запису: ${err.message}`, 'danger');
     }
@@ -565,6 +689,7 @@ export async function handleCl6Cancel(e) {
       bookingId,
       reason
     });
+    bookedCoachSlots.clear();
     showToast('Бронювання успішно скасовано! (Cl6)', 'success');
     await renderClientDashboard();
     switchClientTab('cl_dash');

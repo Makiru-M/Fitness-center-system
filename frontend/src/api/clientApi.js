@@ -39,6 +39,12 @@ export const clientApi = {
     });
   },
 
+  unfreezeSubscription(clientSubId) {
+    return apiFetch('/client/subscriptions/' + clientSubId + '/unfreeze', {
+      method: 'PUT'
+    });
+  },
+
   bookGroupClass(data) {
     return apiFetch('/client/bookings/group', {
       method: 'POST',
@@ -58,5 +64,9 @@ export const clientApi = {
       method: 'POST',
       body: JSON.stringify(data)
     });
+  },
+
+  getAvailableGroupClasses() {
+    return apiFetch('/client/group-classes/available');
   }
 };

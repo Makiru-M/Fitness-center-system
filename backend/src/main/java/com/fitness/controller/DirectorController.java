@@ -1,6 +1,7 @@
 package com.fitness.controller;
 
 import com.fitness.model.DirectorDto.*;
+import com.fitness.model.GuestDto.HallDto;
 import com.fitness.repository.DirectorRepository;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -117,6 +118,26 @@ public class DirectorController {
         return ResponseEntity.ok(Map.of(
                 "hallId", hallId,
                 "message", "Зал успішно виведено з експлуатації та переведено в архів."
+        ));
+    }
+
+    /**
+     * D8: Get archived halls
+     */
+    @GetMapping("/halls/archived")
+    public ResponseEntity<List<HallDto>> getArchivedHalls() {
+        return ResponseEntity.ok(directorRepository.getArchivedHalls());
+    }
+
+    /**
+     * D8: Recommission hall into operation
+     */
+    @PutMapping("/halls/{hallId}/recommission")
+    public ResponseEntity<Map<String, Object>> recommissionHall(@PathVariable Integer hallId) {
+        directorRepository.recommissionHall(hallId);
+        return ResponseEntity.ok(Map.of(
+                "hallId", hallId,
+                "message", "Зал успішно повернуто в експлуатацію."
         ));
     }
 

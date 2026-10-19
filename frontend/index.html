@@ -526,6 +526,17 @@
               </div>
             </div>
 
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div class="form-group">
+                <label class="form-label">Логін (DB_User) *</label>
+                <input type="text" id="g1-dbuser" required placeholder="напр. andriy_bondar" class="font-mono">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Пароль для входу *</label>
+                <input type="password" id="g1-password" required minlength="4" placeholder="Введіть надійний пароль">
+              </div>
+            </div>
+
             <div class="form-group">
               <label class="form-label">Медичні застереження / обмеження (MedicalNotes)</label>
               <textarea id="g1-mednotes" rows="2" placeholder="Травми, алергії, проблеми з тиском (або залиште порожнім)"></textarea>
@@ -676,10 +687,10 @@
                     <span class="text-white block font-heading">Групове (Cl4)</span>
                     <span class="text-slate-500 text-[10px]">Заняття в залі</span>
                   </button>
-                  <button onclick="switchClientTab('cl3')" class="p-3 bg-void border border-subtle hover:border-cyan-500/50 rounded-xl text-left font-medium text-xs transition group">
-                    <i class="fa-solid fa-snowflake text-lg block mb-1 text-cyan-300 group-hover:scale-110 transition-transform"></i>
-                    <span class="text-white block font-heading">Заморозка (Cl3)</span>
-                    <span class="text-slate-500 text-[10px]">Призупинити</span>
+                  <button id="client-quick-freeze-btn" onclick="switchClientTab('cl3')" class="p-3 bg-void border border-subtle hover:border-cyan-500/50 rounded-xl text-left font-medium text-xs transition group">
+                    <i id="client-quick-freeze-icon" class="fa-solid fa-snowflake text-lg block mb-1 text-cyan-300 group-hover:scale-110 transition-transform"></i>
+                    <span id="client-quick-freeze-title" class="text-white block font-heading">Заморозка (Cl3)</span>
+                    <span id="client-quick-freeze-desc" class="text-slate-500 text-[10px]">Призупинити</span>
                   </button>
                   <button onclick="switchClientTab('cl2')" class="p-3 bg-void border border-subtle hover:border-cyan-500/50 rounded-xl text-left font-medium text-xs transition group">
                     <i class="fa-solid fa-cart-shopping text-lg block mb-1 text-cyan-400 group-hover:scale-110 transition-transform"></i>
@@ -1021,9 +1032,15 @@
                   </div>
                 </div>
 
-                <div class="form-group">
-                  <label class="form-label">Системний логін (DB_User) *</label>
-                  <input type="text" id="m1-dbuser" required placeholder="client_taras" class="font-mono">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="form-group">
+                    <label class="form-label">Системний логін (DB_User) *</label>
+                    <input type="text" id="m1-dbuser" required placeholder="client_taras" class="font-mono">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Пароль клієнта *</label>
+                    <input type="password" id="m1-password" required minlength="4" placeholder="Введіть пароль клієнта">
+                  </div>
                 </div>
 
                 <div class="form-group">
@@ -1688,14 +1705,14 @@
                 <div class="grid grid-cols-2 gap-4">
                   <div class="form-group">
                     <label class="form-label">Статус *</label>
-                    <select id="c4-status" class="font-mono text-sm">
+                    <select id="c4-status" onchange="handleC4StatusChange()" class="font-mono text-sm">
                       <option value="Completed">Проведено (Completed)</option>
                       <option value="Cancelled">Скасовано (Cancelled)</option>
                     </select>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Фактична кількість присутніх *</label>
-                    <input type="number" id="c4-attendance" required min="0" class="font-mono text-sm" value="8">
+                    <input type="number" id="c4-attendance" required min="0" class="font-mono text-sm" value="0">
                   </div>
                 </div>
                 <button type="submit" class="btn btn-primary w-full">Зберегти звіт (C4)</button>
@@ -2034,6 +2051,24 @@
                 </div>
                 <button type="submit" class="btn btn-danger w-full py-2.5 font-bold shadow-md">
                   <i class="fa-solid fa-ban mr-1.5"></i> Вивести зал з експлуатації (D8)
+                </button>
+              </form>
+            </div>
+
+            <div class="card p-6 max-w-xl mx-auto border-medium shadow-xl mt-6">
+              <h3 class="text-lg font-bold text-white font-heading mb-1">
+                <i class="fa-solid fa-rotate-left text-cyan-400 mr-2"></i> Повернення залу в експлуатацію
+              </h3>
+              <p class="text-xs text-slate-400 mb-4">Відновлення залу з архіву (IsActive = TRUE). Зал знову стане доступним для бронювань, розкладу та перегляду гостями.</p>
+              <form id="form-d8-recommission" onsubmit="handleD8RecommissionHall(event)" class="space-y-4">
+                <div class="form-group">
+                  <label class="form-label">Оберіть зал для повернення в експлуатацію *</label>
+                  <select id="d8-recom-hall" required class="font-mono text-sm">
+                    <!-- Populated by JS -->
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-primary w-full py-2.5 font-bold shadow-md">
+                  <i class="fa-solid fa-rotate-left mr-1.5"></i> Повернути зал в експлуатацію (D8)
                 </button>
               </form>
             </div>

@@ -54,6 +54,18 @@ public class ClientController {
     }
 
     /**
+     * Cl3: Unfreeze subscription
+     */
+    @PutMapping("/subscriptions/{clientSubId}/unfreeze")
+    public ResponseEntity<Map<String, Object>> unfreezeSubscription(@PathVariable Integer clientSubId) {
+        clientRepository.unfreezeSubscription(clientSubId);
+        return ResponseEntity.ok(Map.of(
+                "clientSubId", clientSubId,
+                "message", "Заморозку успішно скасовано. Абонемент активовано."
+        ));
+    }
+
+    /**
      * Cl4: Book a group class
      */
     @PostMapping("/bookings/group")
@@ -102,5 +114,13 @@ public class ClientController {
     @GetMapping("/visits")
     public ResponseEntity<List<VisitDto>> getMyVisits() {
         return ResponseEntity.ok(clientRepository.getMyVisits());
+    }
+
+    /**
+     * Cl4: View available group classes scheduled for current and future dates
+     */
+    @GetMapping("/group-classes/available")
+    public ResponseEntity<List<AvailableGroupClassDto>> getAvailableGroupClasses() {
+        return ResponseEntity.ok(clientRepository.getAvailableGroupClasses());
     }
 }

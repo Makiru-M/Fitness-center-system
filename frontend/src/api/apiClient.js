@@ -132,8 +132,8 @@ export async function apiFetch(endpoint, options = {}) {
     }
 
     console.warn(`%c[API Response] ⚠️ ${res.status} ${fullUrl}`, 'color: #dc2626; font-weight: bold;', data);
-    const errorMsg = (typeof data === 'object' && (data.error || data.message))
-      ? (data.error || data.message)
+    const errorMsg = (typeof data === 'object' && (data.message || data.error))
+      ? (data.message || data.error)
       : `Помилка сервера HTTP ${res.status}`;
     throw new Error(errorMsg);
   } catch (err) {

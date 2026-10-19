@@ -1,5 +1,6 @@
 package com.fitness.model;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -213,28 +214,34 @@ public class DirectorDto {
     }
 
     public record CreateSubscriptionTypeRequest(
-            String itemName,
+            @JsonAlias({"name", "item_name"}) String itemName,
             String category,
             BigDecimal price,
             Integer durationDays,
             Integer maxFreezingDays,
             String description
-    ) {}
+    ) {
+        public CreateSubscriptionTypeRequest {
+            if (category == null || category.isBlank() || "Subscription".equalsIgnoreCase(category)) {
+                category = "Membership";
+            }
+        }
+    }
 
     public record CreateServiceRequest(
-            String itemName,
+            @JsonAlias({"name", "item_name"}) String itemName,
             String category,
             BigDecimal price,
             String description
     ) {}
 
     public record CommissionHallRequest(
-            String hallName,
+            @JsonAlias({"name", "hall_name"}) String hallName,
             Integer maxCapacity
     ) {}
 
     public record CreatePromoCodeRequest(
-            String codeText,
+            @JsonAlias({"code", "code_text"}) String codeText,
             Integer discountPercent,
             LocalDate expiryDate
     ) {}

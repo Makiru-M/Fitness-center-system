@@ -140,9 +140,10 @@ public class CoachRepository {
      */
     public void updateGroupAttendance(Integer instanceId, UpdateGroupAttendanceRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        int attendance = (req.actualAttendance() != null && req.actualAttendance() >= 0) ? req.actualAttendance() : 0;
         jdbc.update(
                 "UPDATE GroupClassInstances SET ClassStatus = ?::activity_status, ActualAttendance = ? WHERE ID_Instance = ?",
-                req.status(), req.actualAttendance(), instanceId
+                req.status(), attendance, instanceId
         );
     }
 

@@ -54,6 +54,14 @@ export const directorApi = {
     });
   },
 
+  getArchivedHalls() {
+    return apiFetch('/director/halls/archived');
+  },
+
+  recommissionHall(hallId) {
+    return apiFetch('/director/halls/' + hallId + '/recommission', { method: 'PUT' });
+  },
+
   createPromo(data) {
     return apiFetch('/director/promos', {
       method: 'POST',

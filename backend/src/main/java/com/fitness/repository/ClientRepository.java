@@ -159,50 +159,16 @@ public class ClientRepository {
             throw new BusinessLogicException("Дата закінчення заморозки повинна бути пізнішою за дату початку.");
         }
 
-        // Check subscription remaining days
-        String checkSql = """
-            SELECT cs.RemainingFreezingDays, cs.EndDate, cs.CurrentStatus
-            FROM ClientSubscriptions cs
-            JOIN Sales s ON cs.ID_Sale = s.ID_Sale
-            JOIN Clients c ON s.ID_Client = c.ID_Client
-            WHERE cs.ID_ClientSub = ? AND c.DB_User = SESSION_USER
-            FOR UPDATE
-            """;
+        jdbc.update("CALL sp_freeze_client_subscription(?, ?, ?, ?)",
+                req.clientSubId(), req.startDate(), req.endDate(), req.reason());
+    }
 
-        List<Object[]> rows = jdbc.query(checkSql, (rs, rowNum) -> new Object[]{
-                rs.getInt("RemainingFreezingDays"),
-                rs.getDate("EndDate").toLocalDate(),
-                rs.getString("CurrentStatus")
-        }, req.clientSubId());
-
-        if (rows.isEmpty()) {
-            throw new BusinessLogicException("Абонемент не знайдено або він не належить вам.");
-        }
-
-        int remainingDays = (int) rows.get(0)[0];
-        LocalDate oldEndDate = (LocalDate) rows.get(0)[1];
-        String status = (String) rows.get(0)[2];
-
-        if (!"Active".equalsIgnoreCase(status)) {
-            throw new BusinessLogicException("Заморозити можна лише активний абонемент. Поточний статус: " + status);
-        }
-
-        if (remainingDays < freezeDays) {
-            throw new BusinessLogicException("Недостатньо доступних днів заморозки. Залишок: " + remainingDays + ", запитано: " + freezeDays);
-        }
-
-        // Record freezing log
-        jdbc.update(
-                "INSERT INTO FreezingLogs (ID_ClientSub, FreezeStartDate, FreezeEndDate, Reason) VALUES (?, ?, ?, ?)",
-                req.clientSubId(), req.startDate(), req.endDate(), req.reason()
-        );
-
-        // Update subscription
-        LocalDate newEndDate = oldEndDate.plusDays(freezeDays);
-        jdbc.update(
-                "UPDATE ClientSubscriptions SET EndDate = ?, RemainingFreezingDays = RemainingFreezingDays - ?, CurrentStatus = 'Frozen' WHERE ID_ClientSub = ?",
-                newEndDate, freezeDays, req.clientSubId()
-        );
+    /**
+     * Cl3: Unfreeze subscription
+     */
+    public void unfreezeSubscription(Integer clientSubId) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        jdbc.update("CALL sp_unfreeze_client_subscription(?)", clientSubId);
     }
 
     /**
@@ -210,45 +176,7 @@ public class ClientRepository {
      */
     public void bookGroupClass(GroupBookingRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-
-        // 1. Check capacity
-        String capacitySql = """
-            SELECT gci.ActualAttendance, h.MaxCapacity, gci.ClassStatus
-            FROM GroupClassInstances gci
-            JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
-            JOIN Halls h ON gst.ID_Hall = h.ID_Hall
-            WHERE gci.ID_Instance = ?
-            FOR UPDATE
-            """;
-        List<Object[]> instList = jdbc.query(capacitySql, (rs, rowNum) -> new Object[]{
-                rs.getInt("ActualAttendance"),
-                rs.getInt("MaxCapacity"),
-                rs.getString("ClassStatus")
-        }, req.instanceId());
-
-        if (instList.isEmpty()) {
-            throw new BusinessLogicException("Екземпляр групового заняття не знайдено.");
-        }
-
-        int attendance = (int) instList.get(0)[0];
-        int maxCapacity = (int) instList.get(0)[1];
-        String classStatus = (String) instList.get(0)[2];
-
-        if (!"Scheduled".equalsIgnoreCase(classStatus)) {
-            throw new BusinessLogicException("Запис неможливий: статус заняття '" + classStatus + "'.");
-        }
-        if (attendance >= maxCapacity) {
-            throw new BusinessLogicException("Вільних місць у залі немає (місткість: " + maxCapacity + ").");
-        }
-
-        // 2. Create booking
-        jdbc.update(
-                "INSERT INTO GroupClassBookings (ID_Instance, ID_Sale, BookingStatus) VALUES (?, ?, 'Scheduled')",
-                req.instanceId(), req.saleId()
-        );
-
-        // 3. Increment attendance count
-        jdbc.update("UPDATE GroupClassInstances SET ActualAttendance = ActualAttendance + 1 WHERE ID_Instance = ?", req.instanceId());
+        jdbc.update("CALL sp_book_group_class(?, ?)", req.instanceId(), req.saleId());
     }
 
     /**
@@ -279,9 +207,31 @@ public class ClientRepository {
             throw new BusinessLogicException("Тренер вже зайнятий на цей час.");
         }
 
+        Integer saleId = req.saleId();
+        if (saleId == null) {
+            List<Integer> activeSales = jdbc.query(
+                """
+                SELECT cs.ID_Sale
+                FROM ClientSubscriptions cs
+                JOIN Sales s ON cs.ID_Sale = s.ID_Sale
+                JOIN Clients c ON s.ID_Client = c.ID_Client
+                WHERE c.DB_User = SESSION_USER
+                  AND cs.CurrentStatus = 'Active'
+                  AND cs.EndDate >= CURRENT_DATE
+                ORDER BY cs.EndDate DESC
+                LIMIT 1
+                """,
+                (rs, rowNum) -> rs.getInt(1)
+            );
+            if (activeSales.isEmpty()) {
+                throw new BusinessLogicException("У вас немає активного абонемента для запису на персональне тренування.");
+            }
+            saleId = activeSales.get(0);
+        }
+
         jdbc.update(
                 "INSERT INTO PersonalTrainings (ID_Coach, ID_Hall, ID_Sale, TrainingDateTime, TrainingStatus) VALUES (?, ?, ?, ?, 'Scheduled')",
-                req.coachId(), req.hallId(), req.saleId(), req.trainingDateTime()
+                req.coachId(), req.hallId(), saleId, req.trainingDateTime()
         );
     }
 
@@ -307,17 +257,7 @@ public class ClientRepository {
                     req.bookingId(), req.reason()
             );
         } else if ("Group".equalsIgnoreCase(req.bookingType())) {
-            // Get instance ID to decrement attendance
-            Integer instanceId = jdbc.queryForObject(
-                    "SELECT ID_Instance FROM GroupClassBookings WHERE ID_Booking = ? AND BookingStatus = 'Scheduled'",
-                    Integer.class, req.bookingId()
-            );
-            if (instanceId == null) {
-                throw new BusinessLogicException("Запис на групове заняття не знайдено.");
-            }
-
-            jdbc.update("UPDATE GroupClassBookings SET BookingStatus = 'Cancelled' WHERE ID_Booking = ?", req.bookingId());
-            jdbc.update("UPDATE GroupClassInstances SET ActualAttendance = GREATEST(ActualAttendance - 1, 0) WHERE ID_Instance = ?", instanceId);
+            jdbc.update("CALL sp_cancel_group_booking(?)", req.bookingId());
         } else {
             throw new BusinessLogicException("Невідомий тип бронювання: " + req.bookingType());
         }
@@ -351,6 +291,61 @@ public class ClientRepository {
     }
 
     /**
+     * Cl4 / M5: Get scheduled group class instances available for booking (CURRENT_DATE and onwards)
+     */
+    public List<AvailableGroupClassDto> getAvailableGroupClasses() {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = """
+            SELECT 
+                gci.ID_Instance,
+                gst.ID_Template,
+                ct.TypeName AS Title,
+                st.FullName AS CoachName,
+                h.HallName,
+                gci.ClassDate,
+                gci.ClassStartTime AS StartTime,
+                gst.DurationMinutes,
+                gci.ClassStatus::TEXT AS Status,
+                gci.ActualAttendance,
+                h.MaxCapacity,
+                GREATEST(h.MaxCapacity - gci.ActualAttendance, 0) AS AvailableSpots,
+                EXISTS (
+                    SELECT 1 FROM GroupClassBookings gcb
+                    JOIN Sales s ON gcb.ID_Sale = s.ID_Sale
+                    JOIN Clients cl ON s.ID_Client = cl.ID_Client
+                    WHERE gcb.ID_Instance = gci.ID_Instance
+                      AND gcb.BookingStatus = 'Scheduled'
+                      AND cl.DB_User = SESSION_USER
+                ) AS IsBookedByMe
+            FROM GroupClassInstances gci
+            JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
+            JOIN ClassTypes ct ON gst.ID_ClassType = ct.ID_ClassType
+            JOIN Halls h ON gst.ID_Hall = h.ID_Hall
+            JOIN Coaches co ON gst.ID_Coach = co.ID_Coach
+            JOIN Staff st ON co.ID_Staff = st.ID_Staff
+            WHERE gci.ClassStatus = 'Scheduled'
+              AND gci.ClassDate >= CURRENT_DATE
+            ORDER BY gci.ClassDate ASC, gci.ClassStartTime ASC
+            """;
+
+        return jdbc.query(sql, (rs, rowNum) -> new AvailableGroupClassDto(
+                rs.getInt("ID_Instance"),
+                rs.getInt("ID_Template"),
+                rs.getString("Title"),
+                rs.getString("CoachName"),
+                rs.getString("HallName"),
+                rs.getDate("ClassDate").toLocalDate(),
+                rs.getTime("StartTime") != null ? rs.getTime("StartTime").toLocalTime() : null,
+                rs.getInt("DurationMinutes"),
+                rs.getString("Status"),
+                rs.getInt("ActualAttendance"),
+                rs.getInt("MaxCapacity"),
+                rs.getInt("AvailableSpots"),
+                rs.getBoolean("IsBookedByMe")
+        ));
+    }
+
+    /**
      * Get client's bookings (group + personal combined)
      */
     public List<ClientBookingDto> getMyBookings() {
@@ -358,6 +353,7 @@ public class ClientRepository {
         String sql = """
             SELECT 
                 gcb.ID_Booking AS BookingId,
+                gci.ID_Instance AS InstanceId,
                 'Group' AS ActivityType,
                 ct.TypeName AS Title,
                 st.FullName AS CoachName,
@@ -379,6 +375,7 @@ public class ClientRepository {
 
             SELECT 
                 pt.ID_Personal AS BookingId,
+                NULL::INTEGER AS InstanceId,
                 'Personal' AS ActivityType,
                 'Персональне тренування' AS Title,
                 st.FullName AS CoachName,
@@ -397,6 +394,7 @@ public class ClientRepository {
 
         return jdbc.query(sql, (rs, rowNum) -> new ClientBookingDto(
                 rs.getInt("BookingId"),
+                rs.getObject("InstanceId") != null ? rs.getInt("InstanceId") : null,
                 rs.getString("ActivityType"),
                 rs.getString("Title"),
                 rs.getString("CoachName"),

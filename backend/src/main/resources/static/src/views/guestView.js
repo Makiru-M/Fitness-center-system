@@ -136,8 +136,7 @@ export async function renderGuestHalls() {
     const halls = data.map(h => ({
       id: h.hallId,
       name: h.hallName,
-      maxCapacity: h.maxCapacity,
-      desc: 'Сучасне обладнання світових виробників.'
+      maxCapacity: h.maxCapacity
     }));
 
     container.innerHTML = '';
@@ -151,7 +150,7 @@ export async function renderGuestHalls() {
       const card = document.createElement('div');
       card.className = 'card card-interactive p-5';
       card.innerHTML = `
-        <div class="flex items-center space-x-3 mb-3">
+        <div class="flex items-center space-x-3">
           <div class="w-11 h-11 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/25 flex items-center justify-center text-lg shadow-[0_0_15px_rgba(6,182,212,0.15)]">
             <i class="fa-solid ${icon}"></i>
           </div>
@@ -160,7 +159,6 @@ export async function renderGuestHalls() {
             <span class="text-xs text-slate-400 font-mono">Місткість: <b class="text-cyan-400">${hall.maxCapacity}</b> осіб</span>
           </div>
         </div>
-        <p class="text-xs text-slate-400 leading-relaxed">${hall.desc || 'Сучасне обладнання світових виробників.'}</p>
       `;
       container.appendChild(card);
     });
@@ -322,10 +320,23 @@ export async function handleG1Registration(e) {
   const phone = document.getElementById('g1-phone').value.trim();
   const birthDate = document.getElementById('g1-birthdate').value;
   const gender = document.getElementById('g1-gender').value;
+  const dbUser = document.getElementById('g1-dbuser')?.value.trim() || '';
+  const password = document.getElementById('g1-password')?.value || '';
   const medNotes = document.getElementById('g1-mednotes').value.trim();
   const select = document.getElementById('g1-subscription') || document.getElementById('g1-item');
   const itemId = parseInt(select?.value);
   const promoCode = document.getElementById('g1-promo')?.value.trim().toUpperCase() || null;
+
+  const loginRegex = /^[a-zA-Z0-9_]{3,30}$/;
+  if (!loginRegex.test(dbUser)) {
+    showToast("Логін має містити від 3 до 30 символів (лише латинські літери, цифри та '_')", 'warning');
+    return;
+  }
+
+  if (!password || password.length < 4) {
+    showToast("Пароль повинен містити не менше 4 символів", 'warning');
+    return;
+  }
 
   if (!itemId) {
     showToast('Будь ласка, оберіть стартовий абонемент.', 'warning');
@@ -342,27 +353,26 @@ export async function handleG1Registration(e) {
   }
 
   try {
-    const generatedUser = 'client_' + Math.random().toString(36).substring(2, 8);
     const res = await guestApi.register({
       fullName,
       birthDate,
       phone,
       gender,
-      dbUser: generatedUser,
-      password: 'client_password_123',
+      dbUser,
+      password,
       itemId,
       promoCode,
       medicalNotes: medNotes || null
     });
 
-    showToast(`Реєстрація успішна! Клієнт #${res.clientId}, абонемент діє до ${res.endDate}`, 'success');
+    const finalDbUser = res.dbUsername || dbUser;
     const userObj = {
-      dbUser: res.dbUsername || generatedUser,
+      dbUser: finalDbUser,
       name: fullName,
       role: 'client',
       clientId: res.clientId,
       pos: 'Клієнт',
-      pass: 'client_password_123'
+      pass: password
     };
     setCurrentUser(userObj);
     setActiveRole('client');
@@ -370,7 +380,11 @@ export async function handleG1Registration(e) {
     updateHeaderUI();
     renderRoleNav();
     switchRoleView('client');
+
+    showToast(`Реєстрація успішна! Ласкаво просимо, ${fullName}. Ви увійшли під логіном ${finalDbUser}`, 'success');
   } catch (err) {
     showToast(`Помилка реєстрації через API: ${err.message}`, 'danger');
   }
 }
+
+export const handleG1Register = handleG1Registration;

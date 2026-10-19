@@ -3,8 +3,25 @@ package com.fitness.model;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 public class ClientDto {
+
+    public record AvailableGroupClassDto(
+            Integer instanceId,
+            Integer templateId,
+            String title,
+            String coachName,
+            String hallName,
+            LocalDate classDate,
+            LocalTime startTime,
+            Integer durationMinutes,
+            String status,
+            Integer actualAttendance,
+            Integer maxCapacity,
+            Integer availableSpots,
+            Boolean isBookedByMe
+    ) {}
 
     public record ClientProfileDto(
             Integer clientId,
@@ -65,6 +82,7 @@ public class ClientDto {
 
     public record ClientBookingDto(
             Integer bookingId,
+            Integer instanceId,
             String activityType, // "Personal" or "Group"
             String title,
             String coachName,

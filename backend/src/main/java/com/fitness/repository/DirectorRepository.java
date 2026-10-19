@@ -2,6 +2,7 @@ package com.fitness.repository;
 
 import com.fitness.config.DynamicDataSourceService;
 import com.fitness.model.DirectorDto.*;
+import com.fitness.model.GuestDto.HallDto;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -333,9 +334,13 @@ public class DirectorRepository {
     public Integer createSubscriptionType(CreateSubscriptionTypeRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
 
+        String category = req.category();
+        if (category == null || category.isBlank() || "Subscription".equalsIgnoreCase(category)) {
+            category = "Membership";
+        }
         Integer itemId = jdbc.queryForObject(
                 "INSERT INTO PriceList (ItemName, Category, Price, PriceStartDate, Description) VALUES (?, ?, ?, CURRENT_DATE, ?) RETURNING ID_Item",
-                Integer.class, req.itemName(), req.category(), req.price(), req.description()
+                Integer.class, req.itemName(), category, req.price(), req.description()
         );
 
         if (req.durationDays() != null && req.durationDays() > 0) {
@@ -380,6 +385,27 @@ public class DirectorRepository {
     }
 
     /**
+     * D8: Get archived halls (IsActive = FALSE)
+     */
+    public List<HallDto> getArchivedHalls() {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = "SELECT ID_Hall, HallName, MaxCapacity FROM Halls WHERE IsActive = FALSE ORDER BY HallName ASC";
+        return jdbc.query(sql, (rs, rowNum) -> new HallDto(
+                rs.getInt("ID_Hall"),
+                rs.getString("HallName"),
+                rs.getInt("MaxCapacity")
+        ));
+    }
+
+    /**
+     * D8: Recommission hall (set IsActive = TRUE)
+     */
+    public void recommissionHall(Integer hallId) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        jdbc.update("UPDATE Halls SET IsActive = TRUE WHERE ID_Hall = ?", hallId);
+    }
+
+    /**
      * D9: Create promo code
      */
     public Integer createPromoCode(CreatePromoCodeRequest req) {
@@ -395,10 +421,12 @@ public class DirectorRepository {
      */
     public Integer createScheduleTemplate(CreateScheduleTemplateRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        return jdbc.queryForObject(
+        Integer templateId = jdbc.queryForObject(
                 "INSERT INTO GroupScheduleTemplates (ID_ClassType, DayOfWeek, StartTime, DurationMinutes, ID_Hall, ID_Coach) VALUES (?, ?, ?, ?, ?, ?) RETURNING ID_Template",
                 Integer.class, req.classTypeId(), req.dayOfWeek(), req.startTime(), req.durationMinutes(), req.hallId(), req.coachId()
         );
+        jdbc.execute("CALL sp_generate_weekly_group_instances(1)");
+        return templateId;
     }
 
     /**

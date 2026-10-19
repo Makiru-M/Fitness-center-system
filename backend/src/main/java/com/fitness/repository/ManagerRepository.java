@@ -3,6 +3,7 @@ package com.fitness.repository;
 import com.fitness.config.DynamicDataSourceService;
 import com.fitness.exception.BusinessLogicException;
 import com.fitness.model.ManagerDto.*;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,15 +30,27 @@ public class ManagerRepository {
     public Integer createClient(CreateClientRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
 
-        String dbUser = req.dbUser() != null && !req.dbUser().isBlank()
-                ? req.dbUser()
-                : "client_" + req.phone().replaceAll("[^0-9]", "");
+        if (req.dbUser() == null || req.dbUser().isBlank() || req.password() == null || req.password().isBlank()) {
+            throw new BusinessLogicException("Логін та пароль є обов'язковими для створення клієнта.");
+        }
+
+        String dbUser = req.dbUser().trim();
+        String sanitizedUser = dbUser.replaceAll("[^a-zA-Z0-9_]", "");
+        if (sanitizedUser.isBlank()) {
+            throw new BusinessLogicException("Логін користувача містить неприпустимі символи або є порожнім.");
+        }
+        String sanitizedPass = req.password().replace("'", "''");
 
         // Create PostgreSQL user via SECURITY DEFINER function
-        if (req.password() != null && !req.password().isBlank()) {
-            String sanitizedUser = dbUser.replaceAll("[^a-zA-Z0-9_]", "");
-            String sanitizedPass = req.password().replace("'", "''");
+        try {
             jdbc.query("SELECT sp_create_client_user(?, ?)", (rs, rowNum) -> null, sanitizedUser, sanitizedPass);
+        } catch (DataAccessException ex) {
+            Throwable root = ex.getMostSpecificCause();
+            String msg = root != null ? root.getMessage() : ex.getMessage();
+            if (msg != null && (msg.contains("вже існує в системі") || msg.contains("вже існує"))) {
+                throw new BusinessLogicException(String.format("Користувач з логіном \"%s\" вже існує в системі.", sanitizedUser));
+            }
+            throw ex;
         }
 
         String insertClientSql = """
@@ -46,10 +59,23 @@ public class ManagerRepository {
             RETURNING ID_Client
             """;
 
-        Integer clientId = jdbc.queryForObject(
-                insertClientSql, Integer.class,
-                req.fullName(), req.birthDate(), req.phone(), req.gender(), dbUser
-        );
+        Integer clientId;
+        try {
+            clientId = jdbc.queryForObject(
+                    insertClientSql, Integer.class,
+                    req.fullName(), req.birthDate(), req.phone(), req.gender(), sanitizedUser
+            );
+        } catch (DataAccessException ex) {
+            Throwable root = ex.getMostSpecificCause();
+            String msg = root != null ? root.getMessage() : ex.getMessage();
+            if (msg != null && (msg.contains("Clients_db_user_key") || msg.contains("clients_db_user_key") || msg.contains("DB_User"))) {
+                throw new BusinessLogicException(String.format("Користувач з логіном \"%s\" вже існує в системі.", sanitizedUser));
+            }
+            if (msg != null && (msg.contains("Clients_phone_key") || msg.contains("clients_phone_key") || msg.contains("Phone"))) {
+                throw new BusinessLogicException(String.format("Клієнт з номером телефону \"%s\" вже зареєстрований.", req.phone()));
+            }
+            throw ex;
+        }
 
         if (req.medicalNotes() != null && !req.medicalNotes().isBlank()) {
             jdbc.update("INSERT INTO MedicalNotes (ID_Client, NotesText) VALUES (?, ?)", clientId, req.medicalNotes());
@@ -448,14 +474,44 @@ public class ManagerRepository {
                         logId, oldTime, req.newDateTime());
             }
         } else if ("Group".equalsIgnoreCase(req.bookingType())) {
-            Integer instanceId = jdbc.queryForObject(
-                    "SELECT ID_Instance FROM GroupClassBookings WHERE ID_Booking = ?", Integer.class, req.bookingId()
-            );
-            jdbc.update("UPDATE GroupClassBookings SET BookingStatus = 'Cancelled' WHERE ID_Booking = ?", req.bookingId());
-            if (instanceId != null) {
-                jdbc.update("UPDATE GroupClassInstances SET ActualAttendance = GREATEST(ActualAttendance - 1, 0) WHERE ID_Instance = ?", instanceId);
+            if ("Cancel".equalsIgnoreCase(req.action())) {
+                Integer instanceId = jdbc.queryForObject(
+                        "SELECT ID_Instance FROM GroupClassBookings WHERE ID_Booking = ?", Integer.class, req.bookingId()
+                );
+                jdbc.update("UPDATE GroupClassBookings SET BookingStatus = 'Cancelled' WHERE ID_Booking = ?", req.bookingId());
+                if (instanceId != null) {
+                    jdbc.update("UPDATE GroupClassInstances SET ActualAttendance = GREATEST(ActualAttendance - 1, 0) WHERE ID_Instance = ?", instanceId);
+                }
+            } else if ("Reschedule".equalsIgnoreCase(req.action()) && req.newDateTime() != null) {
+                List<Integer> instanceIds = jdbc.query(
+                        "SELECT ID_Instance FROM GroupClassBookings WHERE ID_Booking = ?",
+                        (rs, rowNum) -> rs.getInt(1), req.bookingId()
+                );
+                Integer targetInstanceId = !instanceIds.isEmpty() ? instanceIds.get(0) : req.bookingId();
+
+                jdbc.update(
+                        "UPDATE GroupClassInstances SET ClassDate = ?, ClassStartTime = ? WHERE ID_Instance = ?",
+                        req.newDateTime().toLocalDate(), req.newDateTime().toLocalTime(), targetInstanceId
+                );
             }
         }
+    }
+
+    /**
+     * Create / schedule a group class instance
+     */
+    public Integer createGroupClassInstance(Integer templateId, LocalDate classDate, java.time.LocalTime startTime) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        if (startTime == null) {
+            startTime = jdbc.queryForObject(
+                    "SELECT StartTime FROM GroupScheduleTemplates WHERE ID_Template = ?",
+                    java.time.LocalTime.class, templateId
+            );
+        }
+        return jdbc.queryForObject(
+                "INSERT INTO GroupClassInstances (ID_Template, ClassDate, ClassStatus, ActualAttendance, ClassStartTime) VALUES (?, ?, 'Scheduled', 0, ?) RETURNING ID_Instance",
+                Integer.class, templateId, classDate, startTime
+        );
     }
 
     private Integer getDefaultClientManagerId(JdbcTemplate jdbc) {

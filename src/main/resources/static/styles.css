@@ -913,6 +913,42 @@ select option {
   position: relative;
   width: 100%;
 }
+
+.combobox-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.combobox-input {
+  width: 100% !important;
+  flex: 1 1 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  padding-right: 3.25rem !important; /* запас для кнопок очищення та шеврона */
+  background-color: var(--bg-void) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-medium) !important;
+}
+
+.combobox-input:focus {
+  border-color: var(--cyan-primary) !important;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.25) !important;
+}
+
+.combobox-actions {
+  position: absolute;
+  right: 0.625rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  z-index: 2;
+  pointer-events: auto;
+}
+
 .combobox-dropdown {
   position: absolute;
   top: calc(100% + 4px);
@@ -927,6 +963,7 @@ select option {
   z-index: 60;
   padding: 0.25rem 0;
 }
+
 .combobox-item {
   display: flex;
   align-items: center;
@@ -939,16 +976,19 @@ select option {
   transition: background-color 0.15s ease, color 0.15s ease;
   user-select: none;
 }
+
 .combobox-item:hover,
 .combobox-item.active {
   background-color: rgba(6, 182, 212, 0.16) !important;
   color: #22d3ee !important;
 }
+
 .combobox-item.selected {
   background-color: rgba(6, 182, 212, 0.24) !important;
   color: #ffffff !important;
   font-weight: 600;
 }
+
 .combobox-highlight {
   background-color: rgba(6, 182, 212, 0.35) !important;
   color: #67e8f9 !important;
@@ -956,6 +996,7 @@ select option {
   border-radius: 2px;
   padding: 0 2px;
 }
+
 .combobox-btn {
   background: transparent;
   border: none;
@@ -968,18 +1009,10 @@ select option {
   cursor: pointer;
   transition: color 0.15s, background-color 0.15s;
 }
+
 .combobox-btn:hover {
   color: #22d3ee;
   background: rgba(255, 255, 255, 0.05);
-}
-.combobox-input {
-  background-color: var(--bg-void) !important;
-  color: var(--text-main) !important;
-  border: 1px solid var(--border-medium) !important;
-}
-.combobox-input:focus {
-  border-color: var(--cyan-primary) !important;
-  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.25) !important;
 }
 
 /* ==============================================================================

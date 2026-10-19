@@ -114,14 +114,16 @@ class Combobox {
     this.input.autocomplete = 'off';
     this.input.spellcheck = false;
     this.input.placeholder = placeholder;
-    this.input.className = `form-control combobox-input ${this.select.className.replace('hidden', '').replace('form-control', '').trim()}`;
+    this.input.className = `form-control combobox-input w-full flex-1 pr-12 ${this.select.className.replace('hidden', '').replace('form-control', '').trim()}`;
+    this.input.style.width = '100%';
+    this.input.style.boxSizing = 'border-box';
     if (this.wasRequired) {
       this.input.required = true;
     }
 
     // Actions container (Clear button + Dropdown chevron)
     this.actionsContainer = document.createElement('div');
-    this.actionsContainer.className = 'combobox-actions absolute right-2 flex items-center gap-1';
+    this.actionsContainer.className = 'combobox-actions absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1';
 
     // Clear button
     this.clearBtn = document.createElement('button');

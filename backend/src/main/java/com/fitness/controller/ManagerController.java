@@ -117,4 +117,20 @@ public class ManagerController {
         managerRepository.changeBooking(req);
         return ResponseEntity.ok(Map.of("message", "Статус бронювання успішно змінено."));
     }
+
+    /**
+     * M9: Schedule a group class instance
+     */
+    @PostMapping("/schedule/group-class")
+    public ResponseEntity<Map<String, Object>> scheduleGroupClass(
+            @RequestParam("templateId") Integer templateId,
+            @RequestParam("classDate") java.time.LocalDate classDate,
+            @RequestParam(value = "startTime", required = false) java.time.LocalTime startTime
+    ) {
+        Integer instanceId = managerRepository.createGroupClassInstance(templateId, classDate, startTime);
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "instanceId", instanceId,
+                "message", "Групове заняття успішно додано до розкладу."
+        ));
+    }
 }

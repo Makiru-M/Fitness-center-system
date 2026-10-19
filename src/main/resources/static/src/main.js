@@ -83,6 +83,7 @@ import {
   checkCl2Promo,
   handleCl2Renew,
   handleCl3Freeze,
+  handleCl3Unfreeze,
   populateCl45Options,
   handleCl4Booking,
   handleCl5Booking,
@@ -136,6 +137,7 @@ import {
   quickMarkC4,
   handleC3Mark,
   handleC4Mark,
+  handleC4StatusChange,
   toggleC5NewTime,
   handleC5Request
 } from './views/coachView.js';
@@ -152,6 +154,7 @@ import {
   handleD7CreateSub,
   handleD8CreateHall,
   handleD8DecommissionHall,
+  handleD8RecommissionHall,
   handleD9CreatePromo,
   handleD10CreateService,
   handleD11CreateTemplate,
@@ -235,6 +238,7 @@ Object.assign(window, {
   checkCl2Promo,
   handleCl2Renew,
   handleCl3Freeze,
+  handleCl3Unfreeze,
   populateCl45Options,
   handleCl4Booking,
   handleCl5Booking,
@@ -285,6 +289,7 @@ Object.assign(window, {
   quickMarkC4,
   handleC3Mark,
   handleC4Mark,
+  handleC4StatusChange,
   toggleC5NewTime,
   handleC5Request,
 
@@ -300,11 +305,14 @@ Object.assign(window, {
   handleD7CreateSub,
   handleD8CreateHall,
   handleD8DecommissionHall,
+  handleD8RecommissionHall,
   handleD9CreatePromo,
   handleD10CreateService,
   handleD11CreateTemplate,
   handleD12Slot
 });
+
+window.handleD8RecommissionHall = handleD8RecommissionHall;
 
 // Bootstrap application when DOM is ready
 if (document.readyState === 'loading') {

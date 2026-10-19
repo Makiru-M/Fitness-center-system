@@ -247,9 +247,13 @@ export async function renderD6Audit() {
 
 export async function populateDirectorDropdowns() {
   try {
-    const [halls, coaches] = await Promise.all([
+    const [halls, coaches, archivedHalls] = await Promise.all([
       guestApi.getHalls(),
-      guestApi.getCoaches()
+      guestApi.getCoaches(),
+      directorApi.getArchivedHalls().catch(err => {
+        console.warn('Error fetching archived halls:', err);
+        return [];
+      })
     ]);
 
     // D11 ClassTypes
@@ -291,6 +295,22 @@ export async function populateDirectorDropdowns() {
       });
     }
 
+    // D8 Recommission Hall
+    const d8Recom = document.getElementById('d8-recom-hall');
+    if (d8Recom) {
+      if (!archivedHalls || archivedHalls.length === 0) {
+        d8Recom.innerHTML = '<option value="" disabled selected>-- Немає залів в архіві --</option>';
+      } else {
+        d8Recom.innerHTML = '<option value="" disabled selected>-- Оберіть зал для повернення --</option>';
+        archivedHalls.forEach(h => {
+          const opt = document.createElement('option');
+          opt.value = h.hallId;
+          opt.textContent = `${h.hallName} (ID: ${h.hallId}, місткість: ${h.maxCapacity})`;
+          d8Recom.appendChild(opt);
+        });
+      }
+    }
+
     // D11 & D12 Coaches
     const d11Coach = document.getElementById('d11-coach');
     const d12Coach = document.getElementById('d12-coach');
@@ -322,7 +342,9 @@ export async function handleD7CreateSub(e) {
 
   try {
     const res = await directorApi.createSubscriptionType({
+      itemName: name,
       name,
+      category: 'Membership',
       durationDays,
       price,
       maxFreezingDays,
@@ -345,9 +367,9 @@ export async function handleD8CreateHall(e) {
 
   try {
     const res = await directorApi.createHall({
+      hallName: name,
       name,
-      maxCapacity,
-      description: 'Новий обладнаний спортивний зал клубу'
+      maxCapacity
     });
 
     showToast(`Зал '${name}' успішно введено в експлуатацію! Код #${res.hallId} (D8)`, 'success');
@@ -388,6 +410,33 @@ export async function handleD8DecommissionHall(e) {
   }
 }
 
+export async function handleD8RecommissionHall(e) {
+  e.preventDefault();
+  const select = document.getElementById('d8-recom-hall');
+  if (!select) return;
+  const hallId = parseInt(select.value);
+  if (!hallId) {
+    showToast('Будь ласка, оберіть зал зі списку.', 'warning');
+    return;
+  }
+
+  const hallText = select.options[select.selectedIndex]?.text || `ID #${hallId}`;
+  const confirmed = confirm(`Ви впевнені, що бажаєте повернути зал "${hallText}" в експлуатацію? Зал знову стане доступним для бронювань, розкладу та перегляду гостями.`);
+  if (!confirmed) return;
+
+  try {
+    const res = await directorApi.recommissionHall(hallId);
+    showToast(res.message || `Зал #${hallId} успішно повернуто в експлуатацію! (D8)`, 'success');
+    await populateDirectorDropdowns();
+    await populateManagerDropdowns();
+    await renderGuestHalls();
+    await renderD4Halls();
+    await renderD2Attendance();
+  } catch (err) {
+    showToast(`Помилка повернення залу в експлуатацію: ${err.message}`, 'danger');
+  }
+}
+
 export async function handleD9CreatePromo(e) {
   e.preventDefault();
   const code = document.getElementById('d9-code').value.trim().toUpperCase();
@@ -396,6 +445,7 @@ export async function handleD9CreatePromo(e) {
 
   try {
     const res = await directorApi.createPromo({
+      codeText: code,
       code,
       discountPercent,
       expiryDate

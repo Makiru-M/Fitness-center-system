@@ -243,8 +243,20 @@ export async function handleM1NewClient(e) {
   const phone = document.getElementById('m1-phone').value.trim();
   const birthDate = document.getElementById('m1-birthdate').value;
   const gender = document.getElementById('m1-gender').value;
+  const dbUser = document.getElementById('m1-dbuser')?.value.trim() || '';
+  const password = document.getElementById('m1-password')?.value || '';
   const medNotes = document.getElementById('m1-mednotes').value.trim();
-  const dbUser = 'client_' + Math.random().toString(36).substring(2, 8);
+
+  const loginRegex = /^[a-zA-Z0-9_]{3,30}$/;
+  if (!loginRegex.test(dbUser)) {
+    showToast("Логін має містити від 3 до 30 символів (лише латинські літери, цифри та '_')", 'warning');
+    return;
+  }
+
+  if (!password || password.length < 4) {
+    showToast("Пароль повинен містити не менше 4 символів", 'warning');
+    return;
+  }
 
   try {
     await managerApi.registerClient({
@@ -253,11 +265,12 @@ export async function handleM1NewClient(e) {
       phone,
       gender,
       dbUser,
-      password: 'client_password_123',
+      password,
       medicalNotes: medNotes || null
     });
 
-    showToast(`Клієнта ${fullName} успішно зареєстровано! (M1)`, 'success');
+    showToast(`Клієнта ${fullName} успішно зареєстровано (Логін: ${dbUser})! (M1)`, 'success');
+    document.getElementById('form-m1-newclient')?.reset();
     await populateManagerDropdowns();
     await renderM2ClientsTable();
     switchManagerTab('m2');

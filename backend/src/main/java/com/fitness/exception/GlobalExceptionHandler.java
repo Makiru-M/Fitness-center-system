@@ -67,6 +67,14 @@ public class GlobalExceptionHandler {
             }
             return buildResponse(HttpStatus.CONFLICT, "Conflict", "Порушення унікальності даних: такий запис вже існує (" + extractConstraintDetail(message) + ").");
         }
+        if (message.contains("[SCHEDULE_CONFLICT]")) {
+            String cleanMsg = cleanPgMessage(message).replace("[SCHEDULE_CONFLICT]", "").trim();
+            return buildResponse(HttpStatus.CONFLICT, "Schedule Conflict", cleanMsg);
+        }
+        if (message.contains("Конфлікт розкладу") || message.contains("конфлікт розкладу")
+                || message.contains("check_coach_schedule_conflict")) {
+            return buildResponse(HttpStatus.CONFLICT, "Schedule Conflict", cleanPgMessage(message));
+        }
         if (message.contains("check constraint") || message.contains("23514")) {
             return buildResponse(HttpStatus.BAD_REQUEST, "Check Constraint Violation", "Порушення перевірки обмеження цілісності: " + extractConstraintDetail(message));
         }
@@ -90,22 +98,40 @@ public class GlobalExceptionHandler {
         body.put("status", status.value());
         body.put("error", error);
         body.put("message", message);
-        return ResponseEntity.status(status).body(body);
+        return ResponseEntity.status(status)
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .body(body);
     }
 
     private String cleanPgMessage(String raw) {
         if (raw == null) return "Невідома помилка БД";
-        // Remove "ERROR: " prefix if present
-        int errIdx = raw.indexOf("ERROR:");
+        String msg = raw.trim();
+
+        int errIdx = msg.indexOf("ERROR:");
         if (errIdx != -1) {
-            String sub = raw.substring(errIdx + 6).trim();
-            int whereIdx = sub.indexOf("Where:");
-            if (whereIdx != -1) {
-                sub = sub.substring(0, whereIdx).trim();
-            }
-            return sub;
+            msg = msg.substring(errIdx + 6).trim();
         }
-        return raw;
+
+        // Strip PostgreSQL diagnostic/context markers (Ukrainian, Russian, English)
+        String[] markers = {
+                "\n  Where:", "\n  Де:", "\n  Где:", "\n  CONTEXT:", "\n  Hint:", "\n  Підказка:",
+                "\nWhere:", "\nДе:", "\nГде:", "\nCONTEXT:", "\nHint:", "\nПідказка:",
+                "Where:", "Де:", "Где:", "CONTEXT:"
+        };
+        for (String marker : markers) {
+            int idx = msg.indexOf(marker);
+            if (idx != -1) {
+                msg = msg.substring(0, idx).trim();
+            }
+        }
+
+        // If there's any remaining newline before stack trace, strip it
+        int nlIdx = msg.indexOf('\n');
+        if (nlIdx != -1) {
+            msg = msg.substring(0, nlIdx).trim();
+        }
+
+        return msg.trim();
     }
 
     private String extractConstraintDetail(String msg) {
