@@ -363,3 +363,13 @@ export async function saveEditStaffModal() {
     showToast(`Помилка оновлення даних менеджера: ${err.message}`, 'danger');
   }
 }
+
+// ==============================================================================
+// 6. CL4 GROUP CLASS BOOKING MODAL
+// ==============================================================================
+
+export {
+  openGroupBookingModal,
+  closeGroupBookingModal,
+  confirmGroupBooking
+} from '../views/clientView.js';

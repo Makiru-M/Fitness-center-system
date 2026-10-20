@@ -14,6 +14,8 @@ import { refreshCombobox } from '../components/combobox.js';
 let cachedClientSubscriptions = [];
 let cachedClientBookings = [];
 let cachedPriceList = [];
+let cachedGroupClasses = [];
+let currentWeekOffset = 0;
 const bookedCoachSlots = new Set();
 
 const INITIAL_CLIENT_PHONES = [
@@ -30,7 +32,12 @@ const INITIAL_CLIENT_PHONES = [
 ];
 
 export function switchClientTab(tabId) {
-  const norm = tabId.replace('_', '-');
+  let norm = (tabId || '').replace('_', '-');
+  if (norm === 'cl45' || tabId === 'cl45') {
+    norm = 'cl4';
+    tabId = 'cl4';
+  }
+
   document.querySelectorAll('.client-pane').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('#view-client .nav-tab-btn').forEach(b => b.classList.remove('active'));
 
@@ -41,6 +48,16 @@ export function switchClientTab(tabId) {
 
   if (norm === 'cl2' || tabId === 'cl2') {
     populateCl2Options();
+  }
+  if (norm === 'cl4' || tabId === 'cl4') {
+    renderCl4Schedule();
+    populateCl45Options();
+  }
+  if (norm === 'cl5' || tabId === 'cl5') {
+    populateCl45Options();
+  }
+  if (norm === 'cl6' || tabId === 'cl6') {
+    populateCl6Options();
   }
 }
 
@@ -223,7 +240,7 @@ export async function renderClientDashboard() {
     if (listEl) {
       listEl.innerHTML = '';
       if (!bookings || !bookings.length) {
-        listEl.innerHTML = '<p class="text-xs text-slate-500 p-3 italic font-mono">Немає запланованих занять. Запишіться у розділі Cl4/Cl5!</p>';
+        listEl.innerHTML = '<p class="text-xs text-slate-500 p-3 italic font-mono">Немає запланованих занять. Запишіться у розділі Cl4 або Cl5!</p>';
       } else {
         bookings.forEach(b => {
           const item = document.createElement('div');
@@ -558,6 +575,220 @@ export async function handleCl3Unfreeze(clientSubId) {
   }
 }
 
+function getMonday(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = d.getDay(); // 0 is Sunday, 1 is Monday...
+  const diff = (day === 0 ? -6 : 1) - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function formatDateDisplay(d) {
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}.${mm}.${yyyy}`;
+}
+
+function formatIsoDate(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatTimeRange(startTimeStr, durationMinutes) {
+  if (!startTimeStr) return '—';
+  const parts = startTimeStr.split(':');
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  const startH = String(h).padStart(2, '0');
+  const startM = String(m).padStart(2, '0');
+  const dur = parseInt(durationMinutes, 10) || 60;
+  const totalM = h * 60 + m + dur;
+  const endH = String(Math.floor(totalM / 60) % 24).padStart(2, '0');
+  const endM = String(totalM % 60).padStart(2, '0');
+  return `${startH}:${startM} – ${endH}:${endM}`;
+}
+
+function isClassInPast(classDateStr, startTimeStr) {
+  if (!classDateStr) return false;
+  const time = startTimeStr ? (startTimeStr.length === 5 ? startTimeStr + ':00' : startTimeStr) : '00:00:00';
+  const classDt = new Date(`${classDateStr.substring(0, 10)}T${time}`);
+  if (isNaN(classDt.getTime())) return false;
+  return classDt < new Date();
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+export function handleCl4PrevWeek() {
+  if (currentWeekOffset <= 0) return;
+  currentWeekOffset--;
+  renderCl4Schedule();
+}
+
+export function handleCl4NextWeek() {
+  if (currentWeekOffset >= 1) return;
+  currentWeekOffset++;
+  renderCl4Schedule();
+}
+
+export function handleCl4TodayWeek() {
+  currentWeekOffset = 0;
+  renderCl4Schedule();
+}
+
+export function renderCl4Schedule() {
+  const gridContainer = document.getElementById('cl4-schedule-grid');
+  const weekRangeEl = document.getElementById('cl4-week-range');
+  const prevBtn = document.getElementById('cl4-prev-week');
+  const nextBtn = document.getElementById('cl4-next-week');
+
+  const baseMonday = getMonday(new Date());
+  const selectedMonday = new Date(baseMonday);
+  selectedMonday.setDate(selectedMonday.getDate() + currentWeekOffset * 7);
+
+  const selectedSunday = new Date(selectedMonday);
+  selectedSunday.setDate(selectedSunday.getDate() + 6);
+
+  if (weekRangeEl) {
+    weekRangeEl.textContent = `${formatDateDisplay(selectedMonday)} – ${formatDateDisplay(selectedSunday)}`;
+  }
+
+  if (prevBtn) {
+    prevBtn.disabled = currentWeekOffset <= 0;
+    if (currentWeekOffset <= 0) {
+      prevBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+      prevBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  }
+
+  if (nextBtn) {
+    nextBtn.disabled = currentWeekOffset >= 1;
+    if (currentWeekOffset >= 1) {
+      nextBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+      nextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  }
+
+  if (!gridContainer) return;
+
+  const DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayIso = formatIsoDate(today);
+
+  gridContainer.innerHTML = '';
+
+  for (let i = 0; i < 7; i++) {
+    const dayDate = new Date(selectedMonday);
+    dayDate.setDate(dayDate.getDate() + i);
+    const dayIso = formatIsoDate(dayDate);
+    const dayShort = `${String(dayDate.getDate()).padStart(2, '0')}.${String(dayDate.getMonth() + 1).padStart(2, '0')}`;
+    const isToday = dayIso === todayIso;
+
+    // Filter classes for this day
+    const dayClasses = (cachedGroupClasses || []).filter(c => {
+      if (!c.classDate) return false;
+      const cDate = typeof c.classDate === 'string' ? c.classDate.substring(0, 10) : '';
+      return cDate === dayIso;
+    });
+
+    dayClasses.sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
+
+    let cardsHtml = '';
+    if (dayClasses.length === 0) {
+      cardsHtml = `
+        <div class="flex-1 flex flex-col items-center justify-center py-8 text-center text-slate-500 text-xs italic">
+          <i class="fa-regular fa-calendar-xmark text-slate-600 text-lg mb-1.5"></i>
+          <span>Немає занять</span>
+        </div>
+      `;
+    } else {
+      cardsHtml = `<div class="space-y-2.5 flex-1">` + dayClasses.map(gc => {
+        const isBooked = Boolean(gc.isBookedByMe);
+        const inPast = isClassInPast(gc.classDate, gc.startTime);
+        const isFull = !isBooked && (gc.availableSpots <= 0);
+        const canBook = !inPast && !isBooked && !isFull;
+
+        let badgeHtml = '';
+        let btnHtml = '';
+        let cardClasses = 'p-2.5 rounded-xl border transition flex flex-col justify-between ';
+
+        if (isBooked) {
+          badgeHtml = `<span class="badge badge-active text-[10px] px-1.5 py-0.5 whitespace-nowrap shrink-0"><i class="fa-solid fa-check mr-1"></i> Ви записані</span>`;
+          btnHtml = `<button type="button" disabled class="w-full mt-2.5 py-1.5 text-[11px] font-semibold text-emerald-300 bg-emerald-500/10 rounded-lg border border-emerald-500/20 cursor-default flex items-center justify-center gap-1"><i class="fa-solid fa-circle-check"></i> Записано</button>`;
+          cardClasses += 'border-emerald-500/30 bg-emerald-950/20';
+        } else if (isFull) {
+          badgeHtml = `<span class="badge badge-expired text-[10px] px-1.5 py-0.5 whitespace-nowrap shrink-0"><i class="fa-solid fa-ban mr-1"></i> Місць немає</span>`;
+          btnHtml = `<button type="button" disabled class="w-full mt-2.5 py-1.5 text-[11px] font-medium text-slate-400 bg-slate-800/40 rounded-lg border border-subtle cursor-not-allowed">Місць немає</button>`;
+          cardClasses += 'border-subtle bg-void/50 opacity-75';
+        } else if (inPast) {
+          badgeHtml = `<span class="badge badge-neutral text-[10px] px-1.5 py-0.5 whitespace-nowrap shrink-0"><i class="fa-solid fa-clock-rotate-left mr-1"></i> Минуло</span>`;
+          btnHtml = `<button type="button" disabled class="w-full mt-2.5 py-1.5 text-[11px] font-medium text-slate-500 bg-slate-800/30 rounded-lg border border-subtle cursor-not-allowed">Минуло</button>`;
+          cardClasses += 'border-subtle bg-void/40 opacity-60';
+        } else {
+          badgeHtml = `<span class="badge badge-cyan text-[10px] font-mono px-1.5 py-0.5 whitespace-nowrap shrink-0">Вільно: ${gc.availableSpots}/${gc.maxCapacity}</span>`;
+          btnHtml = `<button type="button" onclick="event.stopPropagation(); openGroupBookingModal(${gc.instanceId})" class="btn btn-primary btn-xs w-full py-1.5 mt-2.5 font-bold text-[11px] flex items-center justify-center gap-1 font-heading"><i class="fa-solid fa-plus text-[10px]"></i> Записатися</button>`;
+          cardClasses += 'border-subtle bg-void hover:border-cyan-500/50 hover:bg-slate-800/40 cursor-pointer shadow-sm group';
+        }
+
+        const timeRange = formatTimeRange(gc.startTime, gc.durationMinutes);
+
+        return `
+          <div class="${cardClasses}" ${canBook ? `onclick="openGroupBookingModal(${gc.instanceId})"` : ''}>
+            <div>
+              <div class="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
+                <span class="text-xs font-bold text-white font-mono flex items-center gap-1 whitespace-nowrap">
+                  <i class="fa-regular fa-clock text-cyan-400 text-[10px]"></i> ${timeRange}
+                </span>
+                ${badgeHtml}
+              </div>
+              <h5 class="font-bold text-xs text-white group-hover:text-cyan-300 transition-colors line-clamp-2 leading-tight mb-1" title="${escapeHtml(gc.title)}">
+                ${escapeHtml(gc.title)}
+              </h5>
+              <div class="text-[11px] text-slate-300 flex items-start gap-1.5 mt-1 leading-snug" title="Тренер: ${escapeHtml(gc.coachName)}">
+                <i class="fa-solid fa-user-tie text-[10px] text-cyan-400/80 mt-0.5 shrink-0"></i>
+                <span class="line-clamp-2 break-words">${escapeHtml(gc.coachName)}</span>
+              </div>
+              <div class="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5" title="Зал: ${escapeHtml(gc.hallName)}">
+                <i class="fa-solid fa-location-dot text-[10px] text-slate-500 shrink-0"></i>
+                <span class="truncate">${escapeHtml(gc.hallName)}</span>
+              </div>
+            </div>
+            ${btnHtml}
+          </div>
+        `;
+      }).join('') + `</div>`;
+    }
+
+    const colEl = document.createElement('div');
+    colEl.className = `flex flex-col rounded-xl border ${isToday ? 'border-cyan-500/60 bg-cyan-950/20 ring-1 ring-cyan-500/30' : 'border-subtle bg-surface/60'} p-3 min-h-[300px] min-w-[155px]`;
+    colEl.innerHTML = `
+      <div class="flex flex-col items-center pb-2 mb-2 border-b ${isToday ? 'border-cyan-500/30' : 'border-subtle'}">
+        ${isToday ? '<span class="badge badge-cyan text-[10px] px-2 py-0.5 mb-1 shadow-sm font-sans">Сьогодні</span>' : '<span class="text-[10px] text-slate-500 mb-1 opacity-0 select-none">-</span>'}
+        <div class="flex items-center gap-1.5">
+          <span class="font-bold text-sm ${isToday ? 'text-cyan-400' : 'text-white'} font-heading">${DAY_NAMES[i]}</span>
+          <span class="text-xs ${isToday ? 'text-cyan-300 font-semibold' : 'text-slate-400'} font-mono">${dayShort}</span>
+        </div>
+      </div>
+      ${cardsHtml}
+    `;
+    gridContainer.appendChild(colEl);
+  }
+}
+
 export async function populateCl45Options() {
   try {
     const [halls, coaches, groupClasses] = await Promise.all([
@@ -566,29 +797,8 @@ export async function populateCl45Options() {
       clientApi.getAvailableGroupClasses().catch(() => [])
     ]);
 
-    const cl4Instance = document.getElementById('cl4-instance');
-    if (cl4Instance) {
-      cl4Instance.innerHTML = '';
-      if (groupClasses && groupClasses.length > 0) {
-        groupClasses.forEach(gc => {
-          const opt = document.createElement('option');
-          opt.value = gc.instanceId;
-          const timeStr = gc.startTime ? gc.startTime.substring(0, 5) : '';
-          const dateObj = new Date(gc.classDate + 'T' + (gc.startTime || '00:00:00'));
-          const dayNames = ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-          const dayUa = isNaN(dateObj.getDay()) ? '' : dayNames[dateObj.getDay()] + ' ';
-          const bookedTag = gc.isBookedByMe ? ' [Ви вже записані]' : '';
-          const spotsTag = gc.availableSpots > 0 ? `вільно місць: ${gc.availableSpots}/${gc.maxCapacity}` : 'місць немає';
-          opt.textContent = `${gc.title} — ${dayUa}${gc.classDate} ${timeStr} (${gc.hallName}, тренер: ${gc.coachName}) [${spotsTag}]${bookedTag}`;
-          if (gc.availableSpots <= 0 || gc.isBookedByMe) {
-            opt.disabled = true;
-          }
-          cl4Instance.appendChild(opt);
-        });
-      } else {
-        cl4Instance.innerHTML = '<option value="" disabled selected>Немає запланованих групових занять</option>';
-      }
-    }
+    cachedGroupClasses = groupClasses || [];
+    renderCl4Schedule();
 
     const cl5Hall = document.getElementById('cl5-hall');
     if (cl5Hall) {
@@ -627,12 +837,102 @@ export async function populateCl45Options() {
   }
 }
 
-export async function handleCl4Booking(e) {
-  e.preventDefault();
-  const select = document.getElementById('cl4-instance');
-  const instanceId = parseInt(select?.value || '0');
+export async function openGroupBookingModal(instanceId) {
+  const gc = cachedGroupClasses.find(c => c.instanceId === instanceId);
+  if (!gc) {
+    showToast('Інформацію про заняття не знайдено', 'warning');
+    return;
+  }
+
+  const instInput = document.getElementById('modal-cl4-instance-id');
+  if (instInput) instInput.value = gc.instanceId;
+
+  const titleEl = document.getElementById('modal-cl4-title');
+  if (titleEl) {
+    titleEl.textContent = gc.title;
+    titleEl.style.color = '#ffffff';
+  }
+  const actEl = document.getElementById('modal-cl4-activity-type');
+  if (actEl) actEl.textContent = 'Групове тренування';
+
+  const dateEl = document.getElementById('modal-cl4-date');
+  if (dateEl) {
+    const parts = (gc.classDate || '').substring(0, 10).split('-');
+    if (parts.length === 3) {
+      dateEl.textContent = `${parts[2]}.${parts[1]}.${parts[0]}`;
+    } else {
+      dateEl.textContent = gc.classDate;
+    }
+  }
+  const timeEl = document.getElementById('modal-cl4-time');
+  if (timeEl) {
+    const range = formatTimeRange(gc.startTime, gc.durationMinutes);
+    timeEl.textContent = `${range} (${gc.durationMinutes || 60} хв)`;
+  }
+
+  const coachEl = document.getElementById('modal-cl4-coach');
+  if (coachEl) coachEl.textContent = `Тренер: ${gc.coachName}`;
+  const hallEl = document.getElementById('modal-cl4-hall');
+  if (hallEl) hallEl.textContent = `Зал: ${gc.hallName}`;
+
+  const spotsEl = document.getElementById('modal-cl4-spots');
+  if (spotsEl) {
+    spotsEl.textContent = `Вільно: ${gc.availableSpots} / ${gc.maxCapacity}`;
+    spotsEl.className = gc.availableSpots > 0 ? 'badge badge-active text-xs font-mono' : 'badge badge-expired text-xs font-mono';
+  }
+
+  // Ensure subscriptions are loaded
+  if (!cachedClientSubscriptions || !cachedClientSubscriptions.length) {
+    try {
+      const subs = await clientApi.getSubscriptions();
+      if (subs) cachedClientSubscriptions = subs;
+    } catch (err) {
+      console.warn('Could not fetch subscriptions for modal:', err);
+    }
+  }
+
+  const activeSub = (cachedClientSubscriptions || []).find(s => s.currentStatus === 'Active' && (!s.endDate || s.endDate >= formatIsoDate(new Date())));
+  const saleIdInput = document.getElementById('modal-cl4-sale-id');
+  if (saleIdInput) {
+    saleIdInput.value = activeSub ? activeSub.saleId : '';
+  }
+
+  const confirmBtn = document.getElementById('modal-cl4-confirm-btn');
+  const warningEl = document.getElementById('modal-cl4-no-sub-warning');
+
+  if (activeSub) {
+    if (confirmBtn) confirmBtn.disabled = false;
+    if (warningEl) warningEl.classList.add('hidden');
+  } else {
+    if (confirmBtn) confirmBtn.disabled = true;
+    if (warningEl) warningEl.classList.remove('hidden');
+  }
+
+  const modal = document.getElementById('modal-group-booking');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.classList.add('active');
+  }
+}
+
+export function closeGroupBookingModal() {
+  const modal = document.getElementById('modal-group-booking');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.classList.add('hidden');
+  }
+}
+
+export async function confirmGroupBooking() {
+  const instanceId = parseInt(document.getElementById('modal-cl4-instance-id')?.value || '0', 10);
+  const saleId = parseInt(document.getElementById('modal-cl4-sale-id')?.value || '0', 10);
+
   if (!instanceId) {
     showToast('Будь ласка, оберіть доступне заняття.', 'warning');
+    return;
+  }
+  if (!saleId) {
+    showToast('Для запису на заняття потрібен діючий абонемент!', 'warning');
     return;
   }
 
@@ -645,23 +945,33 @@ export async function handleCl4Booking(e) {
 
   if (alreadyBooked) {
     showToast('Ви вже записані на це тренування!', 'warning');
+    closeGroupBookingModal();
     return;
   }
 
+  const confirmBtn = document.getElementById('modal-cl4-confirm-btn');
+  if (confirmBtn) confirmBtn.disabled = true;
+
   try {
-    const activeSub = cachedClientSubscriptions.find(s => s.currentStatus === 'Active' && new Date(s.endDate) >= new Date()) || cachedClientSubscriptions[0];
-    const saleId = activeSub ? activeSub.saleId : null;
     await clientApi.bookGroupClass({ instanceId, saleId });
     showToast('Успішно записано на групове заняття! (Cl4)', 'success');
+    closeGroupBookingModal();
+    await populateCl45Options();
     await renderClientDashboard();
-    switchClientTab('cl_dash');
   } catch (err) {
     if (err.message && (err.message.includes('вже') || err.message.includes('дубл') || err.message.includes('duplicate'))) {
       showToast('Ви вже записані на це тренування!', 'warning');
     } else {
       showToast(`Помилка запису: ${err.message}`, 'danger');
     }
+  } finally {
+    if (confirmBtn) confirmBtn.disabled = false;
   }
+}
+
+export async function handleCl4Booking(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  await confirmGroupBooking();
 }
 
 export async function handleCl5Booking(e) {

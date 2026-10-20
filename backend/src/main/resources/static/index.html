@@ -643,10 +643,15 @@
               <span>Cl3: Заморозити</span>
               <span class="task-badge">Cl3</span>
             </button>
-            <button onclick="switchClientTab('cl45')" id="tab-btn-cl45" class="nav-tab-btn">
-              <i class="fa-solid fa-calendar-plus"></i>
-              <span>Cl4/5: Запис</span>
-              <span class="task-badge">Cl4-5</span>
+            <button onclick="switchClientTab('cl4')" id="tab-btn-cl4" class="nav-tab-btn">
+              <i class="fa-solid fa-people-group"></i>
+              <span>Cl4: Групові</span>
+              <span class="task-badge">Cl4</span>
+            </button>
+            <button onclick="switchClientTab('cl5')" id="tab-btn-cl5" class="nav-tab-btn">
+              <i class="fa-solid fa-user-clock"></i>
+              <span>Cl5: Персональні</span>
+              <span class="task-badge">Cl5</span>
             </button>
             <button onclick="switchClientTab('cl6')" id="tab-btn-cl6" class="nav-tab-btn">
               <i class="fa-solid fa-calendar-xmark"></i>
@@ -657,7 +662,7 @@
         </aside>
 
         <!-- Main Workspace Panes -->
-        <div class="space-y-6">
+        <div class="space-y-6 min-w-0 w-full">
           
           <!-- Cl Dashboard Pane -->
           <div id="subtab-cl-dash" class="client-pane space-y-6">
@@ -666,7 +671,7 @@
               <div class="card p-5">
                 <h3 class="font-bold text-white text-sm font-heading mb-3 flex items-center justify-between">
                   <span><i class="fa-solid fa-calendar-days text-cyan-400 mr-2"></i> Мої найближчі тренування</span>
-                  <button onclick="switchClientTab('cl45')" class="text-xs text-cyan-400 hover:underline font-mono">+ Записатись</button>
+                  <button onclick="switchClientTab('cl4')" class="text-xs text-cyan-400 hover:underline font-mono">+ Записатись</button>
                 </h3>
                 <div id="client-upcoming-list" class="space-y-2">
                   <!-- Populated by JS -->
@@ -677,12 +682,12 @@
               <div class="card p-5">
                 <h3 class="font-bold text-white text-sm font-heading mb-3"><i class="fa-solid fa-bolt text-cyan-400 mr-2"></i> Швидкі дії</h3>
                 <div class="grid grid-cols-2 gap-3">
-                  <button onclick="switchClientTab('cl45')" class="p-3 bg-void border border-subtle hover:border-cyan-500/50 rounded-xl text-left font-medium text-xs transition group">
+                  <button onclick="switchClientTab('cl5')" class="p-3 bg-void border border-subtle hover:border-cyan-500/50 rounded-xl text-left font-medium text-xs transition group">
                     <i class="fa-solid fa-user-clock text-lg block mb-1 text-cyan-400 group-hover:scale-110 transition-transform"></i>
                     <span class="text-white block font-heading">Персональне (Cl5)</span>
                     <span class="text-slate-500 text-[10px]">Індивідуальне</span>
                   </button>
-                  <button onclick="switchClientTab('cl45')" class="p-3 bg-void border border-subtle hover:border-blue-500/50 rounded-xl text-left font-medium text-xs transition group">
+                  <button onclick="switchClientTab('cl4')" class="p-3 bg-void border border-subtle hover:border-blue-500/50 rounded-xl text-left font-medium text-xs transition group">
                     <i class="fa-solid fa-people-group text-lg block mb-1 text-blue-400 group-hover:scale-110 transition-transform"></i>
                     <span class="text-white block font-heading">Групове (Cl4)</span>
                     <span class="text-slate-500 text-[10px]">Заняття в залі</span>
@@ -793,50 +798,74 @@
             </div>
           </div>
 
-          <!-- Cl4 / Cl5: Booking -->
-          <div id="subtab-cl45" class="client-pane hidden space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <!-- Cl4: Group -->
-              <div class="card p-5 border-subtle">
-                <h3 class="font-bold text-white text-sm font-heading mb-2"><i class="fa-solid fa-people-group text-cyan-400 mr-2"></i> Задача Cl4: Запис на групове тренування</h3>
-                <p class="text-xs text-slate-400 mb-4">Оберіть заняття з розкладу на поточний тиждень</p>
-                <form id="form-cl4-group" onsubmit="handleCl4Booking(event)" class="space-y-3">
-                  <div class="form-group">
-                    <label class="form-label">Доступне заняття *</label>
-                    <select id="cl4-instance" required class="text-xs font-mono">
-                      <!-- Populated by JS -->
-                    </select>
-                  </div>
-                  <button type="submit" class="btn btn-primary w-full btn-sm">Записатися на заняття</button>
-                </form>
+          <!-- Cl4: Group Class Weekly Schedule -->
+          <div id="subtab-cl4" class="client-pane hidden space-y-6">
+            <!-- Cl4: Group Class Weekly Schedule (Full Width) -->
+            <div class="card p-5 border-subtle max-w-full overflow-hidden">
+              <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-subtle">
+                <div>
+                  <h3 class="font-bold text-white text-base font-heading flex items-center gap-2">
+                    <i class="fa-solid fa-people-group text-cyan-400"></i>
+                    <span>Розклад групових занять (Cl4)</span>
+                  </h3>
+                  <p class="text-xs text-slate-400 mt-1">Оберіть заняття з розкладу на тиждень та натисніть для запису</p>
+                </div>
+
+                <!-- Navigation Controls Toolbar -->
+                <div class="flex items-center gap-2 flex-nowrap shrink-0 overflow-x-auto">
+                  <button type="button" id="cl4-prev-week" onclick="handleCl4PrevWeek()" class="btn btn-secondary btn-sm px-3 py-1.5 text-xs flex items-center gap-1.5 whitespace-nowrap">
+                    <i class="fa-solid fa-chevron-left"></i> Попередній
+                  </button>
+                  <span id="cl4-week-range" class="font-mono text-xs font-semibold px-3 py-1.5 bg-void border border-subtle rounded-lg text-cyan-300 min-w-[190px] text-center shadow-inner whitespace-nowrap">
+                    --.--.---- – --.--.----
+                  </span>
+                  <button type="button" id="cl4-next-week" onclick="handleCl4NextWeek()" class="btn btn-secondary btn-sm px-3 py-1.5 text-xs flex items-center gap-1.5 whitespace-nowrap">
+                    Наступний <i class="fa-solid fa-chevron-right"></i>
+                  </button>
+                  <button type="button" id="cl4-today-week" onclick="handleCl4TodayWeek()" class="btn btn-secondary btn-sm px-3 py-1.5 text-xs flex items-center gap-1.5 whitespace-nowrap">
+                    <i class="fa-solid fa-calendar-day"></i> Сьогодні
+                  </button>
+                </div>
               </div>
 
-              <!-- Cl5: Personal -->
-              <div class="card p-5 border-subtle">
-                <h3 class="font-bold text-white text-sm font-heading mb-2"><i class="fa-solid fa-user-clock text-blue-400 mr-2"></i> Задача Cl5: Запис на персональне тренування</h3>
-                <p class="text-xs text-slate-400 mb-4">Індивідуальне заняття з тренером у зручний час</p>
-                <form id="form-cl5-personal" onsubmit="handleCl5Booking(event)" class="space-y-3">
+              <!-- Weekly Schedule Grid (7 Columns) -->
+              <div class="overflow-x-auto pb-3 custom-scrollbar w-full max-w-full">
+                <div id="cl4-schedule-grid" class="grid grid-cols-7 gap-3 min-w-[1150px] min-h-[300px]">
+                  <!-- Populated dynamically by JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cl5: Personal Training Booking -->
+          <div id="subtab-cl5" class="client-pane hidden space-y-6">
+            <div class="card p-6 max-w-2xl mx-auto border-subtle shadow-xl">
+              <h3 class="font-bold text-white text-base font-heading mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-user-clock text-blue-400"></i>
+                <span>Задача Cl5: Запис на персональне тренування</span>
+              </h3>
+              <p class="text-xs text-slate-400 mb-4">Індивідуальне заняття з тренером у зручний час</p>
+              <form id="form-cl5-personal" onsubmit="handleCl5Booking(event)" class="space-y-4">
+                <div class="form-group">
+                  <label class="form-label">Оберіть тренера *</label>
+                  <select id="cl5-coach" required class="text-xs font-mono">
+                    <!-- Populated by JS -->
+                  </select>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div class="form-group">
-                    <label class="form-label">Оберіть тренера *</label>
-                    <select id="cl5-coach" required class="text-xs font-mono">
+                    <label class="form-label">Дата та час *</label>
+                    <input type="datetime-local" id="cl5-datetime" required class="text-xs font-mono">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Зал клубу *</label>
+                    <select id="cl5-hall" required class="text-xs font-mono">
                       <!-- Populated by JS -->
                     </select>
                   </div>
-                  <div class="grid grid-cols-2 gap-2">
-                    <div class="form-group">
-                      <label class="form-label">Дата та час *</label>
-                      <input type="datetime-local" id="cl5-datetime" required class="text-xs font-mono">
-                    </div>
-                    <div class="form-group">
-                      <label class="form-label">Зал клубу *</label>
-                      <select id="cl5-hall" required class="text-xs font-mono">
-                        <!-- Populated by JS -->
-                      </select>
-                    </div>
-                  </div>
-                  <button type="submit" class="btn btn-primary w-full btn-sm">Забронювати тренування</button>
-                </form>
-              </div>
+                </div>
+                <button type="submit" class="btn btn-primary w-full">Забронювати тренування</button>
+              </form>
             </div>
           </div>
 
@@ -935,7 +964,7 @@
         </aside>
 
         <!-- Main Workspace Panes -->
-        <div class="space-y-6">
+        <div class="space-y-6 min-w-0 w-full">
 
           <!-- M4: Express Check-in -->
           <div id="subtab-m4" class="manager-pane space-y-4">
@@ -1308,7 +1337,7 @@
         </aside>
 
         <!-- Main Workspace Panes -->
-        <div class="space-y-6">
+        <div class="space-y-6 min-w-0 w-full">
 
           <!-- HR2: Coaches List -->
           <div id="subtab-hr-coaches" class="hr-pane space-y-4">
@@ -1603,7 +1632,7 @@
         </aside>
 
         <!-- Main Workspace Panes -->
-        <div class="space-y-6">
+        <div class="space-y-6 min-w-0 w-full">
 
           <!-- C1: Schedule -->
           <div id="subtab-c1" class="coach-pane space-y-4">
@@ -1845,7 +1874,7 @@
         </aside>
 
         <!-- Main Workspace Panes -->
-        <div class="space-y-6">
+        <div class="space-y-6 min-w-0 w-full">
 
           <!-- D1: Revenue Report -->
           <div id="subtab-d1" class="director-pane space-y-4">
@@ -2235,6 +2264,57 @@
   <!-- ========================================================================= -->
   <!-- MODALS -->
   <!-- ========================================================================= -->
+
+  <!-- Cl4: Group Class Booking Confirmation Modal -->
+  <div id="modal-group-booking" class="modal-backdrop hidden" onclick="if (event.target === this) closeGroupBookingModal()">
+    <div class="modal-content max-w-lg">
+      <div class="modal-header">
+        <h3 class="text-base font-bold text-white font-heading" style="color: #22d3ee !important;">
+          <i class="fa-solid fa-calendar-check text-cyan-400 mr-2"></i> Підтвердження запису на заняття (Cl4)
+        </h3>
+        <button onclick="closeGroupBookingModal()" class="text-slate-400 hover:text-white text-lg transition">&times;</button>
+      </div>
+      <div class="modal-body space-y-4">
+        <input type="hidden" id="modal-cl4-instance-id">
+        <input type="hidden" id="modal-cl4-sale-id">
+        <div class="p-4 bg-void border border-subtle rounded-xl space-y-3">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <span id="modal-cl4-activity-type" class="badge badge-cyan text-[11px] mb-1">Групове тренування</span>
+              <h4 id="modal-cl4-title" class="text-white font-bold text-base font-heading" style="color: #ffffff !important;">Назва заняття</h4>
+            </div>
+            <span id="modal-cl4-spots" class="badge badge-active text-xs font-mono">Вільно: 0/0</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300 pt-3 border-t border-subtle">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-calendar text-cyan-400 w-4"></i>
+              <span id="modal-cl4-date" class="font-mono">--.--.----</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-clock text-cyan-400 w-4"></i>
+              <span id="modal-cl4-time" class="font-mono">--:-- – --:--</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-user-tie text-cyan-400 w-4"></i>
+              <span id="modal-cl4-coach" class="truncate">Тренер: —</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-location-dot text-cyan-400 w-4"></i>
+              <span id="modal-cl4-hall" class="truncate">Зал: —</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="modal-cl4-no-sub-warning" class="hidden p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Для запису на групові заняття необхідно мати активний абонемент клубу.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeGroupBookingModal()" class="btn btn-secondary btn-sm">Скасувати</button>
+        <button type="button" id="modal-cl4-confirm-btn" onclick="confirmGroupBooking()" class="btn btn-primary btn-sm flex items-center gap-1.5">
+          <i class="fa-solid fa-check"></i> Підтвердити запис
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- API Settings & Connectivity Modal -->
   <div id="modal-api-settings" class="modal-backdrop hidden">

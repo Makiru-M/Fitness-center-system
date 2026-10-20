@@ -42,7 +42,10 @@ import {
   saveEditCoachModal,
   openEditStaffModal,
   closeEditStaffModal,
-  saveEditStaffModal
+  saveEditStaffModal,
+  openGroupBookingModal,
+  closeGroupBookingModal,
+  confirmGroupBooking
 } from './components/modal.js';
 import {
   initApp,
@@ -86,6 +89,10 @@ import {
   handleCl3Unfreeze,
   populateCl45Options,
   handleCl4Booking,
+  handleCl4PrevWeek,
+  handleCl4NextWeek,
+  handleCl4TodayWeek,
+  renderCl4Schedule,
   handleCl5Booking,
   populateCl6Options,
   handleCl6Cancel
@@ -217,6 +224,9 @@ Object.assign(window, {
   openEditStaffModal,
   closeEditStaffModal,
   saveEditStaffModal,
+  openGroupBookingModal,
+  closeGroupBookingModal,
+  confirmGroupBooking,
 
   // Guest View
   switchGuestTab,
@@ -241,6 +251,10 @@ Object.assign(window, {
   handleCl3Unfreeze,
   populateCl45Options,
   handleCl4Booking,
+  handleCl4PrevWeek,
+  handleCl4NextWeek,
+  handleCl4TodayWeek,
+  renderCl4Schedule,
   handleCl5Booking,
   populateCl6Options,
   handleCl6Cancel,
