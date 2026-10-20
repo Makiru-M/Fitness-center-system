@@ -176,7 +176,16 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   letter-spacing: -0.02em;
   font-weight: 700;
-  color: var(--text-main);
+  color: #ffffff !important;
+}
+
+.role-view h1, .role-view h2, .role-view h3, .role-view h4,
+.manager-pane h1, .manager-pane h2, .manager-pane h3,
+.coach-pane h1, .coach-pane h2, .coach-pane h3,
+.hr-pane h1, .hr-pane h2, .hr-pane h3,
+.director-pane h1, .director-pane h2, .director-pane h3,
+.client-pane h1, .client-pane h2, .client-pane h3 {
+  color: #ffffff !important;
 }
 
 .font-mono {

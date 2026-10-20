@@ -53,6 +53,13 @@ export async function populateManagerDropdowns() {
       refreshCombobox(sel);
     });
 
+    const m4ClientSel = document.getElementById('m4-client');
+    if (m4ClientSel && !m4ClientSel.dataset.hasPreviewListener) {
+      m4ClientSel.addEventListener('change', (e) => previewM4ClientStatus(e.target.value));
+      m4ClientSel.dataset.hasPreviewListener = 'true';
+    }
+    previewM4ClientStatus();
+
     // Halls selects (m4, m6)
     const hallSelects = ['m4-hall', 'm6-hall'];
     hallSelects.forEach(selId => {
@@ -156,34 +163,69 @@ export async function populateManagerDropdowns() {
   }
 }
 
-export function previewM4ClientStatus() {
-  const clientId = parseInt(document.getElementById('m4-client')?.value);
-  const container = document.getElementById('m4-client-status-preview');
-  if (!container || !clientId) return;
+export function previewM4ClientStatus(val) {
+  const clientSelect = document.getElementById('m4-client');
+  const clientId = parseInt(val || clientSelect?.value || '0', 10);
+  const subNameEl = document.getElementById('m4-sub-name');
+  const subStatusEl = document.getElementById('m4-sub-status');
+  const subEndEl = document.getElementById('m4-sub-end');
+  const medAlertEl = document.getElementById('m4-med-alert');
 
-  const client = cachedClients.find(c => c.clientId === clientId);
-  if (!client) {
-    container.classList.add('hidden');
+  if (!clientId || isNaN(clientId)) {
+    if (subNameEl) subNameEl.textContent = '—';
+    if (subStatusEl) {
+      subStatusEl.textContent = '—';
+      subStatusEl.className = 'badge badge-expired';
+    }
+    if (subEndEl) subEndEl.textContent = '—';
+    if (medAlertEl) {
+      medAlertEl.classList.add('hidden');
+      medAlertEl.innerHTML = '';
+    }
     return;
   }
 
-  container.classList.remove('hidden');
-  const isSubActive = (client.activeSubStatus || '').toLowerCase() === 'active';
+  const client = cachedClients.find(c => c.clientId === clientId);
+  if (!client) return;
 
-  container.innerHTML = `
-    <div class="flex items-center justify-between">
-      <span class="font-bold text-white font-heading">${client.fullName}</span>
-      <span class="badge ${isSubActive ? 'badge-active' : 'badge-expired'}">${client.activeSubStatus || 'Немає абонемента'}</span>
-    </div>
-    <div class="text-[11px] text-slate-400 mt-1 font-mono">
-      Абонемент: <b class="text-slate-200">${client.activeSubName || 'Відсутній'}</b> ${client.activeSubEndDate ? `(дійсний до ${client.activeSubEndDate})` : ''}
-    </div>
-    ${client.medicalNotes && !isTrivialMedNotes(client.medicalNotes) ? `
-      <div class="badge-medical-alert p-2 rounded-lg mt-1.5 w-full">
-        <i class="fa-solid fa-notes-medical mr-1 text-rose-400"></i> <b>Застереження:</b> ${client.medicalNotes}
-      </div>
-    ` : ''}
-  `;
+  const status = client.activeSubStatus || 'None';
+  const isSubActive = status.toLowerCase() === 'active';
+  const isSubFrozen = status.toLowerCase() === 'frozen';
+
+  if (subNameEl) {
+    subNameEl.textContent = client.activeSubName || 'Відсутній';
+  }
+
+  if (subStatusEl) {
+    if (isSubActive) {
+      subStatusEl.textContent = 'Active';
+      subStatusEl.className = 'badge badge-active';
+    } else if (isSubFrozen) {
+      subStatusEl.textContent = 'Frozen';
+      subStatusEl.className = 'badge badge-cyan';
+    } else if (status === 'Expired') {
+      subStatusEl.textContent = 'Expired';
+      subStatusEl.className = 'badge badge-expired';
+    } else {
+      subStatusEl.textContent = 'Немає';
+      subStatusEl.className = 'badge badge-expired';
+    }
+  }
+
+  if (subEndEl) {
+    subEndEl.textContent = client.activeSubEndDate || '—';
+  }
+
+  if (medAlertEl) {
+    const hasMed = client.medicalNotes && !isTrivialMedNotes(client.medicalNotes);
+    if (hasMed) {
+      medAlertEl.classList.remove('hidden');
+      medAlertEl.innerHTML = `<i class="fa-solid fa-notes-medical text-rose-400 mr-1.5"></i> <b>Застереження:</b> ${escapeHtml(client.medicalNotes)}`;
+    } else {
+      medAlertEl.classList.add('hidden');
+      medAlertEl.innerHTML = '';
+    }
+  }
 }
 
 export async function handleM4CheckIn(e) {
@@ -277,6 +319,16 @@ export async function handleM1NewClient(e) {
   } catch (err) {
     showToast(`Помилка реєстрації клієнта: ${err.message}`, 'danger');
   }
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function isTrivialMedNotes(str) {
