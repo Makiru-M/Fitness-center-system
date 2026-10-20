@@ -640,20 +640,20 @@
           
           <!-- Cl Dashboard Pane -->
           <div id="subtab-cl-dash" class="client-pane space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
               <!-- Upcoming trainings -->
-              <div class="card p-5">
+              <div class="card p-5 self-start">
                 <h3 class="font-bold text-white text-sm font-heading mb-3 flex items-center justify-between">
                   <span><i class="fa-solid fa-calendar-days text-cyan-400 mr-2"></i> Мої найближчі тренування</span>
                   <button onclick="switchClientTab('cl4')" class="text-xs text-cyan-400 hover:underline font-mono">+ Записатись</button>
                 </h3>
-                <div id="client-upcoming-list" class="space-y-2">
+                <div id="client-upcoming-list" class="space-y-2 max-h-[290px] overflow-y-auto pr-1.5 custom-scrollbar">
                   <!-- Populated by JS -->
                 </div>
               </div>
 
               <!-- Quick Actions -->
-              <div class="card p-5">
+              <div class="card p-5 self-start">
                 <h3 class="font-bold text-white text-sm font-heading mb-3"><i class="fa-solid fa-bolt text-cyan-400 mr-2"></i> Швидкі дії</h3>
                 <div class="grid grid-cols-2 gap-3">
                   <button onclick="switchClientTab('cl5')" class="p-3 bg-void border border-subtle hover:border-cyan-500/50 rounded-xl text-left font-medium text-xs transition group">

@@ -232,10 +232,24 @@ export async function renderClientDashboard() {
     const listEl = document.getElementById('client-upcoming-list');
     if (listEl) {
       listEl.innerHTML = '';
-      if (!bookings || !bookings.length) {
+      const sortedBookings = [...(bookings || [])].sort((a, b) => {
+        const isSchedA = (a.status || '').toLowerCase() === 'scheduled';
+        const isSchedB = (b.status || '').toLowerCase() === 'scheduled';
+        if (isSchedA && !isSchedB) return -1;
+        if (!isSchedA && isSchedB) return 1;
+        
+        const timeA = new Date(a.trainingDateTime || 0).getTime();
+        const timeB = new Date(b.trainingDateTime || 0).getTime();
+        if (isSchedA && isSchedB) {
+          return timeA - timeB; // Earliest upcoming first
+        }
+        return timeB - timeA; // Latest completed/cancelled first
+      });
+
+      if (!sortedBookings || !sortedBookings.length) {
         listEl.innerHTML = '<p class="text-xs text-slate-500 p-3 italic font-mono">Немає запланованих занять. Запишіться у розділі Cl4 або Cl5!</p>';
       } else {
-        bookings.forEach(b => {
+        sortedBookings.forEach(b => {
           const item = document.createElement('div');
           item.className = 'flex justify-between items-center gap-3 p-3 rounded-lg border border-subtle bg-surface-elevated text-xs';
           item.style.backgroundColor = '#131a2e';
