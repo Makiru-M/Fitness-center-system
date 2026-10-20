@@ -199,7 +199,6 @@ export async function renderClientDashboard() {
     const quickFreezeBtn = document.getElementById('client-quick-freeze-btn');
     const quickFreezeIcon = document.getElementById('client-quick-freeze-icon');
     const quickFreezeTitle = document.getElementById('client-quick-freeze-title');
-    const quickFreezeDesc = document.getElementById('client-quick-freeze-desc');
 
     if (quickFreezeBtn) {
       if (activeSub && activeSub.currentStatus === 'Frozen') {
@@ -209,9 +208,6 @@ export async function renderClientDashboard() {
         if (quickFreezeTitle) {
           quickFreezeTitle.textContent = 'Розморозити (Cl3)';
         }
-        if (quickFreezeDesc) {
-          quickFreezeDesc.textContent = 'Відновити дію';
-        }
         quickFreezeBtn.onclick = () => window.handleCl3Unfreeze(activeSub.clientSubId);
       } else {
         if (quickFreezeIcon) {
@@ -219,9 +215,6 @@ export async function renderClientDashboard() {
         }
         if (quickFreezeTitle) {
           quickFreezeTitle.textContent = 'Заморозка (Cl3)';
-        }
-        if (quickFreezeDesc) {
-          quickFreezeDesc.textContent = 'Призупинити';
         }
         quickFreezeBtn.onclick = () => window.switchClientTab('cl3');
       }
@@ -789,6 +782,119 @@ export function renderCl4Schedule() {
   }
 }
 
+const BASE_CL4_PRICE = 200.00;
+const BASE_CL5_PRICE = 400.00;
+
+export function updateCl4Price() {
+  const display = document.getElementById('modal-cl4-price-display');
+  const promoInput = document.getElementById('modal-cl4-promo')?.value.trim().toUpperCase() || '';
+  const promoBadge = document.getElementById('modal-cl4-promo-badge');
+  const confirmBtn = document.getElementById('modal-cl4-confirm-btn');
+
+  let price = BASE_CL4_PRICE;
+  const promo = findPromo(promoInput);
+  const now = new Date().toISOString().split('T')[0];
+  if (promo && !(promo.expiryDate && promo.expiryDate < now)) {
+    price = (BASE_CL4_PRICE * (100 - promo.discountPercent)) / 100;
+    if (promoBadge) {
+      promoBadge.innerHTML = `<span class="badge badge-active text-xs">Знижка ${promo.discountPercent}% застосована!</span>`;
+      promoBadge.classList.remove('hidden');
+    }
+  } else {
+    if (promoBadge) {
+      promoBadge.classList.add('hidden');
+    }
+  }
+  if (display) {
+    display.textContent = `${price.toFixed(2)} грн`;
+  }
+  if (confirmBtn) {
+    confirmBtn.innerHTML = `<i class="fa-solid fa-credit-card mr-1"></i> Оплатити та записатися (${price.toFixed(2)} грн)`;
+  }
+}
+
+export function applyCl4Promo() {
+  const code = document.getElementById('modal-cl4-promo')?.value.trim().toUpperCase();
+  if (!code) {
+    showToast('Введіть промокод', 'warning');
+    updateCl4Price();
+    return;
+  }
+
+  const promo = findPromo(code);
+  const now = new Date().toISOString().split('T')[0];
+
+  if (!promo) {
+    showToast('Промокод не знайдено або термін його дії вичерпано', 'warning');
+    updateCl4Price();
+    return;
+  }
+
+  if (promo.expiryDate && promo.expiryDate < now) {
+    showToast('Термін дії промокоду вичерпано!', 'warning');
+    updateCl4Price();
+    return;
+  }
+
+  showToast(`Промокод ${code} на ${promo.discountPercent}% успішно застосовано!`, 'success');
+  updateCl4Price();
+}
+
+export function updateCl5Price() {
+  const display = document.getElementById('cl5-price-display');
+  const promoInput = document.getElementById('cl5-promo')?.value.trim().toUpperCase() || '';
+  const promoBadge = document.getElementById('cl5-promo-badge');
+  const submitBtn = document.getElementById('cl5-submit-btn');
+
+  let price = BASE_CL5_PRICE;
+  const promo = findPromo(promoInput);
+  const now = new Date().toISOString().split('T')[0];
+  if (promo && !(promo.expiryDate && promo.expiryDate < now)) {
+    price = (BASE_CL5_PRICE * (100 - promo.discountPercent)) / 100;
+    if (promoBadge) {
+      promoBadge.innerHTML = `<span class="badge badge-active text-xs">Знижка ${promo.discountPercent}% застосована!</span>`;
+      promoBadge.classList.remove('hidden');
+    }
+  } else {
+    if (promoBadge) {
+      promoBadge.classList.add('hidden');
+    }
+  }
+  if (display) {
+    display.textContent = `${price.toFixed(2)} грн`;
+  }
+  if (submitBtn) {
+    submitBtn.innerHTML = `<i class="fa-solid fa-credit-card mr-1"></i> Оплатити та записатися (${price.toFixed(2)} грн)`;
+  }
+}
+
+export function applyCl5Promo() {
+  const code = document.getElementById('cl5-promo')?.value.trim().toUpperCase();
+  if (!code) {
+    showToast('Введіть промокод', 'warning');
+    updateCl5Price();
+    return;
+  }
+
+  const promo = findPromo(code);
+  const now = new Date().toISOString().split('T')[0];
+
+  if (!promo) {
+    showToast('Промокод не знайдено або термін його дії вичерпано', 'warning');
+    updateCl5Price();
+    return;
+  }
+
+  if (promo.expiryDate && promo.expiryDate < now) {
+    showToast('Термін дії промокоду вичерпано!', 'warning');
+    updateCl5Price();
+    return;
+  }
+
+  showToast(`Промокод ${code} на ${promo.discountPercent}% успішно застосовано!`, 'success');
+  updateCl5Price();
+}
+
 export async function populateCl45Options() {
   try {
     const [halls, coaches, groupClasses] = await Promise.all([
@@ -832,6 +938,36 @@ export async function populateCl45Options() {
       dtEl.value = tmr.toISOString().substring(0, 16);
       dtEl.min = new Date().toISOString().substring(0, 16);
     }
+
+    // Prerequisite check for Cl5: active subscription
+    if (!cachedClientSubscriptions || !cachedClientSubscriptions.length) {
+      try {
+        const subs = await clientApi.getSubscriptions();
+        if (subs) cachedClientSubscriptions = subs;
+      } catch (err) {
+        console.warn('Could not fetch subscriptions for Cl5:', err);
+      }
+    }
+    const activeSub = (cachedClientSubscriptions || []).find(s => s.currentStatus === 'Active' && (!s.endDate || s.endDate >= formatIsoDate(new Date())));
+    const cl5SubmitBtn = document.getElementById('cl5-submit-btn');
+    const cl5Warning = document.getElementById('cl5-no-sub-warning');
+
+    if (activeSub) {
+      if (cl5SubmitBtn) cl5SubmitBtn.disabled = false;
+      if (cl5Warning) cl5Warning.classList.add('hidden');
+    } else {
+      if (cl5SubmitBtn) cl5SubmitBtn.disabled = true;
+      if (cl5Warning) cl5Warning.classList.remove('hidden');
+    }
+
+    const cl5Promo = document.getElementById('cl5-promo');
+    if (cl5Promo) cl5Promo.value = '';
+    const cl5Badge = document.getElementById('cl5-promo-badge');
+    if (cl5Badge) cl5Badge.classList.add('hidden');
+    const cl5PriceDisplay = document.getElementById('cl5-price-display');
+    if (cl5PriceDisplay) cl5PriceDisplay.textContent = '400.00 грн';
+
+    updateCl5Price();
   } catch (err) {
     console.warn('Error populating Cl4/Cl5 options:', err);
   }
@@ -881,6 +1017,15 @@ export async function openGroupBookingModal(instanceId) {
     spotsEl.className = gc.availableSpots > 0 ? 'badge badge-active text-xs font-mono' : 'badge badge-expired text-xs font-mono';
   }
 
+  // Reset promo code input, promo badge and reset price
+  const promoInput = document.getElementById('modal-cl4-promo');
+  if (promoInput) promoInput.value = '';
+  const promoBadge = document.getElementById('modal-cl4-promo-badge');
+  if (promoBadge) promoBadge.classList.add('hidden');
+  const priceDisplay = document.getElementById('modal-cl4-price-display');
+  if (priceDisplay) priceDisplay.textContent = '200.00 грн';
+  updateCl4Price();
+
   // Ensure subscriptions are loaded
   if (!cachedClientSubscriptions || !cachedClientSubscriptions.length) {
     try {
@@ -925,14 +1070,16 @@ export function closeGroupBookingModal() {
 
 export async function confirmGroupBooking() {
   const instanceId = parseInt(document.getElementById('modal-cl4-instance-id')?.value || '0', 10);
-  const saleId = parseInt(document.getElementById('modal-cl4-sale-id')?.value || '0', 10);
+  const promoCode = document.getElementById('modal-cl4-promo')?.value.trim().toUpperCase() || null;
 
   if (!instanceId) {
     showToast('Будь ласка, оберіть доступне заняття.', 'warning');
     return;
   }
-  if (!saleId) {
-    showToast('Для запису на заняття потрібен діючий абонемент!', 'warning');
+
+  const activeSub = (cachedClientSubscriptions || []).find(s => s.currentStatus === 'Active' && (!s.endDate || s.endDate >= formatIsoDate(new Date())));
+  if (!activeSub) {
+    showToast('Для запису та купівлі групових занять необхідно мати діючий абонемент клубу!', 'warning');
     return;
   }
 
@@ -953,8 +1100,10 @@ export async function confirmGroupBooking() {
   if (confirmBtn) confirmBtn.disabled = true;
 
   try {
-    await clientApi.bookGroupClass({ instanceId, saleId });
-    showToast('Успішно записано на групове заняття! (Cl4)', 'success');
+    const payload = { instanceId };
+    if (promoCode) payload.promoCode = promoCode;
+    await clientApi.bookGroupClass(payload);
+    showToast('Успішно оплачено та записано на групове заняття! (Cl4)', 'success');
     closeGroupBookingModal();
     await populateCl45Options();
     await renderClientDashboard();
@@ -965,7 +1114,7 @@ export async function confirmGroupBooking() {
       showToast(`Помилка запису: ${err.message}`, 'danger');
     }
   } finally {
-    if (confirmBtn) confirmBtn.disabled = false;
+    if (confirmBtn && activeSub) confirmBtn.disabled = false;
   }
 }
 
@@ -979,6 +1128,13 @@ export async function handleCl5Booking(e) {
   const coachId = parseInt(document.getElementById('cl5-coach').value);
   const hallId = parseInt(document.getElementById('cl5-hall').value);
   const dt = document.getElementById('cl5-datetime').value;
+  const promoCode = document.getElementById('cl5-promo')?.value.trim().toUpperCase() || null;
+
+  const activeSub = (cachedClientSubscriptions || []).find(s => s.currentStatus === 'Active' && (!s.endDate || s.endDate >= formatIsoDate(new Date())));
+  if (!activeSub) {
+    showToast('Для запису на персональні тренування необхідно мати діючий абонемент клубу!', 'warning');
+    return;
+  }
 
   // Cl5: Date cannot be in the past
   const selectedTime = new Date(dt);
@@ -995,17 +1151,19 @@ export async function handleCl5Booking(e) {
     return;
   }
 
+  const cl5SubmitBtn = document.getElementById('cl5-submit-btn');
+  if (cl5SubmitBtn) cl5SubmitBtn.disabled = true;
+
   try {
-    const activeSub = cachedClientSubscriptions.find(s => s.currentStatus === 'Active' && new Date(s.endDate) >= new Date()) || cachedClientSubscriptions[0];
-    const saleId = activeSub ? activeSub.saleId : null;
-    await clientApi.bookPersonalTraining({
+    const payload = {
       coachId,
       hallId,
-      trainingDateTime: dt,
-      saleId
-    });
+      trainingDateTime: dt
+    };
+    if (promoCode) payload.promoCode = promoCode;
+    await clientApi.bookPersonalTraining(payload);
     bookedCoachSlots.add(slotKey);
-    showToast('Персональне тренування успішно заброньовано! (Cl5)', 'success');
+    showToast('Успішно оплачено та записано на персональне тренування! (Cl5)', 'success');
     await renderClientDashboard();
     switchClientTab('cl_dash');
   } catch (err) {
@@ -1014,6 +1172,8 @@ export async function handleCl5Booking(e) {
     } else {
       showToast(`Помилка запису: ${err.message}`, 'danger');
     }
+  } finally {
+    if (cl5SubmitBtn && activeSub) cl5SubmitBtn.disabled = false;
   }
 }
 

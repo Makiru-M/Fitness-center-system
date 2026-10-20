@@ -180,17 +180,6 @@
               </div>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Призначена роль</label>
-              <select id="login-role" class="w-full text-sm font-medium">
-                <option value="manager">Менеджер клієнтів (manager_role)</option>
-                <option value="director">Керівник клубу (director_role)</option>
-                <option value="coach">Тренер клубу (coach_role)</option>
-                <option value="hr">HR Менеджер</option>
-                <option value="client">Клієнт клубу (client_role)</option>
-              </select>
-            </div>
-
             <button type="submit" class="w-full btn btn-primary py-2.5 mt-2 shadow-lg">
               <i class="fa-solid fa-right-to-bracket mr-2"></i> Увійти в систему
             </button>
@@ -312,21 +301,6 @@
               </button>
             </div>
 
-            <!-- Stats Ticker -->
-            <div class="pt-4 border-t border-subtle/80 grid grid-cols-3 gap-4 font-mono text-center sm:text-left">
-              <div>
-                <div class="text-xl sm:text-2xl font-bold text-cyan-400">6 ЗОН</div>
-                <div class="text-[11px] text-slate-400 uppercase">Спец. Залів</div>
-              </div>
-              <div>
-                <div class="text-xl sm:text-2xl font-bold text-blue-400">15+ PRO</div>
-                <div class="text-[11px] text-slate-400 uppercase">Тренерів</div>
-              </div>
-              <div>
-                <div class="text-xl sm:text-2xl font-bold text-emerald-400">100%</div>
-                <div class="text-[11px] text-slate-400 uppercase">Онлайн розклад</div>
-              </div>
-            </div>
           </div>
 
           <!-- Hero Interactive Pass Widget -->
@@ -685,22 +659,18 @@
                   <button onclick="switchClientTab('cl5')" class="p-3 bg-void border border-subtle hover:border-cyan-500/50 rounded-xl text-left font-medium text-xs transition group">
                     <i class="fa-solid fa-user-clock text-lg block mb-1 text-cyan-400 group-hover:scale-110 transition-transform"></i>
                     <span class="text-white block font-heading">Персональне (Cl5)</span>
-                    <span class="text-slate-500 text-[10px]">Індивідуальне</span>
                   </button>
                   <button onclick="switchClientTab('cl4')" class="p-3 bg-void border border-subtle hover:border-blue-500/50 rounded-xl text-left font-medium text-xs transition group">
                     <i class="fa-solid fa-people-group text-lg block mb-1 text-blue-400 group-hover:scale-110 transition-transform"></i>
                     <span class="text-white block font-heading">Групове (Cl4)</span>
-                    <span class="text-slate-500 text-[10px]">Заняття в залі</span>
                   </button>
                   <button id="client-quick-freeze-btn" onclick="switchClientTab('cl3')" class="p-3 bg-void border border-subtle hover:border-cyan-500/50 rounded-xl text-left font-medium text-xs transition group">
                     <i id="client-quick-freeze-icon" class="fa-solid fa-snowflake text-lg block mb-1 text-cyan-300 group-hover:scale-110 transition-transform"></i>
                     <span id="client-quick-freeze-title" class="text-white block font-heading">Заморозка (Cl3)</span>
-                    <span id="client-quick-freeze-desc" class="text-slate-500 text-[10px]">Призупинити</span>
                   </button>
                   <button onclick="switchClientTab('cl2')" class="p-3 bg-void border border-subtle hover:border-cyan-500/50 rounded-xl text-left font-medium text-xs transition group">
                     <i class="fa-solid fa-cart-shopping text-lg block mb-1 text-cyan-400 group-hover:scale-110 transition-transform"></i>
                     <span class="text-white block font-heading">Продовжити (Cl2)</span>
-                    <span class="text-slate-500 text-[10px]">Оплатити період</span>
                   </button>
                 </div>
               </div>
@@ -845,6 +815,11 @@
                 <span>Задача Cl5: Запис на персональне тренування</span>
               </h3>
               <p class="text-xs text-slate-400 mb-4">Індивідуальне заняття з тренером у зручний час</p>
+
+              <div id="cl5-no-sub-warning" class="hidden mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center gap-2">
+                <i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Для запису на персональні тренування необхідно мати діючий абонемент клубу.
+              </div>
+
               <form id="form-cl5-personal" onsubmit="handleCl5Booking(event)" class="space-y-4">
                 <div class="form-group">
                   <label class="form-label">Оберіть тренера *</label>
@@ -864,7 +839,30 @@
                     </select>
                   </div>
                 </div>
-                <button type="submit" class="btn btn-primary w-full">Забронювати тренування</button>
+
+                <!-- Cl5 Payment & Pricing Block -->
+                <div class="form-group">
+                  <label class="form-label">Промокод (якщо є)</label>
+                  <div class="flex gap-2">
+                    <input type="text" id="cl5-promo" placeholder="PROMO20" class="flex-1 uppercase font-mono text-sm">
+                    <button type="button" onclick="applyCl5Promo()" class="btn btn-secondary btn-sm">Застосувати</button>
+                  </div>
+                </div>
+
+                <!-- Price summary card -->
+                <div class="bg-void p-4 rounded-xl border border-subtle flex justify-between items-center text-sm font-mono mb-4">
+                  <div>
+                    <span class="text-slate-400 block text-xs">Сума до сплати:</span>
+                    <span id="cl5-price-display" class="text-2xl font-bold text-cyan-400">400.00 грн</span>
+                  </div>
+                  <div id="cl5-promo-badge" class="hidden">
+                    <span class="badge badge-active text-xs">Знижка застосована!</span>
+                  </div>
+                </div>
+
+                <button type="submit" id="cl5-submit-btn" class="btn btn-primary w-full flex items-center justify-center gap-1.5">
+                  <i class="fa-solid fa-credit-card mr-1"></i> Оплатити та записатися (400.00 грн)
+                </button>
               </form>
             </div>
           </div>
@@ -2305,12 +2303,34 @@
           </div>
         </div>
 
-        <div id="modal-cl4-no-sub-warning" class="hidden p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Для запису на групові заняття необхідно мати активний абонемент клубу.</div>
+        <!-- Cl4 Payment & Pricing Block -->
+        <div class="form-group">
+          <label class="form-label">Промокод (якщо є)</label>
+          <div class="flex gap-2">
+            <input type="text" id="modal-cl4-promo" placeholder="PROMO20" class="flex-1 uppercase font-mono text-sm">
+            <button type="button" onclick="applyCl4Promo()" class="btn btn-secondary btn-sm">Застосувати</button>
+          </div>
+        </div>
+
+        <!-- Cl4 Price Summary Card -->
+        <div class="bg-void p-4 rounded-xl border border-subtle flex justify-between items-center text-sm font-mono mb-4">
+          <div>
+            <span class="text-slate-400 block text-xs">Сума до сплати:</span>
+            <span id="modal-cl4-price-display" class="text-2xl font-bold text-cyan-400">200.00 грн</span>
+          </div>
+          <div id="modal-cl4-promo-badge" class="hidden">
+            <span class="badge badge-active text-xs">Знижка застосована!</span>
+          </div>
+        </div>
+
+        <div id="modal-cl4-no-sub-warning" class="hidden p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Для запису та купівлі групових занять необхідно мати діючий абонемент клубу.
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" onclick="closeGroupBookingModal()" class="btn btn-secondary btn-sm">Скасувати</button>
         <button type="button" id="modal-cl4-confirm-btn" onclick="confirmGroupBooking()" class="btn btn-primary btn-sm flex items-center gap-1.5">
-          <i class="fa-solid fa-check"></i> Підтвердити запис
+          <i class="fa-solid fa-credit-card mr-1"></i> Оплатити та записатися (200.00 грн)
         </button>
       </div>
     </div>

@@ -371,5 +371,7 @@ export async function saveEditStaffModal() {
 export {
   openGroupBookingModal,
   closeGroupBookingModal,
-  confirmGroupBooking
+  confirmGroupBooking,
+  applyCl4Promo,
+  updateCl4Price
 } from '../views/clientView.js';

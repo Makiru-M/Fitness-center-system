@@ -93,7 +93,11 @@ import {
   handleCl4NextWeek,
   handleCl4TodayWeek,
   renderCl4Schedule,
+  updateCl4Price,
+  applyCl4Promo,
   handleCl5Booking,
+  updateCl5Price,
+  applyCl5Promo,
   populateCl6Options,
   handleCl6Cancel
 } from './views/clientView.js';
@@ -255,7 +259,11 @@ Object.assign(window, {
   handleCl4NextWeek,
   handleCl4TodayWeek,
   renderCl4Schedule,
+  updateCl4Price,
+  applyCl4Promo,
   handleCl5Booking,
+  updateCl5Price,
+  applyCl5Promo,
   populateCl6Options,
   handleCl6Cancel,
 

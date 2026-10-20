@@ -361,12 +361,11 @@ export async function handleLoginForm(e) {
   e.preventDefault();
   const dbUser = document.getElementById('login-username').value.trim();
   const pass = document.getElementById('login-password').value;
-  const role = document.getElementById('login-role').value;
 
   try {
     const res = await authApi.login(dbUser, pass);
     setAuthToken(res.token);
-    const targetRole = (res.role || role || 'guest').replace(/_role$/, '').toLowerCase();
+    const targetRole = (res.role || 'guest').replace(/_role$/, '').toLowerCase();
     const userObj = {
       dbUser: res.username,
       name: res.fullName,

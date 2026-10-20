@@ -1,5 +1,6 @@
 package com.fitness.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -51,17 +52,29 @@ public class ClientDto {
             String reason
     ) {}
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record GroupBookingRequest(
             Integer instanceId,
+            String promoCode,
             Integer saleId
-    ) {}
+    ) {
+        public GroupBookingRequest(Integer instanceId, String promoCode) {
+            this(instanceId, promoCode, null);
+        }
+    }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record PersonalBookingRequest(
             Integer coachId,
             Integer hallId,
             LocalDateTime trainingDateTime,
+            String promoCode,
             Integer saleId
-    ) {}
+    ) {
+        public PersonalBookingRequest(Integer coachId, Integer hallId, LocalDateTime trainingDateTime, String promoCode) {
+            this(coachId, hallId, trainingDateTime, promoCode, null);
+        }
+    }
 
     public record CancelBookingRequest(
             String bookingType, // "Personal" or "Group"
