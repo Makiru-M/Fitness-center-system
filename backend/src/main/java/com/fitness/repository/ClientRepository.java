@@ -84,7 +84,54 @@ public class ClientRepository {
                 "SELECT ID_Client FROM Clients WHERE DB_User = SESSION_USER", Integer.class
         );
 
-        // 2. Resolve price and promo discount
+        // 2. Validate that the item is a subscription
+        List<Object[]> subInfo = jdbc.query(
+                "SELECT DurationDays, MaxFreezingDays FROM PriceListSubs WHERE ID_Item = ?",
+                (rs, rowNum) -> new Object[]{rs.getInt("DurationDays"), rs.getInt("MaxFreezingDays")},
+                req.itemId()
+        );
+
+        if (subInfo.isEmpty()) {
+            throw new BusinessLogicException("Обраний пункт прайсу не є абонементом.");
+        }
+
+        int duration = (int) subInfo.get(0)[0];
+        int maxFreeze = (int) subInfo.get(0)[1];
+
+        // 3. Check existing active/frozen subscription to determine start date and 7-day restriction
+        String activeSubSql = """
+            SELECT cs.ID_ClientSub, cs.EndDate, cs.CurrentStatus
+            FROM ClientSubscriptions cs
+            JOIN Sales s ON cs.ID_Sale = s.ID_Sale
+            JOIN Clients c ON s.ID_Client = c.ID_Client
+            WHERE c.DB_User = SESSION_USER
+              AND cs.CurrentStatus IN ('Active', 'Frozen')
+              AND cs.EndDate >= CURRENT_DATE
+            ORDER BY cs.EndDate DESC
+            LIMIT 1
+            """;
+        List<LocalDate> activeSubs = jdbc.query(
+                activeSubSql,
+                (rs, rowNum) -> rs.getDate("EndDate").toLocalDate()
+        );
+
+        LocalDate startDate;
+        if (!activeSubs.isEmpty()) {
+            LocalDate activeEndDate = activeSubs.get(0);
+            long daysUntilEnd = ChronoUnit.DAYS.between(LocalDate.now(), activeEndDate);
+            if (daysUntilEnd > 7) {
+                throw new BusinessLogicException(
+                        "Продовжити абонемент можна не раніше ніж за 7 днів до закінчення поточного (доступно з " + activeEndDate.minusDays(7) + ")."
+                );
+            }
+            startDate = activeEndDate.plusDays(1);
+        } else {
+            startDate = LocalDate.now();
+        }
+
+        LocalDate endDate = startDate.plusDays(duration);
+
+        // 4. Resolve price and promo discount
         BigDecimal basePrice = jdbc.queryForObject(
                 "SELECT Price FROM PriceList WHERE ID_Item = ?", BigDecimal.class, req.itemId()
         );
@@ -107,12 +154,12 @@ public class ClientRepository {
                 ? basePrice.multiply(BigDecimal.valueOf(100 - discount)).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP)
                 : basePrice;
 
-        // 3. Find a manager ID for recording the sale
+        // 5. Find a manager ID for recording the sale
         Integer managerId = jdbc.queryForObject(
                 "SELECT ID_Staff FROM Staff WHERE FireDate IS NULL LIMIT 1", Integer.class
         );
 
-        // 4. Insert Sale
+        // 6. Insert Sale
         Integer saleId = jdbc.queryForObject(
                 "INSERT INTO Sales (ID_Client, ID_Item, SalePrice, ID_Manager, SaleDate) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) RETURNING ID_Sale",
                 Integer.class, clientId, req.itemId(), finalPrice, managerId
@@ -122,22 +169,7 @@ public class ClientRepository {
             jdbc.update("INSERT INTO AppliedPromo (ID_Sale, ID_Promo) VALUES (?, ?)", saleId, promoId);
         }
 
-        // 5. Insert ClientSubscription if subscription
-        List<Object[]> subInfo = jdbc.query(
-                "SELECT DurationDays, MaxFreezingDays FROM PriceListSubs WHERE ID_Item = ?",
-                (rs, rowNum) -> new Object[]{rs.getInt("DurationDays"), rs.getInt("MaxFreezingDays")},
-                req.itemId()
-        );
-
-        if (subInfo.isEmpty()) {
-            throw new BusinessLogicException("Обраний пункт прайсу не є абонементом.");
-        }
-
-        int duration = (int) subInfo.get(0)[0];
-        int maxFreeze = (int) subInfo.get(0)[1];
-        LocalDate startDate = LocalDate.now();
-        LocalDate endDate = startDate.plusDays(duration);
-
+        // 7. Insert ClientSubscription
         Integer subId = jdbc.queryForObject(
                 "INSERT INTO ClientSubscriptions (ID_Sale, StartDate, EndDate, CurrentStatus, RemainingFreezingDays) VALUES (?, ?, ?, 'Active', ?) RETURNING ID_ClientSub",
                 Integer.class, saleId, startDate, endDate, maxFreeze

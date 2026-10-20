@@ -182,7 +182,9 @@ CREATE TABLE IF NOT EXISTS GroupScheduleTemplates (
     StartTime TIME NOT NULL,
     DurationMinutes INTEGER NOT NULL CHECK (DurationMinutes > 0),
     ID_Hall INTEGER NOT NULL REFERENCES Halls(ID_Hall),
-    ID_Coach INTEGER NOT NULL REFERENCES Coaches(ID_Coach)
+    ID_Coach INTEGER NOT NULL REFERENCES Coaches(ID_Coach),
+    CONSTRAINT uq_gst_hall_time UNIQUE (ID_Hall, DayOfWeek, StartTime),
+    CONSTRAINT uq_gst_coach_time UNIQUE (ID_Coach, DayOfWeek, StartTime)
 );
 
 -- Екземпляри конкретних групових занять за календарем
@@ -192,7 +194,8 @@ CREATE TABLE IF NOT EXISTS GroupClassInstances (
     ClassDate DATE NOT NULL,
     ClassStatus activity_status NOT NULL DEFAULT 'Scheduled',
     ActualAttendance INTEGER NOT NULL DEFAULT 0 CHECK (ActualAttendance >= 0),
-    ClassStartTime TIME
+    ClassStartTime TIME,
+    CONSTRAINT uq_gci_template_date UNIQUE (ID_Template, ClassDate)
 );
 
 -- Записи клієнтів на групові заняття

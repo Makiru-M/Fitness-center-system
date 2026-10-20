@@ -739,9 +739,12 @@
                     <!-- Populated by JS -->
                   </select>
                 </div>
+                <div id="cl2-restriction-notice" class="hidden"></div>
                 <div class="form-group">
                   <label class="form-label">Дата початку дії</label>
-                  <input type="date" id="cl2-startdate" required>
+                  <div id="cl2-startdate-info" class="p-3 bg-surface-elevated rounded-xl border border-subtle text-xs font-mono text-cyan-300">
+                    Визначається автоматично...
+                  </div>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Промокод</label>
@@ -756,7 +759,7 @@
                     <span id="cl2-price-display" class="text-xl font-bold text-cyan-400">0.00 грн</span>
                   </div>
                 </div>
-                <button type="submit" class="btn btn-primary w-full font-bold">Оплатити та продовжити</button>
+                <button type="submit" id="cl2-submit-btn" class="btn btn-primary w-full font-bold">Оплатити та продовжити</button>
               </form>
             </div>
           </div>

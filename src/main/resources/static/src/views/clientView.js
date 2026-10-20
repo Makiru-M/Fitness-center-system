@@ -38,6 +38,10 @@ export function switchClientTab(tabId) {
   const btn = document.getElementById(`tab-btn-${norm}`) || document.getElementById(`tab-btn-${tabId}`);
   if (pane) pane.classList.remove('hidden');
   if (btn) btn.classList.add('active');
+
+  if (norm === 'cl2' || tabId === 'cl2') {
+    populateCl2Options();
+  }
 }
 
 export function getActiveClient() {
@@ -271,7 +275,7 @@ export async function handleCl1Profile(e) {
     await clientApi.updateProfile({
       fullName,
       phone,
-      medicalNotes: medNotes || null
+      medicalNotes: medNotes
     });
 
     if (AppState.currentUser) {
@@ -315,8 +319,79 @@ export async function populateCl2Options() {
       select.appendChild(opt);
     });
 
-    const startDateInput = document.getElementById('cl2-startdate');
-    if (startDateInput) startDateInput.value = new Date().toISOString().split('T')[0];
+    if (!cachedClientSubscriptions || !cachedClientSubscriptions.length) {
+      try {
+        const subs = await clientApi.getSubscriptions();
+        if (subs) cachedClientSubscriptions = subs;
+      } catch (subErr) {
+        console.warn('Could not fetch client subscriptions for Cl2:', subErr);
+      }
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const pad = n => String(n).padStart(2, '0');
+    const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+
+    // Find the latest active/frozen subscription
+    const eligibleSubs = (cachedClientSubscriptions || []).filter(s => {
+      const isStatusOk = s.currentStatus === 'Active' || s.currentStatus === 'Frozen';
+      const endStr = typeof s.endDate === 'string' ? s.endDate.substring(0, 10) : '';
+      return isStatusOk && endStr >= todayStr;
+    });
+    eligibleSubs.sort((a, b) => String(b.endDate).localeCompare(String(a.endDate)));
+    const activeSub = eligibleSubs[0] || null;
+
+    const submitBtn = document.getElementById('cl2-submit-btn');
+    const noticeEl = document.getElementById('cl2-restriction-notice');
+    const infoEl = document.getElementById('cl2-startdate-info');
+
+    if (activeSub) {
+      const m = String(activeSub.endDate).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+      const endDateObj = m
+        ? new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10))
+        : new Date(activeSub.endDate);
+
+      const diffMs = endDateObj.getTime() - today.getTime();
+      const daysUntilEnd = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+      const nextStartObj = new Date(endDateObj.getFullYear(), endDateObj.getMonth(), endDateObj.getDate() + 1);
+      const nextStartDate = `${nextStartObj.getFullYear()}-${pad(nextStartObj.getMonth() + 1)}-${pad(nextStartObj.getDate())}`;
+
+      const availFromObj = new Date(endDateObj.getFullYear(), endDateObj.getMonth(), endDateObj.getDate() - 7);
+      const availableFromDate = `${availFromObj.getFullYear()}-${pad(availFromObj.getMonth() + 1)}-${pad(availFromObj.getDate())}`;
+
+      if (daysUntilEnd > 7) {
+        if (submitBtn) submitBtn.disabled = true;
+        if (noticeEl) {
+          noticeEl.className = 'p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 font-mono flex items-start gap-2.5';
+          noticeEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-400 mt-0.5 shrink-0"></i> <span>Продовження абонемента стане доступним з <b>${availableFromDate}</b> (не раніше ніж за 7 днів до завершення поточного).</span>`;
+          noticeEl.classList.remove('hidden');
+        }
+        if (infoEl) {
+          infoEl.textContent = `Дата початку дії: ${nextStartDate} (автоматично після закінчення діючого).`;
+        }
+      } else {
+        if (submitBtn) submitBtn.disabled = false;
+        if (noticeEl) {
+          noticeEl.innerHTML = '';
+          noticeEl.classList.add('hidden');
+        }
+        if (infoEl) {
+          infoEl.textContent = `Дата початку дії: ${nextStartDate} (автоматично наступного дня після закінчення діючого).`;
+        }
+      }
+    } else {
+      if (submitBtn) submitBtn.disabled = false;
+      if (noticeEl) {
+        noticeEl.innerHTML = '';
+        noticeEl.classList.add('hidden');
+      }
+      if (infoEl) {
+        infoEl.textContent = `Дата початку дії: ${todayStr} (поточний день).`;
+      }
+    }
+
     updateCl2Price();
   } catch (err) {
     console.warn('Error populating Cl2 options:', err);
@@ -387,9 +462,10 @@ export async function handleCl2Renew(e) {
     const res = await clientApi.renewSubscription({ itemId, promoCode });
     showToast(`Абонемент успішно продовжено до ${res.endDate}! (Cl2)`, 'success');
     await renderClientDashboard();
+    await populateCl2Options();
     switchClientTab('cl_dash');
   } catch (err) {
-    showToast(`Помилка оформлення абонемента: ${err.message}`, 'danger');
+    showToast(err.message || 'Помилка оформлення абонемента', 'danger');
   }
 }
 
