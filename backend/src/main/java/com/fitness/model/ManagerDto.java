@@ -76,4 +76,17 @@ public class ManagerDto {
             LocalDate activeSubEndDate,
             String activeSubStatus
     ) {}
+
+    public record ScheduleChangeRequestDto(
+        Integer logId,
+        Integer personalId,
+        String coachName,
+        String clientName,
+        String requestType,
+        String reason,
+        LocalDateTime requestTimestamp,
+        LocalDateTime currentDateTime,
+        LocalDateTime proposedDateTime,
+        String status
+    ) {}
 }

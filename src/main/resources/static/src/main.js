@@ -120,7 +120,10 @@ import {
   previewM7Freeze,
   handleM7Freeze,
   toggleM8NewTime,
-  handleM8Action
+  handleM8Action,
+  renderM8Requests,
+  handleApproveRequest,
+  handleRejectRequest
 } from './views/managerView.js';
 
 import {
@@ -286,6 +289,9 @@ Object.assign(window, {
   handleM7Freeze,
   toggleM8NewTime,
   handleM8Action,
+  renderM8Requests,
+  handleApproveRequest,
+  handleRejectRequest,
 
   // HR View
   switchHrTab,

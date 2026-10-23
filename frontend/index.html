@@ -992,6 +992,10 @@
                       <span id="m4-sub-end" class="font-bold text-cyan-400">—</span>
                     </div>
                   </div>
+                  <div id="m4-frozen-alert" class="hidden p-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-mono flex items-center gap-2">
+                    <i class="fa-solid fa-snowflake text-cyan-400"></i>
+                    <span><b>Увага:</b> абонемент заморожено. Вхід у зал заблоковано.</span>
+                  </div>
                   <div id="m4-med-alert" class="hidden p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-mono"></div>
                   <div class="form-group">
                     <label class="form-label">Зал відвідування *</label>
@@ -999,7 +1003,7 @@
                       <!-- Populated by JS -->
                     </select>
                   </div>
-                  <button type="submit" class="btn btn-success w-full py-2.5 font-bold shadow-md">
+                  <button type="submit" id="m4-checkin-btn" class="btn btn-success w-full py-2.5 font-bold shadow-md">
                     <i class="fa-solid fa-arrow-right-to-bracket mr-1.5"></i> Здійснити Check-in (M4)
                   </button>
                 </form>
@@ -1271,10 +1275,52 @@
           </div>
 
           <!-- M8: Reschedule / Cancel -->
-          <div id="subtab-m8" class="manager-pane hidden">
+          <div id="subtab-m8" class="manager-pane hidden space-y-6">
+            <!-- Incoming Requests from Coaches -->
+            <div class="card p-6 border-subtle shadow-xl">
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center space-x-3">
+                  <div class="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                    <i class="fa-solid fa-bell-concierge"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-base font-bold text-white font-heading">Вхідні запити від тренерів на зміну розкладу</h3>
+                    <p class="text-xs text-slate-400 font-mono">Обробка звернень тренерів щодо скасування або перенесення занять</p>
+                  </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <button onclick="renderM8Requests()" class="btn btn-secondary btn-xs font-mono" title="Оновити запити">
+                    <i class="fa-solid fa-arrows-rotate mr-1"></i> Оновити
+                  </button>
+                  <span id="m8-requests-count-badge" class="badge badge-cyan font-mono">0 очікують</span>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Дата запиту</th>
+                      <th>Тренер</th>
+                      <th>Клієнт</th>
+                      <th>Поточний час</th>
+                      <th>Бажана дія / Новий час</th>
+                      <th>Причина</th>
+                      <th>Статус</th>
+                      <th>Дії</th>
+                    </tr>
+                  </thead>
+                  <tbody id="m8-requests-tbody">
+                    <!-- Populated by JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Manual Schedule Action Form -->
             <div class="card p-6 max-w-xl mx-auto border-medium shadow-xl">
               <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-calendar-xmark text-rose-400 mr-2"></i> Задача M8: Скасування або перенесення тренування</h3>
-              <p class="text-xs text-slate-400 mb-4">Зміна часу чи статусу заняття з обов'язковим записом у PT_Changelog та PT_TimeChangeDetails.</p>
+              <p class="text-xs text-slate-400 mb-4">Зміна часу чи статусу заняття менеджером вручну з обов'язковим записом у PT_Changelog.</p>
 
               <form id="form-m8-action" onsubmit="handleM8Action(event)" class="space-y-4">
                 <div class="form-group">
@@ -1709,6 +1755,7 @@
                   <select id="c3-status" required class="font-mono text-sm">
                     <option value="Completed">Проведено (Completed)</option>
                     <option value="No-show">Неявка клієнта (No-show)</option>
+                    <option value="Cancelled">Скасовано (Cancelled)</option>
                   </select>
                 </div>
                 <div class="form-group">

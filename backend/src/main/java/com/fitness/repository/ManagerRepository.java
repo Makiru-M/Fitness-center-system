@@ -227,52 +227,35 @@ public class ManagerRepository {
     public CheckInResult checkInVisit(CheckInRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
 
-        // 1. Find client
+        // 1. Find client ID
         Integer clientId = req.clientId();
         if (clientId == null && req.phone() != null) {
-            clientId = jdbc.queryForObject("SELECT ID_Client FROM Clients WHERE Phone = ?", Integer.class, req.phone());
+            List<Integer> ids = jdbc.query("SELECT ID_Client FROM Clients WHERE Phone = ?",
+                    (rs, rowNum) -> rs.getInt("ID_Client"), req.phone());
+            if (!ids.isEmpty()) {
+                clientId = ids.get(0);
+            }
         }
         if (clientId == null) {
             throw new BusinessLogicException("Клієнта не знайдено.");
         }
 
-        // 2. Find active subscription or membership sale
-        String subSql = """
-            SELECT cs.ID_Sale, cs.CurrentStatus, c.FullName, h.HallName
-            FROM Clients c
-            JOIN Sales s ON c.ID_Client = s.ID_Client
-            JOIN ClientSubscriptions cs ON s.ID_Sale = cs.ID_Sale
-            JOIN Halls h ON h.ID_Hall = ?
-            WHERE c.ID_Client = ? 
-              AND cs.CurrentStatus = 'Active' 
-              AND cs.EndDate >= CURRENT_DATE
-            ORDER BY cs.EndDate DESC
-            LIMIT 1
-            """;
-
-        List<Object[]> rows = jdbc.query(subSql, (rs, rowNum) -> new Object[]{
-                rs.getInt("ID_Sale"),
-                rs.getString("CurrentStatus"),
-                rs.getString("FullName"),
-                rs.getString("HallName")
-        }, req.hallId(), clientId);
-
-        if (rows.isEmpty()) {
-            throw new BusinessLogicException("У клієнта немає активного дійсного абонемента для входу в зал!");
+        if (req.hallId() == null) {
+            throw new BusinessLogicException("Не вказано зал для входу.");
         }
 
-        Integer saleId = (Integer) rows.get(0)[0];
-        String subStatus = (String) rows.get(0)[1];
-        String clientName = (String) rows.get(0)[2];
-        String hallName = (String) rows.get(0)[3];
+        // 2. Register visit via Database-First stored function
+        String sql = "SELECT out_visit_id, out_client_id, out_client_name, out_hall_name, out_sub_status " +
+                     "FROM sp_register_visit(?, ?)";
 
-        // 3. Register visit
-        Integer visitId = jdbc.queryForObject(
-                "INSERT INTO Visits (ID_Hall, ID_Sale, CheckInTime) VALUES (?, ?, CURRENT_TIMESTAMP) RETURNING ID_Visit",
-                Integer.class, req.hallId(), saleId
-        );
-
-        return new CheckInResult(visitId, clientId, clientName, hallName, LocalDateTime.now(), subStatus);
+        return jdbc.queryForObject(sql, (rs, rowNum) -> new CheckInResult(
+                rs.getInt("out_visit_id"),
+                rs.getInt("out_client_id"),
+                rs.getString("out_client_name"),
+                rs.getString("out_hall_name"),
+                LocalDateTime.now(),
+                rs.getString("out_sub_status")
+        ), clientId, req.hallId());
     }
 
     /**
@@ -344,7 +327,7 @@ public class ManagerRepository {
         if ("Personal".equalsIgnoreCase(req.bookingType())) {
             if ("Cancel".equalsIgnoreCase(req.action())) {
                 jdbc.update("UPDATE PersonalTrainings SET TrainingStatus = 'Cancelled' WHERE ID_Personal = ?", req.bookingId());
-                jdbc.update("INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp) VALUES (?, 'Cancel', ?, ?, CURRENT_TIMESTAMP)",
+                jdbc.update("INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp, Status) VALUES (?, 'Cancel', ?, ?, CURRENT_TIMESTAMP, 'Approved')",
                         req.bookingId(), req.reason(), req.initiator() != null ? req.initiator() : "Manager");
             } else if ("Reschedule".equalsIgnoreCase(req.action())) {
                 LocalDateTime oldTime = jdbc.queryForObject(
@@ -369,7 +352,7 @@ public class ManagerRepository {
                 jdbc.update("UPDATE PersonalTrainings SET TrainingDateTime = ? WHERE ID_Personal = ?", req.newDateTime(), req.bookingId());
 
                 Integer logId = jdbc.queryForObject(
-                        "INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp) VALUES (?, 'Reschedule', ?, ?, CURRENT_TIMESTAMP) RETURNING ID_PTLog",
+                        "INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp, Status) VALUES (?, 'Reschedule', ?, ?, CURRENT_TIMESTAMP, 'Approved') RETURNING ID_PTLog",
                         Integer.class, req.bookingId(), req.reason(), req.initiator() != null ? req.initiator() : "Manager"
                 );
 
@@ -433,5 +416,103 @@ public class ManagerRepository {
             return list.get(0);
         }
         return jdbc.queryForObject("SELECT ID_Staff FROM Staff WHERE FireDate IS NULL LIMIT 1", Integer.class);
+    }
+
+    /**
+     * Get pending and recent schedule change requests from coaches
+     */
+    public List<ScheduleChangeRequestDto> getScheduleRequests() {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = """
+            SELECT cl.ID_PTLog, cl.ID_Personal, s_coach.FullName AS CoachName, c.FullName AS ClientName,
+                   cl.RequestType, cl.Reason, cl.ChangeTimestamp, pt.TrainingDateTime AS CurrentDateTime,
+                   tcd.NewDateTime AS ProposedDateTime, cl.Status
+            FROM PT_Changelog cl
+            JOIN PersonalTrainings pt ON cl.ID_Personal = pt.ID_Personal
+            JOIN Coaches coach ON pt.ID_Coach = coach.ID_Coach
+            JOIN Staff s_coach ON coach.ID_Staff = s_coach.ID_Staff
+            JOIN Sales sale ON pt.ID_Sale = sale.ID_Sale
+            JOIN Clients c ON sale.ID_Client = c.ID_Client
+            LEFT JOIN PT_TimeChangeDetails tcd ON cl.ID_PTLog = tcd.ID_PTLog
+            WHERE cl.ChangeInitiator = 'Coach'
+            ORDER BY CASE WHEN cl.Status = 'Pending' THEN 0 ELSE 1 END, cl.ChangeTimestamp DESC
+            """;
+
+        return jdbc.query(sql, (rs, rowNum) -> new ScheduleChangeRequestDto(
+                rs.getInt("ID_PTLog"),
+                rs.getInt("ID_Personal"),
+                rs.getString("CoachName"),
+                rs.getString("ClientName"),
+                rs.getString("RequestType"),
+                rs.getString("Reason"),
+                rs.getTimestamp("ChangeTimestamp").toLocalDateTime(),
+                rs.getTimestamp("CurrentDateTime").toLocalDateTime(),
+                rs.getTimestamp("ProposedDateTime") != null ? rs.getTimestamp("ProposedDateTime").toLocalDateTime() : null,
+                rs.getString("Status")
+        ));
+    }
+
+    /**
+     * Approve a coach schedule request (Reschedule or Cancel)
+     */
+    public void approveScheduleRequest(Integer logId) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        var rows = jdbc.query(
+                "SELECT ID_PTLog, ID_Personal, RequestType, Status FROM PT_Changelog WHERE ID_PTLog = ?",
+                (rs, rowNum) -> new Object[] {
+                        rs.getInt("ID_PTLog"),
+                        rs.getInt("ID_Personal"),
+                        rs.getString("RequestType"),
+                        rs.getString("Status")
+                },
+                logId
+        );
+
+        if (rows.isEmpty()) {
+            throw new BusinessLogicException("Запит на зміну розкладу з ID " + logId + " не знайдено.");
+        }
+
+        Object[] logRow = rows.get(0);
+        Integer personalId = (Integer) logRow[1];
+        String requestType = (String) logRow[2];
+        String status = (String) logRow[3];
+
+        if (!"Pending".equalsIgnoreCase(status)) {
+            throw new BusinessLogicException("Запит вже було оброблено (поточний статус: " + status + ").");
+        }
+
+        if ("Reschedule".equalsIgnoreCase(requestType)) {
+            var timeRows = jdbc.query(
+                    "SELECT NewDateTime FROM PT_TimeChangeDetails WHERE ID_PTLog = ?",
+                    (rs, rowNum) -> rs.getTimestamp("NewDateTime").toLocalDateTime(),
+                    logId
+            );
+            if (timeRows.isEmpty() || timeRows.get(0) == null) {
+                throw new BusinessLogicException("Для запиту на перенесення не вказано новий час у PT_TimeChangeDetails.");
+            }
+            LocalDateTime newDateTime = timeRows.get(0);
+
+            // Оновлення тренування (тригери БД перевірять зайнятість тренера та клієнта)
+            jdbc.update("UPDATE PersonalTrainings SET TrainingDateTime = ? WHERE ID_Personal = ?", newDateTime, personalId);
+        } else if ("Cancel".equalsIgnoreCase(requestType)) {
+            jdbc.update("UPDATE PersonalTrainings SET TrainingStatus = 'Cancelled' WHERE ID_Personal = ?", personalId);
+        }
+
+        jdbc.update("UPDATE PT_Changelog SET Status = 'Approved' WHERE ID_PTLog = ?", logId);
+    }
+
+    /**
+     * Reject a coach schedule request
+     */
+    public void rejectScheduleRequest(Integer logId) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        int updated = jdbc.update("UPDATE PT_Changelog SET Status = 'Rejected' WHERE ID_PTLog = ? AND Status = 'Pending'", logId);
+        if (updated == 0) {
+            var exists = jdbc.query("SELECT Status FROM PT_Changelog WHERE ID_PTLog = ?", (rs, rowNum) -> rs.getString("Status"), logId);
+            if (exists.isEmpty()) {
+                throw new BusinessLogicException("Запит на зміну розкладу з ID " + logId + " не знайдено.");
+            }
+            throw new BusinessLogicException("Неможливо відхилити: запит вже оброблено (статус: " + exists.get(0) + ").");
+        }
     }
 }

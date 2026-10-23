@@ -129,10 +129,29 @@ public class CoachRepository {
      */
     public void updatePtStatus(Integer personalId, UpdatePtStatusRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        jdbc.update(
-                "UPDATE PersonalTrainings SET TrainingStatus = ?::activity_status WHERE ID_Personal = ?",
-                req.status(), personalId
-        );
+        String status = req.status();
+        boolean isCompletion = "Completed".equalsIgnoreCase(status) || "No-show".equalsIgnoreCase(status);
+
+        String sql = """
+            UPDATE PersonalTrainings
+            SET TrainingStatus = ?::activity_status
+            WHERE ID_Personal = ?
+              AND (? = false OR (TrainingDateTime + INTERVAL '60 minutes') <= CURRENT_TIMESTAMP)
+            """;
+
+        int rows = jdbc.update(sql, status, personalId, isCompletion);
+        if (rows == 0) {
+            var items = jdbc.query(
+                    "SELECT TrainingDateTime, (TrainingDateTime + INTERVAL '60 minutes') AS EndDateTime FROM PersonalTrainings WHERE ID_Personal = ?",
+                    (rs, rowNum) -> rs.getTimestamp("EndDateTime").toLocalDateTime(),
+                    personalId
+            );
+            if (items.isEmpty()) {
+                throw new IllegalArgumentException("Персональне тренування з ID " + personalId + " не знайдено.");
+            }
+            LocalDateTime endTime = items.get(0);
+            throw new IllegalArgumentException("Неможливо відмітити тренування як проведене: заняття ще не завершилося (час закінчення: " + endTime + ").");
+        }
     }
 
     /**
@@ -140,11 +159,36 @@ public class CoachRepository {
      */
     public void updateGroupAttendance(Integer instanceId, UpdateGroupAttendanceRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String status = req.status();
         int attendance = (req.actualAttendance() != null && req.actualAttendance() >= 0) ? req.actualAttendance() : 0;
-        jdbc.update(
-                "UPDATE GroupClassInstances SET ClassStatus = ?::activity_status, ActualAttendance = ? WHERE ID_Instance = ?",
-                req.status(), attendance, instanceId
-        );
+        boolean isCompletion = "Completed".equalsIgnoreCase(status) || "No-show".equalsIgnoreCase(status);
+
+        String sql = """
+            UPDATE GroupClassInstances gci
+            SET ClassStatus = ?::activity_status, ActualAttendance = ?
+            FROM GroupScheduleTemplates gst
+            WHERE gci.ID_Template = gst.ID_Template
+              AND gci.ID_Instance = ?
+              AND (? = false OR (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute')) <= CURRENT_TIMESTAMP)
+            """;
+
+        int rows = jdbc.update(sql, status, attendance, instanceId, isCompletion);
+        if (rows == 0) {
+            var items = jdbc.query("""
+                SELECT (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute')) AS EndDateTime
+                FROM GroupClassInstances gci
+                JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
+                WHERE gci.ID_Instance = ?
+                """,
+                    (rs, rowNum) -> rs.getTimestamp("EndDateTime").toLocalDateTime(),
+                    instanceId
+            );
+            if (items.isEmpty()) {
+                throw new IllegalArgumentException("Групове заняття з ID " + instanceId + " не знайдено.");
+            }
+            LocalDateTime endTime = items.get(0);
+            throw new IllegalArgumentException("Неможливо відмітити групове заняття як проведене: воно ще не завершилося (час закінчення: " + endTime + ").");
+        }
     }
 
     /**
@@ -154,7 +198,7 @@ public class CoachRepository {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
 
         Integer logId = jdbc.queryForObject(
-                "INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp) VALUES (?, ?, ?, 'Coach', CURRENT_TIMESTAMP) RETURNING ID_PTLog",
+                "INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp, Status) VALUES (?, ?, ?, 'Coach', CURRENT_TIMESTAMP, 'Pending') RETURNING ID_PTLog",
                 Integer.class, req.personalId(), req.requestType(), req.reason()
         );
 

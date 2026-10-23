@@ -133,4 +133,30 @@ public class ManagerController {
                 "message", "Групове заняття успішно додано до розкладу."
         ));
     }
+
+    /**
+     * M8: Get schedule change requests from coaches
+     */
+    @GetMapping("/schedule-requests")
+    public ResponseEntity<List<ScheduleChangeRequestDto>> getScheduleRequests() {
+        return ResponseEntity.ok(managerRepository.getScheduleRequests());
+    }
+
+    /**
+     * M8: Approve a coach's schedule change request
+     */
+    @PostMapping("/schedule-requests/{logId}/approve")
+    public ResponseEntity<Map<String, String>> approveScheduleRequest(@PathVariable("logId") Integer logId) {
+        managerRepository.approveScheduleRequest(logId);
+        return ResponseEntity.ok(Map.of("message", "Запит успішно схвалено та зміни застосовано до розкладу."));
+    }
+
+    /**
+     * M8: Reject a coach's schedule change request
+     */
+    @PostMapping("/schedule-requests/{logId}/reject")
+    public ResponseEntity<Map<String, String>> rejectScheduleRequest(@PathVariable("logId") Integer logId) {
+        managerRepository.rejectScheduleRequest(logId);
+        return ResponseEntity.ok(Map.of("message", "Запит успішно відхилено."));
+    }
 }

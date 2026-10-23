@@ -91,6 +91,32 @@ export function formatExpiryDate(dateStr) {
   return `${day}.${month}.${year}`;
 }
 
+export function formatTrainingDateTime(dtStr) {
+  if (!dtStr) return '—';
+  const clean = String(dtStr).trim();
+  if (!clean) return '—';
+
+  // If already formatted (e.g. DD.MM.YYYY HH:mm or YYYY-MM-DD HH:mm without T)
+  const isoPattern = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2})?/;
+  const match = clean.match(isoPattern);
+  if (match) {
+    const [, yyyy, mm, dd, hh, min] = match;
+    return `${dd}.${mm}.${yyyy} ${hh}:${min}`;
+  }
+
+  const d = new Date(clean);
+  if (!isNaN(d.getTime())) {
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${day}.${month}.${year} ${hours}:${minutes}`;
+  }
+
+  return clean.replace('T', ' ');
+}
+
 export function pluralizeDaysUk(count) {
   const abs = Math.abs(Math.trunc(count));
   const mod10 = abs % 10;
@@ -254,11 +280,17 @@ export async function renderClientDashboard() {
           item.className = 'flex justify-between items-center gap-3 p-3 rounded-lg border border-subtle bg-surface-elevated text-xs';
           item.style.backgroundColor = '#131a2e';
           item.style.borderColor = '#1a2236';
+          const isPersonal = (b.activityType || '').toLowerCase() === 'personal';
+          const typeLabel = isPersonal ? 'Персональне' : 'Групове';
+          const formattedTime = formatTrainingDateTime(b.trainingDateTime);
           item.innerHTML = `
-            <div class="min-w-0 flex-1">
-              <span class="font-bold text-white font-heading">[${b.activityType}] ${b.title}</span>
-              <div class="text-slate-400 mt-0.5">Тренер: <b class="text-slate-200">${b.coachName || '—'}</b> | Зал: <b class="text-slate-200">${b.hallName || '—'}</b></div>
-              <div class="text-[11px] text-cyan-400 font-semibold font-mono mt-1"><i class="fa-regular fa-clock mr-1"></i> ${b.trainingDateTime || '—'}</div>
+            <div class="min-w-0 flex-1 space-y-0.5">
+              <div class="font-bold text-white font-heading">[${typeLabel}] ${b.title}</div>
+              <div class="text-slate-300 text-xs">Тренер: <b class="text-white">${b.coachName || '—'}</b></div>
+              <div class="text-slate-300 text-xs">Зал: <b class="text-white">${b.hallName || '—'}</b></div>
+              <div class="text-cyan-400 font-semibold font-mono text-[11px] pt-0.5">
+                <i class="fa-regular fa-clock mr-1"></i> ${formattedTime}
+              </div>
             </div>
             <span class="badge badge-${(b.status || 'Active').toLowerCase()} shrink-0">${b.status}</span>
           `;
@@ -603,6 +635,34 @@ function formatIsoDate(d) {
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * Returns the most relevant/latest subscription of the client:
+ * Non-expired subscriptions (endDate >= today), sorted by endDate DESC, then clientSubId DESC.
+ * Matches PostgreSQL trigger fn_check_booking_client_subscription() logic.
+ */
+export function getLatestClientSubscription(subscriptions = cachedClientSubscriptions) {
+  const todayStr = formatIsoDate(new Date());
+  const validSubs = (subscriptions || []).filter(s => {
+    const endStr = typeof s.endDate === 'string' ? s.endDate.substring(0, 10) : '';
+    return !endStr || endStr >= todayStr;
+  });
+
+  if (!validSubs.length) return null;
+
+  validSubs.sort((a, b) => {
+    const endA = typeof a.endDate === 'string' ? a.endDate.substring(0, 10) : '';
+    const endB = typeof b.endDate === 'string' ? b.endDate.substring(0, 10) : '';
+    if (endB !== endA) {
+      return endB.localeCompare(endA);
+    }
+    const idA = Number(a.clientSubId || 0);
+    const idB = Number(b.clientSubId || 0);
+    return idB - idA;
+  });
+
+  return validSubs[0];
 }
 
 function formatTimeRange(startTimeStr, durationMinutes) {
@@ -962,16 +1022,38 @@ export async function populateCl45Options() {
         console.warn('Could not fetch subscriptions for Cl5:', err);
       }
     }
-    const activeSub = (cachedClientSubscriptions || []).find(s => s.currentStatus === 'Active' && (!s.endDate || s.endDate >= formatIsoDate(new Date())));
+    const latestSub = getLatestClientSubscription(cachedClientSubscriptions);
+    const hasActiveSub = latestSub && latestSub.currentStatus === 'Active';
+    const isFrozen = latestSub && latestSub.currentStatus === 'Frozen';
     const cl5SubmitBtn = document.getElementById('cl5-submit-btn');
     const cl5Warning = document.getElementById('cl5-no-sub-warning');
 
-    if (activeSub) {
-      if (cl5SubmitBtn) cl5SubmitBtn.disabled = false;
+    if (hasActiveSub) {
+      if (cl5SubmitBtn) {
+        cl5SubmitBtn.disabled = false;
+        cl5SubmitBtn.title = '';
+      }
       if (cl5Warning) cl5Warning.classList.add('hidden');
+    } else if (isFrozen) {
+      if (cl5SubmitBtn) {
+        cl5SubmitBtn.disabled = true;
+        cl5SubmitBtn.title = 'Запис неможливий: абонемент заморожено';
+      }
+      if (cl5Warning) {
+        cl5Warning.innerHTML = '<i class="fa-solid fa-snowflake text-cyan-400"></i> Запис неможливий: ваш абонемент заморожено. Достроково скасувати заморозку можна у вкладці «Абонемент».';
+        cl5Warning.className = 'mb-4 p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-medium flex items-center gap-2';
+        cl5Warning.classList.remove('hidden');
+      }
     } else {
-      if (cl5SubmitBtn) cl5SubmitBtn.disabled = true;
-      if (cl5Warning) cl5Warning.classList.remove('hidden');
+      if (cl5SubmitBtn) {
+        cl5SubmitBtn.disabled = true;
+        cl5SubmitBtn.title = 'Потрібен діючий абонемент';
+      }
+      if (cl5Warning) {
+        cl5Warning.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Для запису на персональні тренування необхідно мати діючий абонемент клубу.';
+        cl5Warning.className = 'mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center gap-2';
+        cl5Warning.classList.remove('hidden');
+      }
     }
 
     const cl5Promo = document.getElementById('cl5-promo');
@@ -1050,21 +1132,43 @@ export async function openGroupBookingModal(instanceId) {
     }
   }
 
-  const activeSub = (cachedClientSubscriptions || []).find(s => s.currentStatus === 'Active' && (!s.endDate || s.endDate >= formatIsoDate(new Date())));
+  const latestSub = getLatestClientSubscription(cachedClientSubscriptions);
+  const hasActiveSub = latestSub && latestSub.currentStatus === 'Active';
+  const isFrozen = latestSub && latestSub.currentStatus === 'Frozen';
   const saleIdInput = document.getElementById('modal-cl4-sale-id');
   if (saleIdInput) {
-    saleIdInput.value = activeSub ? activeSub.saleId : '';
+    saleIdInput.value = hasActiveSub ? latestSub.saleId : '';
   }
 
   const confirmBtn = document.getElementById('modal-cl4-confirm-btn');
   const warningEl = document.getElementById('modal-cl4-no-sub-warning');
 
-  if (activeSub) {
-    if (confirmBtn) confirmBtn.disabled = false;
+  if (hasActiveSub) {
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.title = '';
+    }
     if (warningEl) warningEl.classList.add('hidden');
+  } else if (isFrozen) {
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.title = 'Запис неможливий: абонемент заморожено';
+    }
+    if (warningEl) {
+      warningEl.innerHTML = '<i class="fa-solid fa-snowflake text-cyan-400"></i> Запис неможливий: ваш абонемент заморожено. Достроково скасувати заморозку можна у вкладці «Абонемент».';
+      warningEl.className = 'p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-medium flex items-center gap-2';
+      warningEl.classList.remove('hidden');
+    }
   } else {
-    if (confirmBtn) confirmBtn.disabled = true;
-    if (warningEl) warningEl.classList.remove('hidden');
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.title = 'Потрібен діючий абонемент';
+    }
+    if (warningEl) {
+      warningEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Для запису та купівлі групових занять необхідно мати діючий абонемент клубу.';
+      warningEl.className = 'p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center gap-2';
+      warningEl.classList.remove('hidden');
+    }
   }
 
   const modal = document.getElementById('modal-group-booking');
@@ -1091,9 +1195,13 @@ export async function confirmGroupBooking() {
     return;
   }
 
-  const activeSub = (cachedClientSubscriptions || []).find(s => s.currentStatus === 'Active' && (!s.endDate || s.endDate >= formatIsoDate(new Date())));
-  if (!activeSub) {
-    showToast('Для запису та купівлі групових занять необхідно мати діючий абонемент клубу!', 'warning');
+  const latestSub = getLatestClientSubscription(cachedClientSubscriptions);
+  if (!latestSub || latestSub.currentStatus !== 'Active') {
+    if (latestSub && latestSub.currentStatus === 'Frozen') {
+      showToast('Запис неможливий: ваш абонемент заморожено. Достроково скасувати заморозку можна у вкладці «Абонемент».', 'warning');
+    } else {
+      showToast('Запис неможливий: у вас немає активного абонемента.', 'warning');
+    }
     return;
   }
 
@@ -1128,7 +1236,7 @@ export async function confirmGroupBooking() {
       showToast(`Помилка запису: ${err.message}`, 'danger');
     }
   } finally {
-    if (confirmBtn && activeSub) confirmBtn.disabled = false;
+    if (confirmBtn && latestSub && latestSub.currentStatus === 'Active') confirmBtn.disabled = false;
   }
 }
 
@@ -1144,9 +1252,13 @@ export async function handleCl5Booking(e) {
   const dt = document.getElementById('cl5-datetime').value;
   const promoCode = document.getElementById('cl5-promo')?.value.trim().toUpperCase() || null;
 
-  const activeSub = (cachedClientSubscriptions || []).find(s => s.currentStatus === 'Active' && (!s.endDate || s.endDate >= formatIsoDate(new Date())));
-  if (!activeSub) {
-    showToast('Для запису на персональні тренування необхідно мати діючий абонемент клубу!', 'warning');
+  const latestSub = getLatestClientSubscription(cachedClientSubscriptions);
+  if (!latestSub || latestSub.currentStatus !== 'Active') {
+    if (latestSub && latestSub.currentStatus === 'Frozen') {
+      showToast('Запис неможливий: ваш абонемент заморожено. Достроково скасувати заморозку можна у вкладці «Абонемент».', 'warning');
+    } else {
+      showToast('Запис неможливий: у вас немає активного абонемента.', 'warning');
+    }
     return;
   }
 
@@ -1187,7 +1299,7 @@ export async function handleCl5Booking(e) {
       showToast(`Помилка запису: ${err.message}`, 'danger');
     }
   } finally {
-    if (cl5SubmitBtn && activeSub) cl5SubmitBtn.disabled = false;
+    if (cl5SubmitBtn && latestSub && latestSub.currentStatus === 'Active') cl5SubmitBtn.disabled = false;
   }
 }
 
@@ -1211,7 +1323,8 @@ export function populateCl6Options() {
     const prefix = isPersonal ? 'pt_' : 'grp_';
     const opt = document.createElement('option');
     opt.value = `${prefix}${b.bookingId}`;
-    opt.textContent = `[${isPersonal ? 'Персональне' : 'Групове'}] ${b.title} (${b.trainingDateTime || '—'})`;
+    const formattedTime = formatTrainingDateTime(b.trainingDateTime);
+    opt.textContent = `[${isPersonal ? 'Персональне' : 'Групове'}] ${b.title} (${formattedTime})`;
     sel.appendChild(opt);
   });
 }

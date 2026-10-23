@@ -63,5 +63,21 @@ export const managerApi = {
       method: 'POST',
       body: JSON.stringify(data)
     });
+  },
+
+  getScheduleRequests() {
+    return apiFetch('/manager/schedule-requests');
+  },
+
+  approveScheduleRequest(logId) {
+    return apiFetch(`/manager/schedule-requests/${logId}/approve`, {
+      method: 'POST'
+    });
+  },
+
+  rejectScheduleRequest(logId) {
+    return apiFetch(`/manager/schedule-requests/${logId}/reject`, {
+      method: 'POST'
+    });
   }
 };

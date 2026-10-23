@@ -166,7 +166,7 @@ public class ClientRepository {
 
             // Log cancellation
             jdbc.update(
-                    "INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp) VALUES (?, 'Cancel', ?, 'Client', CURRENT_TIMESTAMP)",
+                    "INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp, Status) VALUES (?, 'Cancel', ?, 'Client', CURRENT_TIMESTAMP, 'Approved')",
                     req.bookingId(), req.reason()
             );
         } else if ("Group".equalsIgnoreCase(req.bookingType())) {

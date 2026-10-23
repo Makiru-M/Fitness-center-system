@@ -23,6 +23,10 @@ export function switchManagerTab(tabId) {
   const btn = document.getElementById(`tab-btn-${tabId}`);
   if (pane) pane.classList.remove('hidden');
   if (btn) btn.classList.add('active');
+
+  if (tabId === 'm8') {
+    renderM8Requests();
+  }
 }
 
 export async function populateManagerDropdowns() {
@@ -170,6 +174,8 @@ export function previewM4ClientStatus(val) {
   const subStatusEl = document.getElementById('m4-sub-status');
   const subEndEl = document.getElementById('m4-sub-end');
   const medAlertEl = document.getElementById('m4-med-alert');
+  const frozenAlertEl = document.getElementById('m4-frozen-alert');
+  const checkinBtn = document.getElementById('m4-checkin-btn') || document.querySelector('#form-m4-checkin button[type="submit"]');
 
   if (!clientId || isNaN(clientId)) {
     if (subNameEl) subNameEl.textContent = '—';
@@ -181,6 +187,13 @@ export function previewM4ClientStatus(val) {
     if (medAlertEl) {
       medAlertEl.classList.add('hidden');
       medAlertEl.innerHTML = '';
+    }
+    if (frozenAlertEl) {
+      frozenAlertEl.classList.add('hidden');
+    }
+    if (checkinBtn) {
+      checkinBtn.disabled = false;
+      checkinBtn.title = '';
     }
     return;
   }
@@ -216,6 +229,25 @@ export function previewM4ClientStatus(val) {
     subEndEl.textContent = client.activeSubEndDate || '—';
   }
 
+  // Handle frozen warning & checkin submit button
+  if (frozenAlertEl) {
+    if (isSubFrozen) {
+      frozenAlertEl.classList.remove('hidden');
+    } else {
+      frozenAlertEl.classList.add('hidden');
+    }
+  }
+
+  if (checkinBtn) {
+    if (isSubFrozen) {
+      checkinBtn.disabled = true;
+      checkinBtn.title = 'Вхід заблоковано: абонемент клієнта заморожено';
+    } else {
+      checkinBtn.disabled = false;
+      checkinBtn.title = '';
+    }
+  }
+
   if (medAlertEl) {
     const hasMed = client.medicalNotes && !isTrivialMedNotes(client.medicalNotes);
     if (hasMed) {
@@ -235,6 +267,12 @@ export async function handleM4CheckIn(e) {
 
   if (!clientId || !hallId) {
     showToast('Оберіть клієнта та зал для фіксації візиту', 'warning');
+    return;
+  }
+
+  const client = cachedClients.find(c => c.clientId === clientId);
+  if (client && (client.activeSubStatus || '').toLowerCase() === 'frozen') {
+    showToast('Вхід заблоковано: абонемент клієнта заморожено. Для відвідування необхідно розморозити абонемент.', 'danger');
     return;
   }
 
@@ -573,11 +611,17 @@ export function toggleM8NewTime(action) {
 
 export async function handleM8Action(e) {
   e.preventDefault();
-  const bookingType = document.getElementById('m8-type').value;
-  const bookingId = parseInt(document.getElementById('m8-bookingid').value);
-  const action = document.getElementById('m8-action').value;
-  const newDateTime = action === 'Reschedule' ? document.getElementById('m8-newtime').value : null;
-  const reason = document.getElementById('m8-reason').value.trim();
+  const selectTraining = document.getElementById('m8-training');
+  const bookingType = selectTraining?.dataset?.type || document.getElementById('m8-type')?.value || 'Personal';
+  const bookingId = parseInt(selectTraining?.value || document.getElementById('m8-bookingid')?.value || '0');
+  const action = document.getElementById('m8-action-type')?.value || document.getElementById('m8-action')?.value || 'Cancel';
+  const newDateTime = action === 'Reschedule' ? document.getElementById('m8-newtime')?.value : null;
+  const reason = document.getElementById('m8-reason')?.value?.trim() || '';
+
+  if (!bookingId) {
+    showToast('Оберіть тренування зі списку', 'warning');
+    return;
+  }
 
   try {
     await managerApi.processScheduleAction({
@@ -589,8 +633,165 @@ export async function handleM8Action(e) {
       initiator: 'Manager'
     });
     showToast(`Дію '${action}' успішно виконано над бронюванням! (M8)`, 'success');
-    switchManagerTab('m2');
+    await renderM8Requests();
   } catch (err) {
     showToast(`Помилка зміни статусу бронювання: ${err.message}`, 'danger');
+  }
+}
+
+function formatM8DateTime(dtStr) {
+  if (!dtStr) return '—';
+  try {
+    const d = new Date(dtStr);
+    if (isNaN(d.getTime())) return String(dtStr).replace('T', ' ');
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch {
+    return String(dtStr).replace('T', ' ');
+  }
+}
+
+export async function renderM8Requests() {
+  const tbody = document.getElementById('m8-requests-tbody');
+  const badgeEl = document.getElementById('m8-requests-count-badge');
+  const tabBadgeEl = document.querySelector('#tab-btn-m8 .task-badge');
+
+  try {
+    const requests = await managerApi.getScheduleRequests();
+    const list = requests || [];
+
+    // Filter pending count
+    const pendingList = list.filter(r => (r.status || 'Pending').toLowerCase() === 'pending');
+    const pendingCount = pendingList.length;
+
+    if (badgeEl) {
+      badgeEl.textContent = `${pendingCount} очікують`;
+      badgeEl.className = pendingCount > 0 ? 'badge badge-warning font-mono' : 'badge badge-cyan font-mono';
+    }
+
+    if (tabBadgeEl) {
+      if (pendingCount > 0) {
+        tabBadgeEl.textContent = `M8 (${pendingCount})`;
+        tabBadgeEl.classList.add('text-amber-400');
+      } else {
+        tabBadgeEl.textContent = 'M8';
+        tabBadgeEl.classList.remove('text-amber-400');
+      }
+    }
+
+    // Populate m8-training select with active/scheduled trainings from requests if needed
+    const m8TrainingSelect = document.getElementById('m8-training');
+    if (m8TrainingSelect && (!m8TrainingSelect.options.length || m8TrainingSelect.options[0].value === '')) {
+      m8TrainingSelect.innerHTML = '<option value="" disabled selected>-- Оберіть тренування --</option>';
+      const seenIds = new Set();
+      list.forEach(r => {
+        if (r.personalId && !seenIds.has(r.personalId)) {
+          seenIds.add(r.personalId);
+          const opt = document.createElement('option');
+          opt.value = r.personalId;
+          opt.textContent = `№${r.personalId} — ${r.clientName} (Тренер: ${r.coachName}, ${formatM8DateTime(r.currentDateTime)})`;
+          m8TrainingSelect.appendChild(opt);
+        }
+      });
+      refreshCombobox(m8TrainingSelect);
+    }
+
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (list.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-6 text-slate-400 font-mono text-xs">Немає запитів на зміну розкладу від тренерів</td></tr>';
+      return;
+    }
+
+    list.forEach(req => {
+      const row = document.createElement('tr');
+      const isPending = (req.status || 'Pending').toLowerCase() === 'pending';
+      const isApproved = (req.status || '').toLowerCase() === 'approved';
+      const isRejected = (req.status || '').toLowerCase() === 'rejected';
+
+      let statusBadge = '';
+      if (isPending) {
+        statusBadge = '<span class="badge badge-warning">Очікує</span>';
+      } else if (isApproved) {
+        statusBadge = '<span class="badge badge-active">Схвалено</span>';
+      } else if (isRejected) {
+        statusBadge = '<span class="badge badge-danger">Відхилено</span>';
+      } else {
+        statusBadge = `<span class="badge badge-neutral">${escapeHtml(req.status)}</span>`;
+      }
+
+      let actionDesc = '';
+      if (req.requestType === 'Cancel') {
+        actionDesc = '<span class="badge badge-danger"><i class="fa-solid fa-ban mr-1"></i> Скасування</span>';
+      } else if (req.requestType === 'Reschedule') {
+        actionDesc = `<div class="space-y-0.5">
+          <span class="badge badge-cyan"><i class="fa-solid fa-arrows-split-up-and-left mr-1"></i> Перенесення</span>
+          <div class="font-mono text-xs text-cyan-400 font-semibold">${formatM8DateTime(req.proposedDateTime)}</div>
+        </div>`;
+      } else {
+        actionDesc = `<span class="badge badge-neutral">${escapeHtml(req.requestType)}</span>`;
+      }
+
+      let actionsHtml = '';
+      if (isPending) {
+        actionsHtml = `
+          <div class="flex items-center space-x-1.5">
+            <button onclick="handleApproveRequest(${req.logId})" class="btn btn-primary btn-xs" title="Схвалити запит">
+              <i class="fa-solid fa-check mr-1"></i> Схвалити
+            </button>
+            <button onclick="handleRejectRequest(${req.logId})" class="btn btn-danger btn-xs" title="Відхилити запит">
+              <i class="fa-solid fa-xmark mr-1"></i> Відхилити
+            </button>
+          </div>
+        `;
+      } else {
+        actionsHtml = '<span class="text-xs text-slate-500 font-mono">Опрацьовано</span>';
+      }
+
+      row.innerHTML = `
+        <td class="font-mono text-xs text-slate-300">${formatM8DateTime(req.requestTimestamp)}</td>
+        <td class="font-medium text-white text-xs">${escapeHtml(req.coachName || '—')}</td>
+        <td class="text-slate-300 text-xs">${escapeHtml(req.clientName || '—')}</td>
+        <td class="font-mono text-xs text-slate-400">${formatM8DateTime(req.currentDateTime)}</td>
+        <td>${actionDesc}</td>
+        <td class="text-xs text-slate-300 max-w-[200px] truncate" title="${escapeHtml(req.reason || '')}">${escapeHtml(req.reason || '—')}</td>
+        <td>${statusBadge}</td>
+        <td>${actionsHtml}</td>
+      `;
+      tbody.appendChild(row);
+    });
+
+  } catch (err) {
+    console.error('Error rendering M8 requests:', err);
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-rose-400 font-mono text-xs">Помилка завантаження запитів: ${escapeHtml(err.message)}</td></tr>`;
+    }
+  }
+}
+
+export async function handleApproveRequest(logId) {
+  if (!confirm('Ви дійсно бажаєте схвалити цей запит тренера на зміну розкладу?')) {
+    return;
+  }
+  try {
+    const res = await managerApi.approveScheduleRequest(logId);
+    showToast(res?.message || 'Запит успішно схвалено та зміни застосовано!', 'success');
+    await renderM8Requests();
+  } catch (err) {
+    showToast(`Помилка схвалення запиту: ${err.message}`, 'danger');
+  }
+}
+
+export async function handleRejectRequest(logId) {
+  if (!confirm('Ви дійсно бажаєте відхилити цей запит тренера?')) {
+    return;
+  }
+  try {
+    const res = await managerApi.rejectScheduleRequest(logId);
+    showToast(res?.message || 'Запит успішно відхилено.', 'info');
+    await renderM8Requests();
+  } catch (err) {
+    showToast(`Помилка відхилення запиту: ${err.message}`, 'danger');
   }
 }

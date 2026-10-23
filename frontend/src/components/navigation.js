@@ -28,7 +28,8 @@ import {
   switchManagerTab,
   populateManagerDropdowns,
   renderM4VisitsTable,
-  renderM2ClientsTable
+  renderM2ClientsTable,
+  renderM8Requests
 } from '../views/managerView.js';
 
 import {
@@ -241,6 +242,7 @@ export function refreshRoleData(role) {
     populateManagerDropdowns();
     renderM4VisitsTable();
     renderM2ClientsTable();
+    renderM8Requests();
   } else if (role === 'hr') {
     renderHrCoachesTable();
     renderHrStaffTable();
