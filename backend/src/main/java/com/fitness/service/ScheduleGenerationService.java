@@ -37,7 +37,7 @@ public class ScheduleGenerationService {
 
     public void generateWeeklyGroupInstances(int weeksAhead) {
         try {
-            dataSourceService.getAdminJdbcTemplate().execute("CALL sp_generate_weekly_group_instances(" + weeksAhead + ")");
+            dataSourceService.getAdminJdbcTemplate().update("CALL sp_generate_weekly_group_instances(?)", weeksAhead);
             log.info("Successfully executed sp_generate_weekly_group_instances({})", weeksAhead);
         } catch (Exception e) {
             log.error("Failed to execute sp_generate_weekly_group_instances({}): {}", weeksAhead, e.getMessage(), e);

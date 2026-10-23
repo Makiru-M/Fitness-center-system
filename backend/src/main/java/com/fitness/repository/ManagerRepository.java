@@ -167,30 +167,6 @@ public class ManagerRepository {
     public Integer sellSubscription(SellSubscriptionRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
 
-        // 1. Resolve price and promo
-        BigDecimal basePrice = jdbc.queryForObject(
-                "SELECT Price FROM PriceList WHERE ID_Item = ?", BigDecimal.class, req.itemId()
-        );
-        if (basePrice == null) throw new BusinessLogicException("Товар не знайдено.");
-
-        Integer promoId = null;
-        int discount = 0;
-        if (req.promoCode() != null && !req.promoCode().isBlank()) {
-            List<Object[]> promoList = jdbc.query(
-                    "SELECT ID_Promo, DiscountPercent FROM PromoCodes WHERE CodeText = ? AND ExpiryDate >= CURRENT_DATE",
-                    (rs, rowNum) -> new Object[]{rs.getInt("ID_Promo"), rs.getInt("DiscountPercent")},
-                    req.promoCode()
-            );
-            if (!promoList.isEmpty()) {
-                promoId = (Integer) promoList.get(0)[0];
-                discount = (Integer) promoList.get(0)[1];
-            }
-        }
-
-        BigDecimal finalPrice = discount > 0
-                ? basePrice.multiply(BigDecimal.valueOf(100 - discount)).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP)
-                : basePrice;
-
         Integer managerId = req.managerId();
         if (managerId == null) {
             List<Integer> sessionStaff = jdbc.query(
@@ -232,36 +208,17 @@ public class ManagerRepository {
             throw new BusinessLogicException("Оформлення продажу дозволено виключно менеджерам по роботі з клієнтами!");
         }
 
-        // 2. Insert Sale
-        Integer saleId = jdbc.queryForObject(
-                "INSERT INTO Sales (ID_Client, ID_Item, SalePrice, ID_Manager, SaleDate) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) RETURNING ID_Sale",
-                Integer.class, req.clientId(), req.itemId(), finalPrice, managerId
+        String promo = (req.promoCode() != null && !req.promoCode().isBlank()) ? req.promoCode().trim() : null;
+
+        return jdbc.queryForObject(
+                "SELECT sale_id FROM sp_purchase_subscription(?, ?, ?, ?, ?)",
+                Integer.class,
+                req.clientId(),
+                req.itemId(),
+                promo,
+                managerId,
+                req.startDate()
         );
-
-        if (promoId != null) {
-            jdbc.update("INSERT INTO AppliedPromo (ID_Sale, ID_Promo) VALUES (?, ?)", saleId, promoId);
-        }
-
-        // 3. Insert Subscription if applicable
-        List<Object[]> subInfo = jdbc.query(
-                "SELECT DurationDays, MaxFreezingDays FROM PriceListSubs WHERE ID_Item = ?",
-                (rs, rowNum) -> new Object[]{rs.getInt("DurationDays"), rs.getInt("MaxFreezingDays")},
-                req.itemId()
-        );
-
-        if (!subInfo.isEmpty()) {
-            int duration = (int) subInfo.get(0)[0];
-            int maxFreeze = (int) subInfo.get(0)[1];
-            LocalDate start = req.startDate() != null ? req.startDate() : LocalDate.now();
-            LocalDate end = start.plusDays(duration);
-
-            jdbc.update(
-                    "INSERT INTO ClientSubscriptions (ID_Sale, StartDate, EndDate, CurrentStatus, RemainingFreezingDays) VALUES (?, ?, ?, 'Active', ?)",
-                    saleId, start, end, maxFreeze
-            );
-        }
-
-        return saleId;
     }
 
     /**
@@ -323,42 +280,7 @@ public class ManagerRepository {
      */
     public void bookGroupClass(Integer clientId, Integer instanceId) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-
-        // Check instance capacity
-        String capacitySql = """
-            SELECT gci.ActualAttendance, h.MaxCapacity, gci.ClassStatus
-            FROM GroupClassInstances gci
-            JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
-            JOIN Halls h ON gst.ID_Hall = h.ID_Hall
-            WHERE gci.ID_Instance = ?
-            FOR UPDATE OF gci
-            """;
-
-        List<Object[]> inst = jdbc.query(capacitySql, (rs, rowNum) -> new Object[]{
-                rs.getInt("ActualAttendance"),
-                rs.getInt("MaxCapacity"),
-                rs.getString("ClassStatus")
-        }, instanceId);
-
-        if (inst.isEmpty()) throw new BusinessLogicException("Заняття не знайдено.");
-        int attendance = (int) inst.get(0)[0];
-        int maxCapacity = (int) inst.get(0)[1];
-        if (attendance >= maxCapacity) throw new BusinessLogicException("Група повністю заповнена.");
-
-        // Find or create a group class sale
-        Integer itemId = jdbc.queryForObject(
-                "SELECT ID_Item FROM PriceList WHERE Category = 'Group training' LIMIT 1", Integer.class
-        );
-        Integer managerId = getDefaultClientManagerId(jdbc);
-        BigDecimal price = jdbc.queryForObject("SELECT Price FROM PriceList WHERE ID_Item = ?", BigDecimal.class, itemId);
-
-        Integer saleId = jdbc.queryForObject(
-                "INSERT INTO Sales (ID_Client, ID_Item, SalePrice, ID_Manager, SaleDate) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) RETURNING ID_Sale",
-                Integer.class, clientId, itemId, price, managerId
-        );
-
-        jdbc.update("INSERT INTO GroupClassBookings (ID_Instance, ID_Sale, BookingStatus) VALUES (?, ?, 'Scheduled')", instanceId, saleId);
-        jdbc.update("UPDATE GroupClassInstances SET ActualAttendance = ActualAttendance + 1 WHERE ID_Instance = ?", instanceId);
+        jdbc.update("CALL sp_book_group_class(?, NULL, ?, NULL)", instanceId, clientId);
     }
 
     /**
@@ -366,36 +288,17 @@ public class ManagerRepository {
      */
     public Integer bookPersonalTraining(Integer clientId, Integer coachId, Integer hallId, LocalDateTime dateTime) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-
-        // Check coach slot collision
-        String checkConflict = """
-            SELECT COUNT(*) FROM PersonalTrainings 
-            WHERE ID_Coach = ? 
-              AND TrainingDateTime = ? 
-              AND TrainingStatus = 'Scheduled'
-            """;
-        Integer conflicts = jdbc.queryForObject(checkConflict, Integer.class, coachId, dateTime);
-        if (conflicts != null && conflicts > 0) {
-            throw new BusinessLogicException("Тренер вже зайнятий на цей час (" + dateTime + ").");
-        }
-
-        Integer itemId = jdbc.queryForObject(
-                "SELECT ID_Item FROM PriceList WHERE Category = 'Personal training' LIMIT 1", Integer.class
-        );
         Integer managerId = getDefaultClientManagerId(jdbc);
-        BigDecimal price = jdbc.queryForObject("SELECT Price FROM PriceList WHERE ID_Item = ?", BigDecimal.class, itemId);
 
-        Integer saleId = jdbc.queryForObject(
-                "INSERT INTO Sales (ID_Client, ID_Item, SalePrice, ID_Manager, SaleDate) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) RETURNING ID_Sale",
-                Integer.class, clientId, itemId, price, managerId
+        return jdbc.queryForObject(
+                "SELECT personal_id FROM sp_book_personal_training(?, ?, ?, ?, NULL, ?)",
+                Integer.class,
+                clientId,
+                coachId,
+                hallId,
+                dateTime,
+                managerId
         );
-
-        Integer ptId = jdbc.queryForObject(
-                "INSERT INTO PersonalTrainings (ID_Coach, ID_Hall, ID_Sale, TrainingDateTime, TrainingStatus) VALUES (?, ?, ?, ?, 'Scheduled') RETURNING ID_Personal",
-                Integer.class, coachId, hallId, saleId, dateTime
-        );
-
-        return ptId;
     }
 
     /**

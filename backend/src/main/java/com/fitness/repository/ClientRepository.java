@@ -78,106 +78,18 @@ public class ClientRepository {
      */
     public ClientSubscriptionDto renewSubscription(RenewSubscriptionRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = "SELECT * FROM sp_purchase_subscription(NULL, ?, ?, NULL, NULL)";
 
-        // 1. Get client ID
-        Integer clientId = jdbc.queryForObject(
-                "SELECT ID_Client FROM Clients WHERE DB_User = SESSION_USER", Integer.class
-        );
-
-        // 2. Validate that the item is a subscription
-        List<Object[]> subInfo = jdbc.query(
-                "SELECT DurationDays, MaxFreezingDays FROM PriceListSubs WHERE ID_Item = ?",
-                (rs, rowNum) -> new Object[]{rs.getInt("DurationDays"), rs.getInt("MaxFreezingDays")},
-                req.itemId()
-        );
-
-        if (subInfo.isEmpty()) {
-            throw new BusinessLogicException("Обраний пункт прайсу не є абонементом.");
-        }
-
-        int duration = (int) subInfo.get(0)[0];
-        int maxFreeze = (int) subInfo.get(0)[1];
-
-        // 3. Check existing active/frozen subscription to determine start date and 7-day restriction
-        String activeSubSql = """
-            SELECT cs.ID_ClientSub, cs.EndDate, cs.CurrentStatus
-            FROM ClientSubscriptions cs
-            JOIN Sales s ON cs.ID_Sale = s.ID_Sale
-            JOIN Clients c ON s.ID_Client = c.ID_Client
-            WHERE c.DB_User = SESSION_USER
-              AND cs.CurrentStatus IN ('Active', 'Frozen')
-              AND cs.EndDate >= CURRENT_DATE
-            ORDER BY cs.EndDate DESC
-            LIMIT 1
-            """;
-        List<LocalDate> activeSubs = jdbc.query(
-                activeSubSql,
-                (rs, rowNum) -> rs.getDate("EndDate").toLocalDate()
-        );
-
-        LocalDate startDate;
-        if (!activeSubs.isEmpty()) {
-            LocalDate activeEndDate = activeSubs.get(0);
-            long daysUntilEnd = ChronoUnit.DAYS.between(LocalDate.now(), activeEndDate);
-            if (daysUntilEnd > 7) {
-                throw new BusinessLogicException(
-                        "Продовжити абонемент можна не раніше ніж за 7 днів до закінчення поточного (доступно з " + activeEndDate.minusDays(7) + ")."
-                );
-            }
-            startDate = activeEndDate.plusDays(1);
-        } else {
-            startDate = LocalDate.now();
-        }
-
-        LocalDate endDate = startDate.plusDays(duration);
-
-        // 4. Resolve price and promo discount
-        BigDecimal basePrice = jdbc.queryForObject(
-                "SELECT Price FROM PriceList WHERE ID_Item = ?", BigDecimal.class, req.itemId()
-        );
-        if (basePrice == null) {
-            throw new BusinessLogicException("Послугу не знайдено в прайс-листі.");
-        }
-
-        Integer promoId = null;
-        int discount = 0;
-        if (req.promoCode() != null && !req.promoCode().isBlank()) {
-            String promoSql = "SELECT ID_Promo, DiscountPercent FROM PromoCodes WHERE CodeText = ? AND ExpiryDate >= CURRENT_DATE";
-            List<Object[]> promos = jdbc.query(promoSql, (rs, rowNum) -> new Object[]{rs.getInt("ID_Promo"), rs.getInt("DiscountPercent")}, req.promoCode());
-            if (!promos.isEmpty()) {
-                promoId = (Integer) promos.get(0)[0];
-                discount = (Integer) promos.get(0)[1];
-            }
-        }
-
-        BigDecimal finalPrice = discount > 0
-                ? basePrice.multiply(BigDecimal.valueOf(100 - discount)).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP)
-                : basePrice;
-
-        // 5. Find a manager ID for recording the sale
-        Integer managerId = jdbc.queryForObject(
-                "SELECT ID_Staff FROM Staff WHERE FireDate IS NULL LIMIT 1", Integer.class
-        );
-
-        // 6. Insert Sale
-        Integer saleId = jdbc.queryForObject(
-                "INSERT INTO Sales (ID_Client, ID_Item, SalePrice, ID_Manager, SaleDate) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) RETURNING ID_Sale",
-                Integer.class, clientId, req.itemId(), finalPrice, managerId
-        );
-
-        if (promoId != null) {
-            jdbc.update("INSERT INTO AppliedPromo (ID_Sale, ID_Promo) VALUES (?, ?)", saleId, promoId);
-        }
-
-        // 7. Insert ClientSubscription
-        Integer subId = jdbc.queryForObject(
-                "INSERT INTO ClientSubscriptions (ID_Sale, StartDate, EndDate, CurrentStatus, RemainingFreezingDays) VALUES (?, ?, ?, 'Active', ?) RETURNING ID_ClientSub",
-                Integer.class, saleId, startDate, endDate, maxFreeze
-        );
-
-        String itemName = jdbc.queryForObject("SELECT ItemName FROM PriceList WHERE ID_Item = ?", String.class, req.itemId());
-
-        return new ClientSubscriptionDto(subId, saleId, itemName, startDate, endDate, "Active", maxFreeze, finalPrice);
+        return jdbc.queryForObject(sql, (rs, rowNum) -> new ClientSubscriptionDto(
+                rs.getInt("sub_id"),
+                rs.getInt("sale_id"),
+                rs.getString("item_name"),
+                rs.getDate("start_date").toLocalDate(),
+                rs.getDate("end_date").toLocalDate(),
+                rs.getString("status"),
+                rs.getInt("remaining_freezing_days"),
+                rs.getBigDecimal("final_price")
+        ), req.itemId(), (req.promoCode() != null && !req.promoCode().isBlank()) ? req.promoCode().trim() : null);
     }
 
     /**
@@ -212,87 +124,8 @@ public class ClientRepository {
         }
 
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-
-        // 1. Retrieve client ID from session
-        Integer clientId = jdbc.queryForObject(
-                "SELECT ID_Client FROM Clients WHERE DB_User = SESSION_USER", Integer.class
-        );
-        if (clientId == null) {
-            throw new BusinessLogicException("Клієнта не знайдено.");
-        }
-
-        // 2. Check active subscription prerequisite
-        String activeSubSql = """
-            SELECT COUNT(*) FROM ClientSubscriptions cs
-            JOIN Sales s ON cs.ID_Sale = s.ID_Sale
-            JOIN Clients c ON s.ID_Client = c.ID_Client
-            WHERE c.DB_User = SESSION_USER
-              AND cs.CurrentStatus = 'Active'
-              AND cs.EndDate >= CURRENT_DATE
-            """;
-        Integer activeSubs = jdbc.queryForObject(activeSubSql, Integer.class);
-        if (activeSubs == null || activeSubs == 0) {
-            throw new BusinessLogicException("Запис та купівля групових занять доступні лише клієнтам з активним абонементом клубу.");
-        }
-
-        // Duplicate booking check for this client
-        String duplicateCheckSql = """
-            SELECT COUNT(*) FROM GroupClassBookings gcb
-            JOIN Sales s ON gcb.ID_Sale = s.ID_Sale
-            WHERE gcb.ID_Instance = ? 
-              AND s.ID_Client = ? 
-              AND gcb.BookingStatus = 'Scheduled'
-            """;
-        Integer alreadyBooked = jdbc.queryForObject(duplicateCheckSql, Integer.class, req.instanceId(), clientId);
-        if (alreadyBooked != null && alreadyBooked > 0) {
-            throw new BusinessLogicException("Ви вже записані на це групове заняття.");
-        }
-
-        // 3. Get base price for group class (Item #5 or category 'Group training')
-        List<Object[]> itemInfo = jdbc.query(
-                "SELECT ID_Item, Price FROM PriceList WHERE ID_Item = 5 OR (Category = 'Group training' AND Price = 200) ORDER BY (ID_Item = 5) DESC LIMIT 1",
-                (rs, rowNum) -> new Object[]{rs.getInt("ID_Item"), rs.getBigDecimal("Price")}
-        );
-        if (itemInfo.isEmpty()) {
-            throw new BusinessLogicException("Послугу групового тренування не знайдено в прайс-листі.");
-        }
-        Integer itemId = (Integer) itemInfo.get(0)[0];
-        BigDecimal basePrice = (BigDecimal) itemInfo.get(0)[1];
-
-        // 4. Calculate promo discount if promoCode is provided
-        Integer promoId = null;
-        int discount = 0;
-        if (req.promoCode() != null && !req.promoCode().isBlank()) {
-            String promoSql = "SELECT ID_Promo, DiscountPercent FROM PromoCodes WHERE CodeText = ? AND ExpiryDate >= CURRENT_DATE";
-            List<Object[]> promos = jdbc.query(promoSql, (rs, rowNum) -> new Object[]{rs.getInt("ID_Promo"), rs.getInt("DiscountPercent")}, req.promoCode().trim());
-            if (!promos.isEmpty()) {
-                promoId = (Integer) promos.get(0)[0];
-                discount = (Integer) promos.get(0)[1];
-            }
-        }
-
-        BigDecimal finalPrice = discount > 0
-                ? basePrice.multiply(BigDecimal.valueOf(100 - discount)).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP)
-                : basePrice;
-
-        // 5. Find a manager ID for recording the sale
-        Integer managerId = jdbc.queryForObject(
-                "SELECT ID_Staff FROM Staff WHERE FireDate IS NULL LIMIT 1", Integer.class
-        );
-
-        // 6. Insert into Sales
-        Integer newSaleId = jdbc.queryForObject(
-                "INSERT INTO Sales (ID_Client, ID_Item, SalePrice, ID_Manager, SaleDate) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) RETURNING ID_Sale",
-                Integer.class, clientId, itemId, finalPrice, managerId
-        );
-
-        // 7. If promo applied, record it
-        if (promoId != null) {
-            jdbc.update("INSERT INTO AppliedPromo (ID_Sale, ID_Promo) VALUES (?, ?)", newSaleId, promoId);
-        }
-
-        // 8. Call procedure sp_book_group_class(instanceId, saleId)
-        jdbc.update("CALL sp_book_group_class(?, ?)", req.instanceId(), newSaleId);
+        String promo = (req.promoCode() != null && !req.promoCode().isBlank()) ? req.promoCode().trim() : null;
+        jdbc.update("CALL sp_book_group_class(?, NULL, NULL, ?)", req.instanceId(), promo);
     }
 
     /**
@@ -304,111 +137,14 @@ public class ClientRepository {
         }
 
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-
-        // 1. Validate coach existence
-        List<Integer> coachExists = jdbc.query(
-                "SELECT ID_Coach FROM Coaches WHERE ID_Coach = ?",
-                (rs, rowNum) -> rs.getInt(1),
-                req.coachId()
-        );
-        if (coachExists.isEmpty()) {
-            throw new BusinessLogicException("Тренера не знайдено.");
-        }
-
-        // Check if coach has conflicting training at this time
-        String checkConflict = """
-            SELECT COUNT(*) FROM PersonalTrainings 
-            WHERE ID_Coach = ? 
-              AND TrainingDateTime = ? 
-              AND TrainingStatus = 'Scheduled'
-            """;
-        Integer conflicts = jdbc.queryForObject(checkConflict, Integer.class, req.coachId(), req.trainingDateTime());
-        if (conflicts != null && conflicts > 0) {
-            throw new BusinessLogicException("Тренер вже зайнятий на цей час.");
-        }
-
-        // 2. Retrieve client ID from session
-        Integer clientId = jdbc.queryForObject(
-                "SELECT ID_Client FROM Clients WHERE DB_User = SESSION_USER", Integer.class
-        );
-        if (clientId == null) {
-            throw new BusinessLogicException("Клієнта не знайдено.");
-        }
-
-        // Check if client already has conflicting personal training at this time
-        String clientConflictSql = """
-            SELECT COUNT(*) FROM PersonalTrainings pt
-            JOIN Sales s ON pt.ID_Sale = s.ID_Sale
-            WHERE s.ID_Client = ?
-              AND pt.TrainingDateTime = ?
-              AND pt.TrainingStatus = 'Scheduled'
-            """;
-        Integer clientConflicts = jdbc.queryForObject(clientConflictSql, Integer.class, clientId, req.trainingDateTime());
-        if (clientConflicts != null && clientConflicts > 0) {
-            throw new BusinessLogicException("У вас вже заплановано персональне тренування на цей час.");
-        }
-
-        // 3. Check active subscription prerequisite
-        String activeSubSql = """
-            SELECT COUNT(*) FROM ClientSubscriptions cs
-            JOIN Sales s ON cs.ID_Sale = s.ID_Sale
-            JOIN Clients c ON s.ID_Client = c.ID_Client
-            WHERE c.DB_User = SESSION_USER
-              AND cs.CurrentStatus = 'Active'
-              AND cs.EndDate >= CURRENT_DATE
-            """;
-        Integer activeSubs = jdbc.queryForObject(activeSubSql, Integer.class);
-        if (activeSubs == null || activeSubs == 0) {
-            throw new BusinessLogicException("Запис та купівля персональних тренувань доступні лише клієнтам з активним абонементом клубу.");
-        }
-
-        // 4. Get base price for personal training (Item #4 or category 'Personal training')
-        List<Object[]> itemInfo = jdbc.query(
-                "SELECT ID_Item, Price FROM PriceList WHERE ID_Item = 4 OR (Category = 'Personal training' AND Price = 400) ORDER BY (ID_Item = 4) DESC LIMIT 1",
-                (rs, rowNum) -> new Object[]{rs.getInt("ID_Item"), rs.getBigDecimal("Price")}
-        );
-        if (itemInfo.isEmpty()) {
-            throw new BusinessLogicException("Послугу персонального тренування не знайдено в прайс-листі.");
-        }
-        Integer itemId = (Integer) itemInfo.get(0)[0];
-        BigDecimal basePrice = (BigDecimal) itemInfo.get(0)[1];
-
-        // 5. Calculate promo discount if promoCode is provided
-        Integer promoId = null;
-        int discount = 0;
-        if (req.promoCode() != null && !req.promoCode().isBlank()) {
-            String promoSql = "SELECT ID_Promo, DiscountPercent FROM PromoCodes WHERE CodeText = ? AND ExpiryDate >= CURRENT_DATE";
-            List<Object[]> promos = jdbc.query(promoSql, (rs, rowNum) -> new Object[]{rs.getInt("ID_Promo"), rs.getInt("DiscountPercent")}, req.promoCode().trim());
-            if (!promos.isEmpty()) {
-                promoId = (Integer) promos.get(0)[0];
-                discount = (Integer) promos.get(0)[1];
-            }
-        }
-
-        BigDecimal finalPrice = discount > 0
-                ? basePrice.multiply(BigDecimal.valueOf(100 - discount)).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP)
-                : basePrice;
-
-        // 6. Find a manager ID for recording the sale
-        Integer managerId = jdbc.queryForObject(
-                "SELECT ID_Staff FROM Staff WHERE FireDate IS NULL LIMIT 1", Integer.class
-        );
-
-        // 7. Insert into Sales
-        Integer newSaleId = jdbc.queryForObject(
-                "INSERT INTO Sales (ID_Client, ID_Item, SalePrice, ID_Manager, SaleDate) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) RETURNING ID_Sale",
-                Integer.class, clientId, itemId, finalPrice, managerId
-        );
-
-        // 8. If promo applied, record it
-        if (promoId != null) {
-            jdbc.update("INSERT INTO AppliedPromo (ID_Sale, ID_Promo) VALUES (?, ?)", newSaleId, promoId);
-        }
-
-        // 9. Insert into PersonalTrainings
-        jdbc.update(
-                "INSERT INTO PersonalTrainings (ID_Coach, ID_Hall, ID_Sale, TrainingDateTime, TrainingStatus) VALUES (?, ?, ?, ?, 'Scheduled')",
-                req.coachId(), req.hallId(), newSaleId, req.trainingDateTime()
+        String promo = (req.promoCode() != null && !req.promoCode().isBlank()) ? req.promoCode().trim() : null;
+        jdbc.queryForObject(
+                "SELECT * FROM sp_book_personal_training(NULL, ?, ?, ?, ?, NULL)",
+                (rs, rowNum) -> rs.getInt("personal_id"),
+                req.coachId(),
+                req.hallId(),
+                req.trainingDateTime(),
+                promo
         );
     }
 

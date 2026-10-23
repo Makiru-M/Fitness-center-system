@@ -412,6 +412,359 @@ CREATE POLICY guest_pt_view ON PersonalTrainings FOR SELECT TO guest
 -- 6. ЗБЕРЕЖЕНІ ПРОЦЕДУРИ ТА ФУНКЦІЇ (SECURITY DEFINER)
 -- ------------------------------------------------------------------------------
 
+-- 6.0. Допоміжна функція оформлення чека продажу з промокодом (DRY / Database-First)
+CREATE OR REPLACE FUNCTION fn_process_sale_with_promo(
+    p_client_id INT,
+    p_item_category VARCHAR,
+    p_item_id INT,
+    p_promo_code VARCHAR,
+    p_manager_id INT DEFAULT NULL
+)
+RETURNS TABLE (
+    out_sale_id INT,
+    out_item_id INT,
+    out_final_price NUMERIC(10,2),
+    out_discount INT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_item_id INT := p_item_id;
+    v_base_price NUMERIC(10,2);
+    v_discount INT := 0;
+    v_promo_id INT := NULL;
+    v_final_price NUMERIC(10,2);
+    v_manager_id INT := p_manager_id;
+    v_sale_id INT;
+BEGIN
+    IF v_item_id IS NULL THEN
+        IF p_item_category IS NULL OR length(trim(p_item_category)) = 0 THEN
+            RAISE EXCEPTION 'Не вказано ані послугу/товар (item_id), ані категорію тарифу!';
+        END IF;
+
+        SELECT ID_Item, Price INTO v_item_id, v_base_price
+        FROM PriceList
+        WHERE Category = p_item_category
+        ORDER BY PriceStartDate DESC, ID_Item ASC
+        LIMIT 1;
+
+        IF v_item_id IS NULL THEN
+            RAISE EXCEPTION 'У прайс-листі не знайдено діючого тарифу для категорії "%"!', p_item_category;
+        END IF;
+    ELSE
+        SELECT Price INTO v_base_price
+        FROM PriceList
+        WHERE ID_Item = v_item_id;
+
+        IF v_base_price IS NULL THEN
+            RAISE EXCEPTION 'Позицію з ID % не знайдено в прайс-листі!', v_item_id;
+        END IF;
+    END IF;
+
+    IF p_promo_code IS NOT NULL AND length(trim(p_promo_code)) > 0 THEN
+        SELECT ID_Promo, DiscountPercent INTO v_promo_id, v_discount
+        FROM PromoCodes
+        WHERE CodeText = trim(p_promo_code) AND ExpiryDate >= CURRENT_DATE;
+    END IF;
+
+    IF v_discount > 0 THEN
+        v_final_price := ROUND(v_base_price * (100 - v_discount)::NUMERIC / 100.0, 2);
+    ELSE
+        v_final_price := v_base_price;
+    END IF;
+
+    IF v_manager_id IS NULL THEN
+        SELECT s.ID_Staff INTO v_manager_id
+        FROM Staff s
+        JOIN Positions p ON s.ID_Position = p.ID_Position
+        WHERE s.FireDate IS NULL
+          AND (
+            p.PositionName ILIKE '%менеджер клієнтів%' 
+            OR p.PositionName ILIKE '%менеджер по роботі з клієнтами%'
+            OR (p.PositionName ILIKE '%менеджер%' AND p.PositionName NOT ILIKE '%hr%')
+            OR p.PositionName ILIKE '%адміністратор%'
+          )
+        ORDER BY s.ID_Staff ASC
+        LIMIT 1;
+
+        IF v_manager_id IS NULL THEN
+            SELECT ID_Staff INTO v_manager_id
+            FROM Staff
+            WHERE FireDate IS NULL
+            ORDER BY ID_Staff ASC
+            LIMIT 1;
+        END IF;
+    END IF;
+
+    IF v_manager_id IS NULL THEN
+        RAISE EXCEPTION 'Неможливо провести чек продажу: в системі немає активних співробітників!';
+    END IF;
+
+    INSERT INTO Sales (ID_Client, ID_Item, SalePrice, ID_Manager, SaleDate)
+    VALUES (p_client_id, v_item_id, v_final_price, v_manager_id, CURRENT_TIMESTAMP)
+    RETURNING ID_Sale INTO v_sale_id;
+
+    IF v_promo_id IS NOT NULL THEN
+        INSERT INTO AppliedPromo (ID_Sale, ID_Promo)
+        VALUES (v_sale_id, v_promo_id);
+    END IF;
+
+    RETURN QUERY SELECT v_sale_id, v_item_id, v_final_price, v_discount;
+END;
+$$;
+
+-- 6.1-A. Придбання / продовження абонемента (Задача Cl2 / M3, SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION sp_purchase_subscription(
+    p_client_id INT,
+    p_item_id INT,
+    p_promo_code VARCHAR DEFAULT NULL,
+    p_manager_id INT DEFAULT NULL,
+    p_start_date DATE DEFAULT NULL
+)
+RETURNS TABLE (
+    sub_id INT,
+    sale_id INT,
+    item_name VARCHAR,
+    start_date DATE,
+    end_date DATE,
+    status VARCHAR,
+    remaining_freezing_days INT,
+    final_price NUMERIC(10,2)
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_client_id INT := p_client_id;
+    v_item_name VARCHAR;
+    v_duration INT;
+    v_max_freeze INT;
+    v_active_end_date DATE;
+    v_start_date DATE := p_start_date;
+    v_end_date DATE;
+    v_sale_id INT;
+    v_final_price NUMERIC(10,2);
+    v_client_sub_id INT;
+    v_is_client_user BOOLEAN;
+BEGIN
+    SELECT pg_has_role(SESSION_USER, 'client_role', 'MEMBER') INTO v_is_client_user;
+
+    IF v_is_client_user THEN
+        SELECT ID_Client INTO v_client_id
+        FROM Clients
+        WHERE DB_User = SESSION_USER;
+
+        IF v_client_id IS NULL THEN
+            RAISE EXCEPTION 'Профіль клієнта не знайдено для поточного користувача.';
+        END IF;
+    ELSE
+        IF v_client_id IS NULL THEN
+            RAISE EXCEPTION 'Не вказано ID клієнта для оформлення абонемента.';
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM Clients WHERE ID_Client = v_client_id) THEN
+            RAISE EXCEPTION 'Клієнта з ID % не знайдено.', v_client_id;
+        END IF;
+    END IF;
+
+    -- Перевірка чи є позиція абонементом
+    SELECT pl.ItemName, pls.DurationDays, pls.MaxFreezingDays
+    INTO v_item_name, v_duration, v_max_freeze
+    FROM PriceList pl
+    JOIN PriceListSubs pls ON pl.ID_Item = pls.ID_Item
+    WHERE pl.ID_Item = p_item_id;
+
+    IF v_duration IS NULL THEN
+        RAISE EXCEPTION 'Обраний пункт прайсу (ID: %) не є абонементом.', p_item_id;
+    END IF;
+
+    -- Перевірка діючого абонемента
+    SELECT cs.EndDate INTO v_active_end_date
+    FROM ClientSubscriptions cs
+    JOIN Sales s ON cs.ID_Sale = s.ID_Sale
+    WHERE s.ID_Client = v_client_id
+      AND cs.CurrentStatus IN ('Active', 'Frozen')
+      AND cs.EndDate >= CURRENT_DATE
+    ORDER BY cs.EndDate DESC
+    LIMIT 1;
+
+    IF v_is_client_user THEN
+        IF v_active_end_date IS NOT NULL THEN
+            IF (v_active_end_date - CURRENT_DATE) > 7 THEN
+                RAISE EXCEPTION 'Продовжити абонемент можна не раніше ніж за 7 днів до закінчення поточного (доступно з %).', (v_active_end_date - INTERVAL '7 days')::DATE;
+            END IF;
+            v_start_date := v_active_end_date + INTERVAL '1 day';
+        ELSE
+            v_start_date := CURRENT_DATE;
+        END IF;
+    ELSE
+        IF v_start_date IS NULL THEN
+            IF v_active_end_date IS NOT NULL THEN
+                v_start_date := v_active_end_date + INTERVAL '1 day';
+            ELSE
+                v_start_date := CURRENT_DATE;
+            END IF;
+        END IF;
+    END IF;
+
+    v_end_date := v_start_date + (v_duration * INTERVAL '1 day');
+
+    -- Створення чека через єдину функцію продажу
+    SELECT res.out_sale_id, res.out_final_price
+    INTO v_sale_id, v_final_price
+    FROM fn_process_sale_with_promo(v_client_id, NULL, p_item_id, p_promo_code, p_manager_id) res;
+
+    -- Вставка в ClientSubscriptions
+    INSERT INTO ClientSubscriptions (ID_Sale, StartDate, EndDate, CurrentStatus, RemainingFreezingDays)
+    VALUES (v_sale_id, v_start_date, v_end_date, 'Active', v_max_freeze)
+    RETURNING ID_ClientSub INTO v_client_sub_id;
+
+    RETURN QUERY SELECT
+        v_client_sub_id,
+        v_sale_id,
+        v_item_name,
+        v_start_date,
+        v_end_date,
+        'Active'::VARCHAR,
+        v_max_freeze,
+        v_final_price;
+END;
+$$;
+
+-- 6.1-B. Бронювання персонального тренування (Задача Cl5 / M6, SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION sp_book_personal_training(
+    p_client_id INT,
+    p_coach_id INT,
+    p_hall_id INT,
+    p_training_datetime TIMESTAMP,
+    p_promo_code VARCHAR DEFAULT NULL,
+    p_manager_id INT DEFAULT NULL
+)
+RETURNS TABLE (
+    personal_id INT,
+    sale_id INT,
+    final_price NUMERIC(10,2)
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_client_id INT := p_client_id;
+    v_is_client_user BOOLEAN;
+    v_sale_id INT;
+    v_final_price NUMERIC(10,2);
+    v_personal_id INT;
+BEGIN
+    SELECT pg_has_role(SESSION_USER, 'client_role', 'MEMBER') INTO v_is_client_user;
+
+    IF v_is_client_user THEN
+        SELECT ID_Client INTO v_client_id
+        FROM Clients
+        WHERE DB_User = SESSION_USER;
+
+        IF v_client_id IS NULL THEN
+            RAISE EXCEPTION 'Профіль клієнта не знайдено для поточного користувача.';
+        END IF;
+    ELSE
+        IF v_client_id IS NULL THEN
+            RAISE EXCEPTION 'Не вказано ID клієнта для запису на персональне тренування.';
+        END IF;
+
+        IF NOT EXISTS (SELECT 1 FROM Clients WHERE ID_Client = v_client_id) THEN
+            RAISE EXCEPTION 'Клієнта з ID % не знайдено.', v_client_id;
+        END IF;
+    END IF;
+
+    -- Перевірка наявності активного абонемента
+    IF NOT EXISTS (
+        SELECT 1
+        FROM ClientSubscriptions cs
+        JOIN Sales s ON cs.ID_Sale = s.ID_Sale
+        WHERE s.ID_Client = v_client_id
+          AND cs.CurrentStatus = 'Active'
+          AND cs.EndDate >= CURRENT_DATE
+    ) THEN
+        RAISE EXCEPTION 'Запис та купівля персональних тренувань доступні лише клієнтам з активним абонементом клубу.';
+    END IF;
+
+    -- Валідація зали (наявність та активний статус)
+    IF NOT EXISTS (
+        SELECT 1 FROM Halls WHERE ID_Hall = p_hall_id AND IsActive = TRUE
+    ) THEN
+        RAISE EXCEPTION 'Обраний зал не існує або закритий на обслуговування.';
+    END IF;
+
+    -- Валідація тренера
+    IF NOT EXISTS (
+        SELECT 1 FROM Coaches WHERE ID_Coach = p_coach_id
+    ) THEN
+        RAISE EXCEPTION 'Тренера не знайдено.';
+    END IF;
+
+    -- Валідація конфлікту розкладу для клієнта на цей час (інтервал 60 хвилин)
+    DECLARE
+        v_conflict_info TEXT;
+    BEGIN
+        -- 1. Перевірка на перетин з іншими персональними тренуваннями клієнта
+        SELECT FORMAT('Персональне тренування (ID: %s, дата та час: %s - %s)',
+                      pt.ID_Personal,
+                      pt.TrainingDateTime,
+                      (pt.TrainingDateTime + INTERVAL '60 minutes')::time)
+        INTO v_conflict_info
+        FROM PersonalTrainings pt
+        JOIN Sales s ON pt.ID_Sale = s.ID_Sale
+        WHERE s.ID_Client = v_client_id
+          AND pt.TrainingStatus <> 'Cancelled'
+          AND p_training_datetime < (pt.TrainingDateTime + INTERVAL '60 minutes')
+          AND (p_training_datetime + INTERVAL '60 minutes') > pt.TrainingDateTime
+        LIMIT 1;
+
+        IF v_conflict_info IS NOT NULL THEN
+            RAISE EXCEPTION 'У вас вже заплановано інше тренування на цей час (конфлікт із %)', v_conflict_info;
+        END IF;
+
+        -- 2. Перевірка на перетин з груповими заняттями клієнта
+        SELECT FORMAT('Групове заняття (ID бронювання: %s, ID екземпляра: %s, дата: %s, час: %s - %s)',
+                      gcb.ID_Booking,
+                      gci.ID_Instance,
+                      gci.ClassDate,
+                      (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime))::time,
+                      (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute'))::time)
+        INTO v_conflict_info
+        FROM GroupClassBookings gcb
+        JOIN Sales s ON gcb.ID_Sale = s.ID_Sale
+        JOIN GroupClassInstances gci ON gcb.ID_Instance = gci.ID_Instance
+        JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
+        WHERE s.ID_Client = v_client_id
+          AND gcb.BookingStatus <> 'Cancelled'
+          AND gci.ClassStatus <> 'Cancelled'
+          AND p_training_datetime < (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute'))
+          AND (p_training_datetime + INTERVAL '60 minutes') > (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime))
+        LIMIT 1;
+
+        IF v_conflict_info IS NOT NULL THEN
+            RAISE EXCEPTION 'У вас вже заплановано інше тренування на цей час (конфлікт із %)', v_conflict_info;
+        END IF;
+    END;
+
+    -- Створення чека продажу послуги персонального тренування
+    SELECT res.out_sale_id, res.out_final_price
+    INTO v_sale_id, v_final_price
+    FROM fn_process_sale_with_promo(v_client_id, 'Personal training', NULL, p_promo_code, p_manager_id) res;
+
+    -- Вставка в PersonalTrainings (тригер trg_check_personal_training_coach_conflict здійснить перевірку зайнятості тренера)
+    INSERT INTO PersonalTrainings (ID_Coach, ID_Hall, ID_Sale, TrainingDateTime, TrainingStatus)
+    VALUES (p_coach_id, p_hall_id, v_sale_id, p_training_datetime, 'Scheduled')
+    RETURNING ID_Personal INTO v_personal_id;
+
+    RETURN QUERY SELECT v_personal_id, v_sale_id, v_final_price;
+END;
+$$;
+
 -- 6.1. Реєстрація нового клієнта (Задача G1 / M1)
 CREATE OR REPLACE FUNCTION sp_register_client(
     p_fullname VARCHAR,
@@ -800,10 +1153,12 @@ BEGIN
 END;
 $$;
 
--- 6.8. Запис на групове заняття (Задача Cl4, SECURITY DEFINER)
+-- 6.8. Запис на групове заняття (Задача Cl4 / M5, SECURITY DEFINER)
 CREATE OR REPLACE PROCEDURE sp_book_group_class(
     p_instance_id INTEGER,
-    p_sale_id     INTEGER DEFAULT NULL
+    p_sale_id     INTEGER DEFAULT NULL,
+    p_client_id   INTEGER DEFAULT NULL,
+    p_promo_code  VARCHAR DEFAULT NULL
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -813,52 +1168,121 @@ DECLARE
     v_actual_attendance INTEGER;
     v_max_capacity      INTEGER;
     v_class_status      VARCHAR(20);
-    v_sale_id           INTEGER;
+    v_sale_id           INTEGER := p_sale_id;
+    v_client_id         INTEGER := p_client_id;
     v_is_client_user    BOOLEAN;
+    v_target_start      TIMESTAMP;
+    v_target_end        TIMESTAMP;
+    v_conflict_info     TEXT;
 BEGIN
     SELECT pg_has_role(SESSION_USER, 'client_role', 'MEMBER') INTO v_is_client_user;
 
     IF v_is_client_user THEN
-        IF p_sale_id IS NULL THEN
-            SELECT cs.ID_Sale INTO v_sale_id
-            FROM ClientSubscriptions cs
-            JOIN Sales s ON cs.ID_Sale = s.ID_Sale
-            JOIN Clients c ON s.ID_Client = c.ID_Client
-            WHERE c.DB_User = SESSION_USER
-              AND cs.CurrentStatus = 'Active'
-              AND cs.EndDate >= CURRENT_DATE
-            ORDER BY cs.EndDate DESC
-            LIMIT 1;
+        SELECT ID_Client INTO v_client_id
+        FROM Clients
+        WHERE DB_User = SESSION_USER;
 
-            IF v_sale_id IS NULL THEN
-                RAISE EXCEPTION 'У вас немає активного абонемента для запису на групове заняття.';
-            END IF;
-        ELSE
-            SELECT s.ID_Sale INTO v_sale_id
-            FROM Sales s
-            JOIN Clients c ON s.ID_Client = c.ID_Client
-            WHERE s.ID_Sale = p_sale_id AND c.DB_User = SESSION_USER;
-
-            IF v_sale_id IS NULL THEN
-                RAISE EXCEPTION 'Чек або абонемент не знайдено або він не належить поточному клієнту.';
-            END IF;
+        IF v_client_id IS NULL THEN
+            RAISE EXCEPTION 'Профіль клієнта не знайдено для поточного користувача.';
         END IF;
     ELSE
-        IF p_sale_id IS NULL THEN
-            RAISE EXCEPTION 'Для оформлення запису співробітником необхідно вказати ID чека (p_sale_id).';
-        ELSE
-            v_sale_id := p_sale_id;
+        IF v_client_id IS NULL AND v_sale_id IS NOT NULL THEN
+            SELECT ID_Client INTO v_client_id FROM Sales WHERE ID_Sale = v_sale_id;
+        END IF;
+
+        IF v_client_id IS NULL THEN
+            RAISE EXCEPTION 'Не вказано клієнта для запису на групове заняття.';
         END IF;
     END IF;
 
-    -- Перевірка дублікату запису
+    -- Централізована перевірка активного абонемента в ядрі БД
+    IF NOT EXISTS (
+        SELECT 1
+        FROM ClientSubscriptions cs
+        JOIN Sales s ON cs.ID_Sale = s.ID_Sale
+        WHERE s.ID_Client = v_client_id
+          AND cs.CurrentStatus = 'Active'
+          AND cs.EndDate >= CURRENT_DATE
+    ) THEN
+        RAISE EXCEPTION 'Запис та купівля групових занять доступні лише клієнтам з активним абонементом клубу.';
+    END IF;
+
+    -- Отримання та валідація часу цільового групового заняття
+    SELECT
+        gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime),
+        gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute')
+    INTO v_target_start, v_target_end
+    FROM GroupClassInstances gci
+    JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
+    WHERE gci.ID_Instance = p_instance_id;
+
+    IF v_target_start IS NULL THEN
+        RAISE EXCEPTION 'Екземпляр групового заняття (ID: %) не знайдено.', p_instance_id;
+    END IF;
+
+    -- Валідація конфлікту розкладу клієнта ДО створення чека продажу
+    -- 1. Перевірка на перетин з іншими груповими заняттями клієнта
+    SELECT FORMAT('Групове заняття (ID бронювання: %s, ID екземпляра: %s, дата: %s, час: %s - %s)',
+                  gcb.ID_Booking,
+                  other_gci.ID_Instance,
+                  other_gci.ClassDate,
+                  (other_gci.ClassDate + COALESCE(other_gci.ClassStartTime, other_gst.StartTime))::time,
+                  (other_gci.ClassDate + COALESCE(other_gci.ClassStartTime, other_gst.StartTime) + (other_gst.DurationMinutes * INTERVAL '1 minute'))::time)
+    INTO v_conflict_info
+    FROM GroupClassBookings gcb
+    JOIN Sales s ON gcb.ID_Sale = s.ID_Sale
+    JOIN GroupClassInstances other_gci ON gcb.ID_Instance = other_gci.ID_Instance
+    JOIN GroupScheduleTemplates other_gst ON other_gci.ID_Template = other_gst.ID_Template
+    WHERE s.ID_Client = v_client_id
+      AND gcb.BookingStatus <> 'Cancelled'
+      AND other_gci.ClassStatus <> 'Cancelled'
+      AND other_gci.ID_Instance <> p_instance_id
+      AND v_target_start < (other_gci.ClassDate + COALESCE(other_gci.ClassStartTime, other_gst.StartTime) + (other_gst.DurationMinutes * INTERVAL '1 minute'))
+      AND v_target_end > (other_gci.ClassDate + COALESCE(other_gci.ClassStartTime, other_gst.StartTime))
+    LIMIT 1;
+
+    IF v_conflict_info IS NOT NULL THEN
+        RAISE EXCEPTION 'У вас вже заплановано інше тренування на цей час (конфлікт із %)', v_conflict_info;
+    END IF;
+
+    -- 2. Перевірка на перетин з персональними тренуваннями клієнта
+    SELECT FORMAT('Персональне тренування (ID: %s, дата та час: %s - %s)',
+                  pt.ID_Personal,
+                  pt.TrainingDateTime,
+                  (pt.TrainingDateTime + INTERVAL '60 minutes')::time)
+    INTO v_conflict_info
+    FROM PersonalTrainings pt
+    JOIN Sales s ON pt.ID_Sale = s.ID_Sale
+    WHERE s.ID_Client = v_client_id
+      AND pt.TrainingStatus <> 'Cancelled'
+      AND v_target_start < (pt.TrainingDateTime + INTERVAL '60 minutes')
+      AND v_target_end > pt.TrainingDateTime
+    LIMIT 1;
+
+    IF v_conflict_info IS NOT NULL THEN
+        RAISE EXCEPTION 'У вас вже заплановано інше тренування на цей час (конфлікт із %)', v_conflict_info;
+    END IF;
+
+    -- Перевірка дублікату запису на той самий екземпляр
     IF EXISTS (
-        SELECT 1 FROM GroupClassBookings 
-        WHERE ID_Instance = p_instance_id 
-          AND ID_Sale = v_sale_id 
-          AND BookingStatus = 'Scheduled'
+        SELECT 1 FROM GroupClassBookings gcb
+        JOIN Sales s ON gcb.ID_Sale = s.ID_Sale
+        WHERE gcb.ID_Instance = p_instance_id 
+          AND s.ID_Client = v_client_id 
+          AND gcb.BookingStatus = 'Scheduled'
     ) THEN
         RAISE EXCEPTION 'Ви вже записані на це групове заняття.';
+    END IF;
+
+    -- Якщо чек продажу не було передано, генеруємо його через fn_process_sale_with_promo
+    IF v_sale_id IS NULL THEN
+        SELECT res.out_sale_id INTO v_sale_id
+        FROM fn_process_sale_with_promo(v_client_id, 'Group training', NULL, p_promo_code, NULL) res;
+    ELSE
+        -- Перевіряємо належність переданого чека клієнту
+        IF NOT EXISTS (SELECT 1 FROM Sales WHERE ID_Sale = v_sale_id AND ID_Client = v_client_id) THEN
+            RAISE EXCEPTION 'Чек або абонемент не знайдено або він не належить вказаному клієнту.';
+        END IF;
     END IF;
 
     -- Точне блокування екземпляра заняття та перевірка місткості
@@ -983,6 +1407,9 @@ END;
 $$;
 
 -- Права на виклик збережених функцій
+GRANT EXECUTE ON FUNCTION fn_process_sale_with_promo(INT, VARCHAR, INT, VARCHAR, INT) TO client_role, manager_role, director_role;
+GRANT EXECUTE ON FUNCTION sp_purchase_subscription(INT, INT, VARCHAR, INT, DATE) TO client_role, manager_role, director_role;
+GRANT EXECUTE ON FUNCTION sp_book_personal_training(INT, INT, INT, TIMESTAMP, VARCHAR, INT) TO client_role, manager_role, director_role;
 GRANT EXECUTE ON FUNCTION sp_register_client TO guest, manager_role, director_role;
 GRANT EXECUTE ON FUNCTION sp_create_client_user(VARCHAR, VARCHAR) TO manager_role, director_role;
 GRANT EXECUTE ON FUNCTION sp_hire_coach TO hr_role, director_role;
@@ -990,7 +1417,7 @@ GRANT EXECUTE ON FUNCTION sp_hire_manager TO hr_role, director_role;
 GRANT EXECUTE ON FUNCTION sp_fire_employee TO hr_role, director_role;
 GRANT EXECUTE ON PROCEDURE sp_freeze_client_subscription(INTEGER, DATE, DATE, VARCHAR) TO client_role;
 GRANT EXECUTE ON PROCEDURE sp_unfreeze_client_subscription(INTEGER) TO client_role;
-GRANT EXECUTE ON PROCEDURE sp_book_group_class(INTEGER, INTEGER) TO client_role, manager_role;
+GRANT EXECUTE ON PROCEDURE sp_book_group_class(INTEGER, INTEGER, INTEGER, VARCHAR) TO client_role, manager_role, director_role;
 GRANT EXECUTE ON PROCEDURE sp_cancel_group_booking(INTEGER) TO client_role, manager_role;
 GRANT EXECUTE ON PROCEDURE sp_generate_weekly_group_instances(INTEGER) TO director_role, manager_role, client_role, coach_role;
 
@@ -1550,6 +1977,181 @@ FOR EACH ROW
 EXECUTE FUNCTION check_coach_schedule_conflict();
 
 GRANT EXECUTE ON FUNCTION check_coach_schedule_conflict() TO PUBLIC;
+
+-- 10.1-B. Тригерна функція для взаємного контролю конфліктів розкладу клієнта
+CREATE OR REPLACE FUNCTION check_client_schedule_conflict()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_client_id        INTEGER;
+    v_start_time       TIMESTAMP;
+    v_end_time         TIMESTAMP;
+    v_conflict_found   BOOLEAN := FALSE;
+    v_conflict_info    TEXT;
+BEGIN
+    IF LOWER(TG_TABLE_NAME) = 'personaltrainings' THEN
+        IF NEW.TrainingStatus = 'Cancelled' THEN
+            RETURN NEW;
+        END IF;
+
+        -- Отримуємо ID_Client через таблицю Sales
+        SELECT ID_Client INTO v_client_id
+        FROM Sales
+        WHERE ID_Sale = NEW.ID_Sale;
+
+        IF v_client_id IS NULL THEN
+            RETURN NEW;
+        END IF;
+
+        v_start_time := NEW.TrainingDateTime;
+        v_end_time   := NEW.TrainingDateTime + INTERVAL '60 minutes';
+
+        -- 1. Перевірка на перетин з іншими персональними тренуваннями цього ж клієнта
+        SELECT
+            TRUE,
+            FORMAT('Персональне тренування (ID: %s, дата та час: %s - %s)',
+                   pt.ID_Personal,
+                   pt.TrainingDateTime,
+                   (pt.TrainingDateTime + INTERVAL '60 minutes')::time)
+        INTO v_conflict_found, v_conflict_info
+        FROM PersonalTrainings pt
+        JOIN Sales s ON pt.ID_Sale = s.ID_Sale
+        WHERE s.ID_Client = v_client_id
+          AND pt.TrainingStatus <> 'Cancelled'
+          AND pt.ID_Personal IS DISTINCT FROM NEW.ID_Personal
+          AND v_start_time < (pt.TrainingDateTime + INTERVAL '60 minutes')
+          AND (v_start_time + INTERVAL '60 minutes') > pt.TrainingDateTime
+        LIMIT 1;
+
+        IF v_conflict_found THEN
+            RAISE EXCEPTION '[SCHEDULE_CONFLICT] Неможливо призначити тренування: у клієнта вже заплановане інше тренування на цей час. Конфліктна подія: %',
+                v_conflict_info;
+        END IF;
+
+        -- 2. Перевірка на перетин з груповими заняттями цього ж клієнта
+        SELECT
+            TRUE,
+            FORMAT('Групове заняття (ID екземпляра: %s, дата: %s, час: %s - %s)',
+                   gci.ID_Instance,
+                   gci.ClassDate,
+                   (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime))::time,
+                   (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute'))::time)
+        INTO v_conflict_found, v_conflict_info
+        FROM GroupClassBookings gcb
+        JOIN Sales s ON gcb.ID_Sale = s.ID_Sale
+        JOIN GroupClassInstances gci ON gcb.ID_Instance = gci.ID_Instance
+        JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
+        WHERE s.ID_Client = v_client_id
+          AND gcb.BookingStatus <> 'Cancelled'
+          AND gci.ClassStatus <> 'Cancelled'
+          AND v_start_time < (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute'))
+          AND v_end_time > (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime))
+        LIMIT 1;
+
+        IF v_conflict_found THEN
+            RAISE EXCEPTION '[SCHEDULE_CONFLICT] Неможливо призначити тренування: у клієнта вже заплановане інше тренування на цей час. Конфліктна подія: %',
+                v_conflict_info;
+        END IF;
+
+    ELSIF LOWER(TG_TABLE_NAME) = 'groupclassbookings' THEN
+        IF NEW.BookingStatus = 'Cancelled' THEN
+            RETURN NEW;
+        END IF;
+
+        -- Отримуємо ID_Client через таблицю Sales
+        SELECT ID_Client INTO v_client_id
+        FROM Sales
+        WHERE ID_Sale = NEW.ID_Sale;
+
+        IF v_client_id IS NULL THEN
+            RETURN NEW;
+        END IF;
+
+        -- Отримуємо час цільового групового заняття
+        SELECT
+            gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime),
+            gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute')
+        INTO v_start_time, v_end_time
+        FROM GroupClassInstances gci
+        JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
+        WHERE gci.ID_Instance = NEW.ID_Instance;
+
+        IF v_start_time IS NULL THEN
+            RETURN NEW;
+        END IF;
+
+        -- 1. Перевірка на перетин з іншими груповими заняттями цього ж клієнта
+        SELECT
+            TRUE,
+            FORMAT('Групове заняття (ID екземпляра: %s, дата: %s, час: %s - %s)',
+                   other_gci.ID_Instance,
+                   other_gci.ClassDate,
+                   (other_gci.ClassDate + COALESCE(other_gci.ClassStartTime, other_gst.StartTime))::time,
+                   (other_gci.ClassDate + COALESCE(other_gci.ClassStartTime, other_gst.StartTime) + (other_gst.DurationMinutes * INTERVAL '1 minute'))::time)
+        INTO v_conflict_found, v_conflict_info
+        FROM GroupClassBookings other_gcb
+        JOIN Sales s ON other_gcb.ID_Sale = s.ID_Sale
+        JOIN GroupClassInstances other_gci ON other_gcb.ID_Instance = other_gci.ID_Instance
+        JOIN GroupScheduleTemplates other_gst ON other_gci.ID_Template = other_gst.ID_Template
+        WHERE s.ID_Client = v_client_id
+          AND other_gcb.BookingStatus <> 'Cancelled'
+          AND other_gci.ClassStatus <> 'Cancelled'
+          AND other_gcb.ID_Booking IS DISTINCT FROM NEW.ID_Booking
+          AND other_gci.ID_Instance <> NEW.ID_Instance
+          AND v_start_time < (other_gci.ClassDate + COALESCE(other_gci.ClassStartTime, other_gst.StartTime) + (other_gst.DurationMinutes * INTERVAL '1 minute'))
+          AND v_end_time > (other_gci.ClassDate + COALESCE(other_gci.ClassStartTime, other_gst.StartTime))
+        LIMIT 1;
+
+        IF v_conflict_found THEN
+            RAISE EXCEPTION '[SCHEDULE_CONFLICT] Неможливо призначити тренування: у клієнта вже заплановане інше тренування на цей час. Конфліктна подія: %',
+                v_conflict_info;
+        END IF;
+
+        -- 2. Перевірка на перетин з персональними тренуваннями цього ж клієнта
+        SELECT
+            TRUE,
+            FORMAT('Персональне тренування (ID: %s, дата та час: %s - %s)',
+                   pt.ID_Personal,
+                   pt.TrainingDateTime,
+                   (pt.TrainingDateTime + INTERVAL '60 minutes')::time)
+        INTO v_conflict_found, v_conflict_info
+        FROM PersonalTrainings pt
+        JOIN Sales s ON pt.ID_Sale = s.ID_Sale
+        WHERE s.ID_Client = v_client_id
+          AND pt.TrainingStatus <> 'Cancelled'
+          AND v_start_time < (pt.TrainingDateTime + INTERVAL '60 minutes')
+          AND v_end_time > pt.TrainingDateTime
+        LIMIT 1;
+
+        IF v_conflict_found THEN
+            RAISE EXCEPTION '[SCHEDULE_CONFLICT] Неможливо призначити тренування: у клієнта вже заплановане інше тренування на цей час. Конфліктна подія: %',
+                v_conflict_info;
+        END IF;
+
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_check_personal_training_client_conflict ON PersonalTrainings;
+CREATE TRIGGER trg_check_personal_training_client_conflict
+BEFORE INSERT OR UPDATE OF TrainingDateTime, TrainingStatus
+ON PersonalTrainings
+FOR EACH ROW
+EXECUTE FUNCTION check_client_schedule_conflict();
+
+DROP TRIGGER IF EXISTS trg_check_group_booking_client_conflict ON GroupClassBookings;
+CREATE TRIGGER trg_check_group_booking_client_conflict
+BEFORE INSERT OR UPDATE OF BookingStatus, ID_Instance
+ON GroupClassBookings
+FOR EACH ROW
+EXECUTE FUNCTION check_client_schedule_conflict();
+
+GRANT EXECUTE ON FUNCTION check_client_schedule_conflict() TO PUBLIC;
 
 -- 10.2. Збережена функція для отримання тижневого розкладу тренера
 CREATE OR REPLACE FUNCTION get_coach_weekly_schedule(
