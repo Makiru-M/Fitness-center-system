@@ -150,7 +150,7 @@
      ```
    * *Або прямим викликом psql:*
      ```bash
-     psql -h localhost -p 5544 -U postgres -d fitness_center_db -f fitness_schema_and_roles.sql
+     psql -h localhost -p 5544 -U postgres -d fitness_center_db -f sql/init.sql
      ```
 
 ### Крок 2. Запуск серверної частини (Spring Boot)
@@ -222,7 +222,18 @@
 
 ```text
 ├── docker-compose.yml              # Опис сервісу PostgreSQL 16 (порт 5544)
-├── fitness_schema_and_roles.sql    # Головний DDL/DCL/RLS скрипт ініціалізації БД
+├── sql/                            # Модульна архітектура БД (DDL, DCL, RLS, процедури, тригери)
+│   ├── init.sql                    # Головний майстер-скрипт ініціалізації БД (\ir 01-10)
+│   ├── 01_types.sql                # Користувацькі ENUM-типи даних
+│   ├── 02_tables.sql               # Реляційні таблиці (DDL, Foreign Keys, CHECK)
+│   ├── 03_indexes.sql              # Первинні та вторинні оптимізаційні індекси
+│   ├── 04_roles_rbac.sql           # Рольова модель (RBAC) та користувачі PostgreSQL
+│   ├── 05_permissions.sql          # Базові права доступу (GRANT / REVOKE)
+│   ├── 06_procedures_functions.sql # Збережені процедури та бізнес-функції (SECURITY DEFINER)
+│   ├── 07_rls.sql                  # Політики безпеки на рівні рядків (RLS)
+│   ├── 08_views.sql                # Аналітичні представлення клубу (VIEWS)
+│   ├── 09_seed_data.sql            # Початкове наповнення даними (SEED DATA)
+│   └── 10_triggers.sql             # Тригери та тригерні функції (колізії, перевірки, аудит)
 ├── backup_initial_state.sql        # Еталонний дамп БД для миттєвого відкату
 ├── restore_db.ps1 / restore_db.bat # Скрипти автоматизованого скидання БД в 1 клік
 ├── IS structure.md                 # Технічне завдання: специфікація 39 задач

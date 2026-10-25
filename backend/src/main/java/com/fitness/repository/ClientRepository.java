@@ -135,6 +135,9 @@ public class ClientRepository {
         if (req.coachId() == null || req.hallId() == null || req.trainingDateTime() == null) {
             throw new BusinessLogicException("Заповніть усі обов'язкові поля для запису на тренування.");
         }
+        if (req.trainingDateTime().isBefore(java.time.LocalDateTime.now())) {
+            throw new BusinessLogicException("Дата та час персонального тренування не можуть бути в минулому.");
+        }
 
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String promo = (req.promoCode() != null && !req.promoCode().isBlank()) ? req.promoCode().trim() : null;

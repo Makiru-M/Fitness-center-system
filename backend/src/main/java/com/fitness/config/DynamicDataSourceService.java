@@ -122,7 +122,7 @@ public class DynamicDataSourceService {
             log.info("PostgreSQL guest user [{}] now operational.", guestUsername);
         } catch (Exception ex) {
             log.error("Could not auto-provision guest user via admin credentials (URL: {}): {}. "
-                    + "Please ensure PostgreSQL container is running and 'fitness_schema_and_roles.sql' has been applied.",
+                    + "Please ensure PostgreSQL container is running and 'sql/init.sql' has been applied.",
                     jdbcUrl, ex.getMessage());
         }
     }

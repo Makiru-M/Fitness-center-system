@@ -45,12 +45,3 @@ regression_test_results.json
 /scratch/
 /docs/
 /agent_knowledge_base/
-
-# Fragmentary SQL scripts (consolidated into fitness_schema_and_roles.sql)
-analytical_queries.sql
-data_init.sql
-indexes_init.sql
-policies_*.sql
-rls_init.sql
-roles_init.sql
-tables_init.sql

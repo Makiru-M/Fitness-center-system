@@ -114,8 +114,23 @@ import {
   updateM3Price,
   checkM3Promo,
   handleM3Sale,
+  updateM5ClientPreview,
+  checkM5Promo,
+  loadM5Schedule,
+  handleM5PrevWeek,
+  handleM5NextWeek,
+  handleM5TodayWeek,
+  renderM5Schedule,
+  bookM5ClassForClient,
+  updateM5Price,
+  applyM5Promo,
+  closeM5Modal,
+  confirmM5GroupBooking,
   handleM5Booking,
   checkM6MedicalAlert,
+  checkM6Promo,
+  updateM6Price,
+  applyM6Promo,
   handleM6Booking,
   previewM7Freeze,
   handleM7Freeze,
@@ -175,6 +190,72 @@ import {
   handleD12Slot
 } from './views/directorView.js';
 
+/**
+ * Global Flatpickr Datepicker Initializer with Cyan Dark Theme
+ */
+export function initFlatpickr(container = document) {
+  if (typeof flatpickr === 'undefined') {
+    return;
+  }
+
+  // 1. Date inputs
+  const dateInputs = container.querySelectorAll ? container.querySelectorAll('input[type="date"]') : [];
+  dateInputs.forEach(el => {
+    if (el._flatpickr) {
+      // If already initialized, synchronize bounds & value if needed
+      if (el.getAttribute('min')) el._flatpickr.set('minDate', el.getAttribute('min'));
+      if (el.getAttribute('max')) el._flatpickr.set('maxDate', el.getAttribute('max'));
+      return;
+    }
+
+    flatpickr(el, {
+      locale: 'uk',
+      dateFormat: 'Y-m-d',
+      altInput: true,
+      altFormat: 'd.m.Y',
+      altInputClass: el.className ? `${el.className} flatpickr-custom-alt` : 'form-control flatpickr-custom-alt',
+      allowInput: true,
+      minDate: el.getAttribute('min') || null,
+      maxDate: el.getAttribute('max') || null,
+      defaultDate: el.value || null,
+      onChange: (selectedDates, dateStr) => {
+        el.value = dateStr;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+  });
+
+  // 2. DateTime-local inputs
+  const dateTimeInputs = container.querySelectorAll ? container.querySelectorAll('input[type="datetime-local"]') : [];
+  dateTimeInputs.forEach(el => {
+    if (el._flatpickr) {
+      if (el.getAttribute('min')) el._flatpickr.set('minDate', el.getAttribute('min'));
+      if (el.getAttribute('max')) el._flatpickr.set('maxDate', el.getAttribute('max'));
+      return;
+    }
+
+    flatpickr(el, {
+      locale: 'uk',
+      enableTime: true,
+      time_24hr: true,
+      dateFormat: 'Y-m-d\\TH:i',
+      altInput: true,
+      altFormat: 'd.m.Y H:i',
+      altInputClass: el.className ? `${el.className} flatpickr-custom-alt` : 'form-control flatpickr-custom-alt',
+      allowInput: true,
+      minDate: el.getAttribute('min') || null,
+      maxDate: el.getAttribute('max') || null,
+      defaultDate: el.value || null,
+      onChange: (selectedDates, dateStr) => {
+        el.value = dateStr;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+  });
+}
+
 // Bind globals for HTML inline event handlers
 Object.assign(window, {
   // State & Utilities
@@ -189,6 +270,7 @@ Object.assign(window, {
   makeSearchable,
   refreshCombobox,
   initAllComboboxes,
+  initFlatpickr,
 
   // API Services
   authApi,
@@ -282,8 +364,23 @@ Object.assign(window, {
   updateM3Price,
   checkM3Promo,
   handleM3Sale,
+  updateM5ClientPreview,
+  checkM5Promo,
+  loadM5Schedule,
+  handleM5PrevWeek,
+  handleM5NextWeek,
+  handleM5TodayWeek,
+  renderM5Schedule,
+  bookM5ClassForClient,
+  updateM5Price,
+  applyM5Promo,
+  closeM5Modal,
+  confirmM5GroupBooking,
   handleM5Booking,
   checkM6MedicalAlert,
+  checkM6Promo,
+  updateM6Price,
+  applyM6Promo,
   handleM6Booking,
   previewM7Freeze,
   handleM7Freeze,
@@ -344,7 +441,11 @@ window.handleD8RecommissionHall = handleD8RecommissionHall;
 
 // Bootstrap application when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initApp);
+  document.addEventListener('DOMContentLoaded', () => {
+    initApp();
+    initFlatpickr();
+  });
 } else {
   initApp();
+  initFlatpickr();
 }

@@ -7,6 +7,7 @@
 import { AppState, findPromo, TEST_ACCOUNTS } from '../state/state.js';
 import { managerApi } from '../api/managerApi.js';
 import { guestApi } from '../api/guestApi.js';
+import { clientApi } from '../api/clientApi.js';
 import { hrApi } from '../api/hrApi.js';
 import { showToast } from '../components/toast.js';
 import { refreshCombobox } from '../components/combobox.js';
@@ -14,6 +15,8 @@ import { refreshCombobox } from '../components/combobox.js';
 export let cachedClients = [];
 let cachedPriceList = [];
 let recentVisits = [];
+let cachedM5GroupClasses = [];
+let currentM5WeekOffset = 0;
 
 export function switchManagerTab(tabId) {
   document.querySelectorAll('.manager-pane').forEach(el => el.classList.add('hidden'));
@@ -24,8 +27,160 @@ export function switchManagerTab(tabId) {
   if (pane) pane.classList.remove('hidden');
   if (btn) btn.classList.add('active');
 
-  if (tabId === 'm8') {
+  if (tabId === 'm3') {
+    initM3DateLimits();
+  } else if (tabId === 'm5') {
+    loadM5Schedule();
+  } else if (tabId === 'm6') {
+    initM6DateLimits();
+    updateM6Price();
+  } else if (tabId === 'm7') {
+    initM7DateLimits();
+  } else if (tabId === 'm8') {
     renderM8Requests();
+  }
+}
+
+export function initM3DateLimits() {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const pad = n => String(n).padStart(2, '0');
+  const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+
+  const clientEl = document.getElementById('m3-client');
+  const startEl = document.getElementById('m3-startdate');
+  const submitBtn = document.getElementById('m3-submit-btn');
+  const noticeEl = document.getElementById('m3-restriction-notice');
+  const noticeTextEl = document.getElementById('m3-restriction-text');
+
+  const clientId = clientEl && clientEl.value ? parseInt(clientEl.value, 10) : null;
+  const client = clientId ? (cachedClients || []).find(c => c.clientId === clientId) : null;
+
+  const activeSubStatus = client?.activeSubStatus || null;
+  const rawSubEndDate = client?.activeSubEndDate || null;
+  const isSubActiveOrFrozen = (activeSubStatus === 'Active' || activeSubStatus === 'Frozen');
+
+  let activeSubEndDate = null;
+  if (isSubActiveOrFrozen && rawSubEndDate) {
+    const m = String(rawSubEndDate).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) {
+      activeSubEndDate = `${m[1]}-${m[2]}-${m[3]}`;
+    }
+  }
+
+  const isEndDateActive = activeSubEndDate && activeSubEndDate >= todayStr;
+
+  if (isSubActiveOrFrozen && isEndDateActive) {
+    const parts = activeSubEndDate.split('-');
+    const endDateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+
+    const diffMs = endDateObj.getTime() - today.getTime();
+    const daysUntilEnd = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+    const nextStartObj = new Date(endDateObj.getFullYear(), endDateObj.getMonth(), endDateObj.getDate() + 1);
+    const nextStartDate = `${nextStartObj.getFullYear()}-${pad(nextStartObj.getMonth() + 1)}-${pad(nextStartObj.getDate())}`;
+
+    const availFromObj = new Date(endDateObj.getFullYear(), endDateObj.getMonth(), endDateObj.getDate() - 7);
+    const availDate = `${availFromObj.getFullYear()}-${pad(availFromObj.getMonth() + 1)}-${pad(availFromObj.getDate())}`;
+
+    if (daysUntilEnd > 7) {
+      if (submitBtn) submitBtn.disabled = true;
+      if (noticeEl) noticeEl.classList.remove('hidden');
+      if (noticeTextEl) {
+        noticeTextEl.textContent = `У клієнта є діючий абонемент до ${activeSubEndDate}. Оформлення нового абонемента стане доступним з ${availDate} (не раніше ніж за 7 днів до завершення поточного).`;
+      }
+      if (startEl) {
+        startEl.setAttribute('min', nextStartDate);
+        startEl.value = nextStartDate;
+        if (startEl._flatpickr) {
+          startEl._flatpickr.set('minDate', nextStartDate);
+          startEl._flatpickr.setDate(nextStartDate, false);
+        }
+      }
+    } else {
+      if (submitBtn) submitBtn.disabled = false;
+      if (noticeEl) noticeEl.classList.add('hidden');
+      if (noticeTextEl) noticeTextEl.textContent = '';
+      if (startEl) {
+        startEl.setAttribute('min', nextStartDate);
+        if (!startEl.value || startEl.value < nextStartDate) {
+          startEl.value = nextStartDate;
+        }
+        if (startEl._flatpickr) {
+          startEl._flatpickr.set('minDate', nextStartDate);
+          if (startEl.value) startEl._flatpickr.setDate(startEl.value, false);
+        }
+      }
+    }
+  } else {
+    if (submitBtn) submitBtn.disabled = false;
+    if (noticeEl) noticeEl.classList.add('hidden');
+    if (noticeTextEl) noticeTextEl.textContent = '';
+    if (startEl) {
+      startEl.setAttribute('min', todayStr);
+      if (!startEl.value || startEl.value < todayStr) {
+        startEl.value = todayStr;
+      }
+      if (startEl._flatpickr) {
+        startEl._flatpickr.set('minDate', todayStr);
+        if (startEl.value) startEl._flatpickr.setDate(startEl.value, false);
+      }
+    }
+  }
+
+  if (startEl && !startEl.dataset.hasMinListener) {
+    startEl.addEventListener('change', () => {
+      const minVal = startEl.getAttribute('min') || todayStr;
+      if (startEl.value && startEl.value < minVal) {
+        startEl.value = minVal;
+      }
+    });
+    startEl.dataset.hasMinListener = 'true';
+  }
+}
+
+export function initM6DateLimits() {
+  const nowIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const dtEl = document.getElementById('m6-datetime');
+  if (dtEl) {
+    dtEl.setAttribute('min', nowIso);
+    if (dtEl.value && new Date(dtEl.value) < new Date()) {
+      dtEl.value = nowIso;
+    }
+    if (dtEl._flatpickr) {
+      dtEl._flatpickr.set('minDate', nowIso);
+      if (dtEl.value) dtEl._flatpickr.setDate(dtEl.value, false);
+    }
+  }
+}
+
+export function initM7DateLimits() {
+  const today = new Date().toISOString().split('T')[0];
+  const startEl = document.getElementById('m7-startdate');
+  const endEl = document.getElementById('m7-enddate');
+  if (startEl) {
+    startEl.setAttribute('min', today);
+    if (startEl._flatpickr) {
+      startEl._flatpickr.set('minDate', today);
+    }
+    if (!startEl.dataset.hasMinListener) {
+      startEl.addEventListener('change', () => {
+        if (endEl && startEl.value) {
+          endEl.setAttribute('min', startEl.value);
+          if (endEl._flatpickr) {
+            endEl._flatpickr.set('minDate', startEl.value);
+          }
+        }
+      });
+      startEl.dataset.hasMinListener = 'true';
+    }
+  }
+  if (endEl) {
+    const minEnd = (startEl && startEl.value && startEl.value >= today) ? startEl.value : today;
+    endEl.setAttribute('min', minEnd);
+    if (endEl._flatpickr) {
+      endEl._flatpickr.set('minDate', minEnd);
+    }
   }
 }
 
@@ -64,6 +219,19 @@ export async function populateManagerDropdowns() {
     }
     previewM4ClientStatus();
 
+    const m5ClientSel = document.getElementById('m5-client');
+    if (m5ClientSel && !m5ClientSel.dataset.hasPreviewListener) {
+      m5ClientSel.addEventListener('change', (e) => updateM5ClientPreview(e.target.value));
+      m5ClientSel.dataset.hasPreviewListener = 'true';
+    }
+    updateM5ClientPreview();
+
+    const m3ClientSel = document.getElementById('m3-client');
+    if (m3ClientSel && !m3ClientSel.dataset.hasDateLimitListener) {
+      m3ClientSel.addEventListener('change', () => initM3DateLimits());
+      m3ClientSel.dataset.hasDateLimitListener = 'true';
+    }
+
     // Halls selects (m4, m6)
     const hallSelects = ['m4-hall', 'm6-hall'];
     hallSelects.forEach(selId => {
@@ -78,71 +246,22 @@ export async function populateManagerDropdowns() {
       });
     });
 
-    // PriceList items for M3
+    // PriceList items for M3: Filter out training services (Personal and Group)
     const m3Item = document.getElementById('m3-item');
     if (m3Item) {
       m3Item.innerHTML = '';
-      cachedPriceList.forEach(item => {
+      const serviceItems = cachedPriceList.filter(item => 
+        item.category !== 'Personal training' && item.category !== 'Group training'
+      );
+      serviceItems.forEach(item => {
         const opt = document.createElement('option');
         opt.value = item.itemId;
         opt.textContent = `[${item.category}] ${item.itemName} — ${parseFloat(item.price).toFixed(2)} грн`;
         m3Item.appendChild(opt);
       });
       const sDate = document.getElementById('m3-startdate');
-      if (sDate) sDate.value = new Date().toISOString().split('T')[0];
+      initM3DateLimits();
       updateM3Price();
-    }
-
-    // Managers for M3 (#m3-staff / #m3-manager)
-    const m3StaffSelects = [document.getElementById('m3-staff'), document.getElementById('m3-manager')].filter(Boolean);
-    if (m3StaffSelects.length > 0) {
-      // Filter list of employees: keep ONLY Customer Managers (no Directors, no HR Managers)
-      const managers = (employees || []).filter(e => {
-        // Exclude coaches and inactive employees
-        if (e.isCoach || !e.isActive) return false;
-
-        // Retrieve position (accounting for TEST_ACCOUNTS role/position mapping)
-        const testAcc = (TEST_ACCOUNTS && e.dbUser) ? TEST_ACCOUNTS[e.dbUser] : null;
-        const pos = (testAcc ? testAcc.pos : (e.positionName || e.pos || '')).trim();
-        const lowerPos = pos.toLowerCase();
-
-        // Categorically exclude Director and HR Manager
-        if (pos.includes('Директор') || pos.includes('HR') || lowerPos.includes('директор') || lowerPos.includes('hr') || lowerPos.includes('director')) {
-          return false;
-        }
-
-        // Keep ONLY customer/client managers
-        return pos === 'Менеджер клієнтів' || 
-               pos === 'Менеджер' || 
-               lowerPos.includes('клієнт') || 
-               lowerPos.includes('менеджер') ||
-               (!e.isCoach && !pos.includes('Директор') && !pos.includes('HR'));
-      });
-
-      m3StaffSelects.forEach(sel => {
-        sel.innerHTML = '';
-        managers.forEach(st => {
-          const testAcc = (TEST_ACCOUNTS && st.dbUser) ? TEST_ACCOUNTS[st.dbUser] : null;
-          const displayPos = testAcc ? testAcc.pos : (st.positionName || st.pos || 'Менеджер клієнтів');
-          const opt = document.createElement('option');
-          opt.value = st.staffId;
-          opt.textContent = `${st.fullName} (${displayPos})`;
-          sel.appendChild(opt);
-        });
-
-        // If current authenticated user is in the list, select them by default
-        if (AppState.currentUser) {
-          const currentUserId = AppState.currentUser.entityId || AppState.currentUser.staffId;
-          const currentDbUser = AppState.currentUser.dbUser;
-          const matchingStaff = managers.find(m => 
-            (currentUserId && Number(m.staffId) === Number(currentUserId)) || 
-            (currentDbUser && m.dbUser === currentDbUser)
-          );
-          if (matchingStaff) {
-            sel.value = matchingStaff.staffId;
-          }
-        }
-      });
     }
 
     // Coaches for M6
@@ -161,6 +280,8 @@ export async function populateManagerDropdowns() {
       tmr.setHours(10, 0, 0, 0);
       const m6Dt = document.getElementById('m6-datetime');
       if (m6Dt) m6Dt.value = tmr.toISOString().substring(0, 16);
+      initM6DateLimits();
+      updateM6Price();
     }
   } catch (err) {
     console.warn('Error populating manager dropdowns:', err);
@@ -390,7 +511,16 @@ export async function renderM2ClientsTable(searchTerm = '') {
     }
 
     cachedClients.forEach(c => {
-      const isSubActive = (c.activeSubStatus || '').toLowerCase() === 'active';
+      const subStatus = (c.activeSubStatus || '').toLowerCase();
+      let badgeClass = 'badge-expired';
+      if (subStatus === 'active') {
+        badgeClass = 'badge-active';
+      } else if (subStatus === 'frozen') {
+        badgeClass = 'badge-frozen';
+      } else if (!c.activeSubStatus || subStatus === 'немає' || subStatus === 'none') {
+        badgeClass = 'badge-neutral';
+      }
+
       const hasMedNotes = c.medicalNotes && c.medicalNotes.trim() && !isTrivialMedNotes(c.medicalNotes);
       const row = document.createElement('tr');
       row.innerHTML = `
@@ -406,7 +536,7 @@ export async function renderM2ClientsTable(searchTerm = '') {
           ` : '<span class="text-xs text-slate-500 font-mono">Немає</span>'}
         </td>
         <td>
-          <span class="badge ${isSubActive ? 'badge-active' : 'badge-expired'}">${c.activeSubStatus || 'Немає'}</span>
+          <span class="badge ${badgeClass}">${c.activeSubStatus || 'Немає'}</span>
         </td>
         <td>
           ${hasMedNotes ? `
@@ -492,11 +622,47 @@ export function checkM3Promo() {
 
 export async function handleM3Sale(e) {
   e.preventDefault();
-  const clientId = parseInt(document.getElementById('m3-client').value);
-  const itemId = parseInt(document.getElementById('m3-item').value);
+  const clientId = parseInt(document.getElementById('m3-client').value, 10);
+  const itemId = parseInt(document.getElementById('m3-item').value, 10);
   const startDate = document.getElementById('m3-startdate').value;
   const promoCode = document.getElementById('m3-promo').value.trim().toUpperCase() || null;
-  const managerId = parseInt((document.getElementById('m3-staff') || document.getElementById('m3-manager'))?.value || '1');
+
+  const today = new Date().toISOString().split('T')[0];
+  if (startDate < today) {
+    showToast('Дата початку дії абонемента не може бути в минулому!', 'warning');
+    return;
+  }
+
+  const client = (cachedClients || []).find(c => c.clientId === clientId);
+  const activeSubStatus = client?.activeSubStatus || null;
+  const rawSubEndDate = client?.activeSubEndDate || null;
+  const isSubActiveOrFrozen = (activeSubStatus === 'Active' || activeSubStatus === 'Frozen');
+
+  let activeSubEndDate = null;
+  if (isSubActiveOrFrozen && rawSubEndDate) {
+    const m = String(rawSubEndDate).trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) {
+      activeSubEndDate = `${m[1]}-${m[2]}-${m[3]}`;
+    }
+  }
+
+  if (activeSubEndDate && activeSubEndDate >= today) {
+    const parts = activeSubEndDate.split('-');
+    const endDateObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    const nowD = new Date();
+    const todayObj = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate());
+    const daysUntilEnd = Math.round((endDateObj.getTime() - todayObj.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (daysUntilEnd > 7) {
+      showToast(`У клієнта є діючий абонемент до ${activeSubEndDate}. Оформлення можливе не раніше ніж за 7 днів до його завершення!`, 'warning');
+      return;
+    }
+
+    if (startDate <= activeSubEndDate) {
+      showToast('Дата початку нового абонемента не може перетинатися з діючим абонементом (діє до ' + activeSubEndDate + ')!', 'warning');
+      return;
+    }
+  }
 
   if (promoCode) {
     const promo = findPromo(promoCode);
@@ -513,7 +679,7 @@ export async function handleM3Sale(e) {
       itemId,
       startDate,
       promoCode,
-      managerId
+      managerId: null
     });
 
     showToast(`Абонемент успішно оформлено! Чек #${res.saleId} (M3)`, 'success');
@@ -525,14 +691,493 @@ export async function handleM3Sale(e) {
   }
 }
 
-export async function handleM5Booking(e) {
-  e.preventDefault();
-  const clientId = parseInt(document.getElementById('m5-client').value);
-  const instanceId = parseInt(document.getElementById('m5-instance')?.value || '1');
+// Helpers for M5 Schedule & Dates
+function getM5Monday(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function formatM5DateDisplay(d) {
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}.${mm}.${yyyy}`;
+}
+
+function formatM5IsoDate(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatM5TimeRange(startTimeStr, durationMinutes) {
+  if (!startTimeStr) return '—';
+  const parts = startTimeStr.split(':');
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  const startH = String(h).padStart(2, '0');
+  const startM = String(m).padStart(2, '0');
+  const dur = parseInt(durationMinutes, 10) || 60;
+  const totalM = h * 60 + m + dur;
+  const endH = String(Math.floor(totalM / 60) % 24).padStart(2, '0');
+  const endM = String(totalM % 60).padStart(2, '0');
+  return `${startH}:${startM} – ${endH}:${endM}`;
+}
+
+function isM5ClassInPast(classDateStr, startTimeStr) {
+  if (!classDateStr) return false;
+  const time = startTimeStr ? (startTimeStr.length === 5 ? startTimeStr + ':00' : startTimeStr) : '00:00:00';
+  const classDt = new Date(`${classDateStr.substring(0, 10)}T${time}`);
+  if (isNaN(classDt.getTime())) return false;
+  return classDt < new Date();
+}
+
+export function updateM5ClientPreview(val) {
+  const sel = document.getElementById('m5-client');
+  const clientId = parseInt(val || sel?.value || '0', 10);
+  const pill = document.getElementById('m5-sub-status-pill');
+  if (!pill) return;
+
+  if (!clientId || isNaN(clientId)) {
+    pill.textContent = 'Клієнта не обрано';
+    pill.className = 'badge badge-neutral text-xs font-mono';
+    return;
+  }
+
+  const client = cachedClients.find(c => c.clientId === clientId);
+  if (!client) {
+    pill.textContent = 'Не знайдено';
+    pill.className = 'badge badge-expired text-xs font-mono';
+    return;
+  }
+
+  const status = (client.activeSubStatus || 'None').toLowerCase();
+  if (status === 'active') {
+    pill.textContent = `Active (${client.activeSubName || 'Абонемент'})`;
+    pill.className = 'badge badge-active text-xs font-mono';
+  } else if (status === 'frozen') {
+    pill.textContent = `Frozen (${client.activeSubName || 'Абонемент'})`;
+    pill.className = 'badge badge-cyan text-xs font-mono';
+  } else if (status === 'expired') {
+    pill.textContent = 'Expired (Прострочено)';
+    pill.className = 'badge badge-expired text-xs font-mono';
+  } else {
+    pill.textContent = 'None (Без абонемента)';
+    pill.className = 'badge badge-expired text-xs font-mono';
+  }
+}
+
+export function checkM5Promo() {
+  const input = document.getElementById('m5-promo');
+  const badge = document.getElementById('m5-promo-status-badge');
+  const code = input?.value.trim().toUpperCase() || '';
+  if (!code) {
+    showToast('Введіть промокод для перевірки', 'warning');
+    if (badge) badge.innerHTML = '';
+    return;
+  }
+
+  const promo = findPromo(code);
+  const now = new Date().toISOString().split('T')[0];
+
+  if (!promo) {
+    showToast('Промокод не знайдено або термін його дії закінчився', 'warning');
+    if (badge) badge.innerHTML = `<span class="text-rose-400"><i class="fa-solid fa-circle-xmark mr-1"></i> Недійсний промокод</span>`;
+    return;
+  }
+
+  if (promo.expiryDate && promo.expiryDate < now) {
+    showToast('Термін дії промокоду вичерпано!', 'warning');
+    if (badge) badge.innerHTML = `<span class="text-amber-400"><i class="fa-solid fa-clock-rotate-left mr-1"></i> Термін вичерпано</span>`;
+    return;
+  }
+
+  showToast(`Промокод ${code} на ${promo.discountPercent}% успішно застосовано!`, 'success');
+  if (badge) badge.innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-circle-check mr-1"></i> Знижка ${promo.discountPercent}% діє</span>`;
+}
+
+export async function loadM5Schedule() {
+  try {
+    const classes = await clientApi.getAvailableGroupClasses();
+    cachedM5GroupClasses = classes || [];
+    renderM5Schedule();
+  } catch (err) {
+    console.warn('Could not load group classes for M5:', err);
+    cachedM5GroupClasses = [];
+    renderM5Schedule();
+  }
+}
+
+export function handleM5PrevWeek() {
+  if (currentM5WeekOffset <= 0) return;
+  currentM5WeekOffset--;
+  renderM5Schedule();
+}
+
+export function handleM5NextWeek() {
+  if (currentM5WeekOffset >= 1) return;
+  currentM5WeekOffset++;
+  renderM5Schedule();
+}
+
+export function handleM5TodayWeek() {
+  currentM5WeekOffset = 0;
+  renderM5Schedule();
+}
+
+export function renderM5Schedule() {
+  const gridContainer = document.getElementById('m5-schedule-grid');
+  const weekRangeEl = document.getElementById('m5-week-range');
+  const prevBtn = document.getElementById('m5-prev-week');
+  const nextBtn = document.getElementById('m5-next-week');
+
+  const baseMonday = getM5Monday(new Date());
+  const selectedMonday = new Date(baseMonday);
+  selectedMonday.setDate(selectedMonday.getDate() + currentM5WeekOffset * 7);
+
+  const selectedSunday = new Date(selectedMonday);
+  selectedSunday.setDate(selectedSunday.getDate() + 6);
+
+  if (weekRangeEl) {
+    weekRangeEl.textContent = `${formatM5DateDisplay(selectedMonday)} – ${formatM5DateDisplay(selectedSunday)}`;
+  }
+
+  if (prevBtn) {
+    prevBtn.disabled = currentM5WeekOffset <= 0;
+    if (currentM5WeekOffset <= 0) {
+      prevBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+      prevBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  }
+
+  if (nextBtn) {
+    nextBtn.disabled = currentM5WeekOffset >= 1;
+    if (currentM5WeekOffset >= 1) {
+      nextBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+      nextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  }
+
+  if (!gridContainer) return;
+
+  const DAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayIso = formatM5IsoDate(today);
+
+  gridContainer.innerHTML = '';
+
+  for (let i = 0; i < 7; i++) {
+    const dayDate = new Date(selectedMonday);
+    dayDate.setDate(dayDate.getDate() + i);
+    const dayIso = formatM5IsoDate(dayDate);
+    const dayShort = `${String(dayDate.getDate()).padStart(2, '0')}.${String(dayDate.getMonth() + 1).padStart(2, '0')}`;
+    const isToday = dayIso === todayIso;
+
+    // Filter classes for this day
+    const dayClasses = (cachedM5GroupClasses || []).filter(c => {
+      if (!c.classDate) return false;
+      const cDate = typeof c.classDate === 'string' ? c.classDate.substring(0, 10) : '';
+      return cDate === dayIso;
+    });
+
+    dayClasses.sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')));
+
+    let cardsHtml = '';
+    if (dayClasses.length === 0) {
+      cardsHtml = `
+        <div class="flex-1 flex flex-col items-center justify-center py-8 text-center text-slate-500 text-xs italic">
+          <i class="fa-regular fa-calendar-xmark text-slate-600 text-lg mb-1.5"></i>
+          <span>Немає занять</span>
+        </div>
+      `;
+    } else {
+      cardsHtml = `<div class="space-y-2.5 flex-1">` + dayClasses.map(gc => {
+        const inPast = isM5ClassInPast(gc.classDate, gc.startTime);
+        const isFull = gc.availableSpots <= 0;
+        const canBook = !inPast && !isFull;
+
+        let badgeHtml = '';
+        let btnHtml = '';
+        let cardClasses = 'p-2.5 rounded-xl border transition flex flex-col justify-between ';
+
+        if (isFull) {
+          badgeHtml = `<span class="badge badge-expired text-[10px] px-1.5 py-0.5 whitespace-nowrap shrink-0"><i class="fa-solid fa-ban mr-1"></i> Місць немає</span>`;
+          btnHtml = `<button type="button" disabled class="w-full mt-2.5 py-1.5 text-[11px] font-medium text-slate-400 bg-slate-800/40 rounded-lg border border-subtle cursor-not-allowed">Місць немає</button>`;
+          cardClasses += 'border-subtle bg-void/50 opacity-75';
+        } else if (inPast) {
+          badgeHtml = `<span class="badge badge-neutral text-[10px] px-1.5 py-0.5 whitespace-nowrap shrink-0"><i class="fa-solid fa-clock-rotate-left mr-1"></i> Минуло</span>`;
+          btnHtml = `<button type="button" disabled class="w-full mt-2.5 py-1.5 text-[11px] font-medium text-slate-500 bg-slate-800/30 rounded-lg border border-subtle cursor-not-allowed">Минуло</button>`;
+          cardClasses += 'border-subtle bg-void/40 opacity-60';
+        } else {
+          badgeHtml = `<span class="badge badge-cyan text-[10px] font-mono px-1.5 py-0.5 whitespace-nowrap shrink-0">Вільно: ${gc.availableSpots}/${gc.maxCapacity}</span>`;
+          btnHtml = `<button type="button" onclick="event.stopPropagation(); bookM5ClassForClient(${gc.instanceId})" class="btn btn-primary btn-xs w-full py-1.5 mt-2.5 font-bold text-[11px] flex items-center justify-center gap-1 font-heading"><i class="fa-solid fa-user-plus text-[10px]"></i> Записати</button>`;
+          cardClasses += 'border-subtle bg-void hover:border-cyan-500/50 hover:bg-slate-800/40 cursor-pointer shadow-sm group';
+        }
+
+        const timeRange = formatM5TimeRange(gc.startTime, gc.durationMinutes);
+
+        return `
+          <div class="${cardClasses}" ${canBook ? `onclick="bookM5ClassForClient(${gc.instanceId})"` : ''}>
+            <div>
+              <div class="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
+                <span class="text-xs font-bold text-white font-mono flex items-center gap-1 whitespace-nowrap">
+                  <i class="fa-regular fa-clock text-cyan-400 text-[10px]"></i> ${timeRange}
+                </span>
+                ${badgeHtml}
+              </div>
+              <h5 class="font-bold text-xs text-white group-hover:text-cyan-300 transition-colors line-clamp-2 leading-tight mb-1" title="${escapeHtml(gc.title)}">
+                ${escapeHtml(gc.title)}
+              </h5>
+              <div class="text-[11px] text-slate-300 flex items-start gap-1.5 mt-1 leading-snug" title="Тренер: ${escapeHtml(gc.coachName)}">
+                <i class="fa-solid fa-user-tie text-[10px] text-cyan-400/80 mt-0.5 shrink-0"></i>
+                <span class="line-clamp-2 break-words">${escapeHtml(gc.coachName)}</span>
+              </div>
+              <div class="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5" title="Зал: ${escapeHtml(gc.hallName)}">
+                <i class="fa-solid fa-location-dot text-[10px] text-slate-500 shrink-0"></i>
+                <span class="truncate">${escapeHtml(gc.hallName)}</span>
+              </div>
+            </div>
+            ${btnHtml}
+          </div>
+        `;
+      }).join('') + `</div>`;
+    }
+
+    const colEl = document.createElement('div');
+    colEl.className = `flex flex-col rounded-xl border ${isToday ? 'border-cyan-500/60 bg-cyan-950/20 ring-1 ring-cyan-500/30' : 'border-subtle bg-surface/60'} p-3 min-h-[300px] min-w-[155px]`;
+    colEl.innerHTML = `
+      <div class="flex flex-col items-center pb-2 mb-2 border-b ${isToday ? 'border-cyan-500/30' : 'border-subtle'}">
+        ${isToday ? '<span class="badge badge-cyan text-[10px] px-2 py-0.5 mb-1 shadow-sm font-sans">Сьогодні</span>' : '<span class="text-[10px] text-slate-500 mb-1 opacity-0 select-none">-</span>'}
+        <div class="flex items-center gap-1.5">
+          <span class="font-bold text-sm ${isToday ? 'text-cyan-400' : 'text-white'} font-heading">${DAY_NAMES[i]}</span>
+          <span class="text-xs ${isToday ? 'text-cyan-300 font-semibold' : 'text-slate-400'} font-mono">${dayShort}</span>
+        </div>
+      </div>
+      ${cardsHtml}
+    `;
+    gridContainer.appendChild(colEl);
+  }
+}
+
+const BASE_M5_PRICE = 200.00;
+const BASE_M6_PRICE = 400.00;
+
+export function updateM5Price() {
+  const display = document.getElementById('modal-m5-price-display');
+  const promoInput = document.getElementById('modal-m5-promo')?.value.trim().toUpperCase() || '';
+  const promoBadge = document.getElementById('modal-m5-promo-badge');
+  const confirmBtn = document.getElementById('modal-m5-confirm-btn');
+
+  let price = BASE_M5_PRICE;
+  const promo = findPromo(promoInput);
+  const now = new Date().toISOString().split('T')[0];
+  if (promo && !(promo.expiryDate && promo.expiryDate < now)) {
+    price = (BASE_M5_PRICE * (100 - promo.discountPercent)) / 100;
+    if (promoBadge) {
+      promoBadge.innerHTML = `<span class="badge badge-active text-xs">Знижка ${promo.discountPercent}% застосована!</span>`;
+      promoBadge.classList.remove('hidden');
+    }
+  } else {
+    if (promoBadge) {
+      promoBadge.classList.add('hidden');
+    }
+  }
+  if (display) {
+    display.textContent = `${price.toFixed(2)} грн`;
+  }
+  if (confirmBtn) {
+    confirmBtn.innerHTML = `<i class="fa-solid fa-credit-card mr-1"></i> Оплатити та записати клієнта (${price.toFixed(2)} грн)`;
+  }
+}
+
+export function applyM5Promo() {
+  const code = document.getElementById('modal-m5-promo')?.value.trim().toUpperCase();
+  if (!code) {
+    showToast('Введіть промокод', 'warning');
+    updateM5Price();
+    return;
+  }
+
+  const promo = findPromo(code);
+  const now = new Date().toISOString().split('T')[0];
+
+  if (!promo) {
+    showToast('Промокод не знайдено або термін його дії закінчився', 'warning');
+    updateM5Price();
+    return;
+  }
+
+  if (promo.expiryDate && promo.expiryDate < now) {
+    showToast('Термін дії промокоду вичерпано!', 'warning');
+    updateM5Price();
+    return;
+  }
+
+  showToast(`Промокод ${code} на ${promo.discountPercent}% успішно застосовано!`, 'success');
+  updateM5Price();
+}
+
+export function closeM5Modal() {
+  const modal = document.getElementById('modal-m5-booking');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.classList.add('hidden');
+  }
+}
+
+export async function bookM5ClassForClient(instanceId) {
+  const clientSel = document.getElementById('m5-client');
+  const clientId = parseInt(clientSel?.value || '0', 10);
+  const topPromo = document.getElementById('m5-promo')?.value.trim().toUpperCase() || '';
+
+  if (!clientId || isNaN(clientId)) {
+    showToast('Будь ласка, оберіть клієнта у верхньому блоці!', 'warning');
+    clientSel?.focus();
+    return;
+  }
+
+  const client = cachedClients.find(c => c.clientId === clientId);
+  const clientName = client ? `${client.fullName} (${client.phone})` : `Клієнт ID #${clientId}`;
+  const gc = (cachedM5GroupClasses || []).find(c => c.instanceId === instanceId);
+
+  if (!gc) {
+    showToast('Інформацію про заняття не знайдено', 'warning');
+    return;
+  }
+
+  const modal = document.getElementById('modal-m5-booking');
+  if (!modal) return;
+
+  const instInput = document.getElementById('modal-m5-instance-id');
+  if (instInput) instInput.value = gc.instanceId;
+
+  const clientInput = document.getElementById('modal-m5-client-id');
+  if (clientInput) clientInput.value = clientId;
+
+  const clientNameEl = document.getElementById('modal-m5-client-name');
+  if (clientNameEl) clientNameEl.textContent = clientName;
+
+  const clientSubNameEl = document.getElementById('modal-m5-client-sub-name');
+  if (clientSubNameEl) {
+    clientSubNameEl.textContent = client?.activeSubName || 'Без активного абонемента';
+  }
+
+  const clientSubEl = document.getElementById('modal-m5-client-sub');
+  if (clientSubEl) {
+    const status = (client?.activeSubStatus || '').toUpperCase();
+    if (status === 'ACTIVE') {
+      clientSubEl.textContent = 'ACTIVE';
+      clientSubEl.className = 'badge badge-active text-xs font-mono shrink-0';
+    } else if (status === 'FROZEN') {
+      clientSubEl.textContent = 'FROZEN';
+      clientSubEl.className = 'badge badge-frozen text-xs font-mono shrink-0';
+    } else {
+      clientSubEl.textContent = status || 'НЕМАЄ';
+      clientSubEl.className = 'badge badge-expired text-xs font-mono shrink-0';
+    }
+  }
+
+  const titleEl = document.getElementById('modal-m5-title');
+  if (titleEl) {
+    titleEl.textContent = gc.title;
+    titleEl.style.color = '#ffffff';
+  }
+
+  const actEl = document.getElementById('modal-m5-activity-type');
+  if (actEl) actEl.textContent = 'Групове тренування';
+
+  const dateEl = document.getElementById('modal-m5-date');
+  if (dateEl) {
+    const parts = (gc.classDate || '').substring(0, 10).split('-');
+    if (parts.length === 3) {
+      dateEl.textContent = `${parts[2]}.${parts[1]}.${parts[0]}`;
+    } else {
+      dateEl.textContent = gc.classDate;
+    }
+  }
+
+  const timeEl = document.getElementById('modal-m5-time');
+  if (timeEl) {
+    const range = formatM5TimeRange(gc.startTime, gc.durationMinutes);
+    timeEl.textContent = `${range} (${gc.durationMinutes || 60} хв)`;
+  }
+
+  const coachEl = document.getElementById('modal-m5-coach');
+  if (coachEl) coachEl.textContent = `Тренер: ${gc.coachName}`;
+
+  const hallEl = document.getElementById('modal-m5-hall');
+  if (hallEl) hallEl.textContent = `Зал: ${gc.hallName}`;
+
+  const spotsEl = document.getElementById('modal-m5-spots');
+  if (spotsEl) {
+    spotsEl.textContent = `Вільно: ${gc.availableSpots} / ${gc.maxCapacity}`;
+    spotsEl.className = gc.availableSpots > 0 ? 'badge badge-active text-xs font-mono' : 'badge badge-expired text-xs font-mono';
+  }
+
+  // Pre-fill promo from top block if available
+  const promoInput = document.getElementById('modal-m5-promo');
+  if (promoInput) promoInput.value = topPromo;
+
+  updateM5Price();
+
+  modal.classList.remove('hidden');
+  modal.classList.add('active');
+}
+
+export async function confirmM5GroupBooking() {
+  const instanceId = parseInt(document.getElementById('modal-m5-instance-id')?.value || '0', 10);
+  const clientId = parseInt(document.getElementById('modal-m5-client-id')?.value || '0', 10);
+  const promoCode = document.getElementById('modal-m5-promo')?.value.trim().toUpperCase() || '';
+
+  if (!clientId) {
+    showToast('Клієнта не вказано!', 'warning');
+    return;
+  }
+  if (!instanceId) {
+    showToast('Будь ласка, оберіть заняття!', 'warning');
+    return;
+  }
+
+  const confirmBtn = document.getElementById('modal-m5-confirm-btn');
+  if (confirmBtn) confirmBtn.disabled = true;
 
   try {
-    await managerApi.bookGroupClass(clientId, instanceId);
-    showToast('Клієнта успішно записано на групове тренування! (M5)', 'success');
+    const res = await managerApi.bookGroupClass(clientId, instanceId, promoCode);
+    showToast(res.message || 'Клієнта успішно записано на групове тренування! (M5)', 'success');
+    closeM5Modal();
+    await loadM5Schedule();
+    await renderM2ClientsTable();
+  } catch (err) {
+    showToast(`Помилка запису: ${err.message}`, 'danger');
+  } finally {
+    if (confirmBtn) confirmBtn.disabled = false;
+  }
+}
+
+export async function handleM5Booking(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const clientId = parseInt(document.getElementById('m5-client')?.value || '0', 10);
+  const instanceId = parseInt(document.getElementById('m5-instance')?.value || '1', 10);
+  const promoCode = document.getElementById('m5-promo')?.value.trim().toUpperCase() || '';
+
+  if (!clientId) {
+    showToast('Будь ласка, оберіть клієнта!', 'warning');
+    return;
+  }
+
+  try {
+    const res = await managerApi.bookGroupClass(clientId, instanceId, promoCode);
+    showToast(res.message || 'Клієнта успішно записано на групове тренування! (M5)', 'success');
+    await loadM5Schedule();
+    await renderM2ClientsTable();
     switchManagerTab('m2');
   } catch (err) {
     showToast(`Помилка запису: ${err.message}`, 'danger');
@@ -540,28 +1185,87 @@ export async function handleM5Booking(e) {
 }
 
 export function checkM6MedicalAlert() {
-  const clientId = parseInt(document.getElementById('m6-client')?.value);
-  const alertEl = document.getElementById('m6-med-alert');
-  if (!alertEl || !clientId) return;
+  // Deprecated/no-op per TICKET-029: m6-med-warning was removed to keep manager M6 form clean
+}
 
-  const client = cachedClients.find(c => c.clientId === clientId);
-  if (client && client.medicalNotes) {
-    alertEl.classList.remove('hidden');
-    alertEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-1"></i> Увага тренеру: ${client.medicalNotes}`;
+export function updateM6Price() {
+  const display = document.getElementById('m6-price-display');
+  const promoInput = document.getElementById('m6-promo')?.value.trim().toUpperCase() || '';
+  const promoBadge = document.getElementById('m6-promo-badge');
+  const submitBtn = document.getElementById('m6-submit-btn');
+
+  let price = BASE_M6_PRICE;
+  const promo = findPromo(promoInput);
+  const now = new Date().toISOString().split('T')[0];
+  if (promo && !(promo.expiryDate && promo.expiryDate < now)) {
+    price = (BASE_M6_PRICE * (100 - promo.discountPercent)) / 100;
+    if (promoBadge) {
+      promoBadge.innerHTML = `<span class="badge badge-active text-xs">Знижка ${promo.discountPercent}% застосована!</span>`;
+      promoBadge.classList.remove('hidden');
+    }
   } else {
-    alertEl.classList.add('hidden');
+    if (promoBadge) {
+      promoBadge.classList.add('hidden');
+    }
   }
+  if (display) {
+    display.textContent = `${price.toFixed(2)} грн`;
+  }
+  if (submitBtn) {
+    submitBtn.innerHTML = `<i class="fa-solid fa-credit-card mr-1"></i> Оформити персональне (${price.toFixed(2)} грн)`;
+  }
+}
+
+export function applyM6Promo() {
+  const code = document.getElementById('m6-promo')?.value.trim().toUpperCase();
+  if (!code) {
+    showToast('Введіть промокод', 'warning');
+    updateM6Price();
+    return;
+  }
+
+  const promo = findPromo(code);
+  const now = new Date().toISOString().split('T')[0];
+
+  if (!promo) {
+    showToast('Промокод не знайдено або термін його дії закінчився', 'warning');
+    updateM6Price();
+    return;
+  }
+
+  if (promo.expiryDate && promo.expiryDate < now) {
+    showToast('Термін дії промокоду вичерпано!', 'warning');
+    updateM6Price();
+    return;
+  }
+
+  showToast(`Промокод ${code} на ${promo.discountPercent}% успішно застосовано!`, 'success');
+  updateM6Price();
+}
+
+export function checkM6Promo() {
+  applyM6Promo();
 }
 
 export async function handleM6Booking(e) {
   e.preventDefault();
-  const clientId = parseInt(document.getElementById('m6-client').value);
-  const coachId = parseInt(document.getElementById('m6-coach').value);
-  const hallId = parseInt(document.getElementById('m6-hall').value);
+  const clientId = parseInt(document.getElementById('m6-client').value, 10);
+  const coachId = parseInt(document.getElementById('m6-coach').value, 10);
+  const hallId = parseInt(document.getElementById('m6-hall').value, 10);
   const dateTime = document.getElementById('m6-datetime').value;
+  const promoCode = document.getElementById('m6-promo')?.value.trim().toUpperCase() || '';
+
+  if (!dateTime) {
+    showToast('Вкажіть дату та час тренування!', 'warning');
+    return;
+  }
+  if (new Date(dateTime) <= new Date()) {
+    showToast('Дата та час персонального тренування не можуть бути в минулому!', 'warning');
+    return;
+  }
 
   try {
-    const res = await managerApi.bookPersonalTraining(clientId, coachId, hallId, dateTime);
+    const res = await managerApi.bookPersonalTraining(clientId, coachId, hallId, dateTime, promoCode);
     showToast(`Персональне тренування #${res.personalId} успішно призначено! (M6)`, 'success');
     switchManagerTab('m2');
   } catch (err) {
@@ -585,6 +1289,16 @@ export async function handleM7Freeze(e) {
     return;
   }
 
+  const today = new Date().toISOString().split('T')[0];
+  if (startDate < today) {
+    showToast('Дата початку заморозки не може бути в минулому!', 'warning');
+    return;
+  }
+  if (endDate <= startDate) {
+    showToast('Дата закінчення заморозки повинна бути пізнішою за дату початку!', 'warning');
+    return;
+  }
+
   try {
     await managerApi.freezeSubscription({
       clientSubId,
@@ -604,6 +1318,14 @@ export function toggleM8NewTime(action) {
   const container = document.getElementById('m8-newtime-container');
   if (action === 'Reschedule') {
     if (container) container.classList.remove('hidden');
+    const nowIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    const m8Input = document.getElementById('m8-newtime');
+    if (m8Input) {
+      m8Input.setAttribute('min', nowIso);
+      if (m8Input._flatpickr) {
+        m8Input._flatpickr.set('minDate', nowIso);
+      }
+    }
   } else {
     if (container) container.classList.add('hidden');
   }
@@ -621,6 +1343,17 @@ export async function handleM8Action(e) {
   if (!bookingId) {
     showToast('Оберіть тренування зі списку', 'warning');
     return;
+  }
+
+  if (action === 'Reschedule') {
+    if (!newDateTime) {
+      showToast('Вкажіть нову дату та час тренування', 'warning');
+      return;
+    }
+    if (new Date(newDateTime) <= new Date()) {
+      showToast('Новий час тренування не може бути в минулому!', 'warning');
+      return;
+    }
   }
 
   try {

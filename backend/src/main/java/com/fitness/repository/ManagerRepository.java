@@ -165,7 +165,34 @@ public class ManagerRepository {
      * M3: Sell / extend subscription
      */
     public Integer sellSubscription(SellSubscriptionRequest req) {
+        if (req.startDate() != null && req.startDate().isBefore(LocalDate.now())) {
+            throw new BusinessLogicException("Дата початку дії абонемента не може бути в минулому.");
+        }
+
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+
+        List<LocalDate> activeEnds = jdbc.query(
+            """
+            SELECT cs.EndDate FROM ClientSubscriptions cs
+            JOIN Sales s ON cs.ID_Sale = s.ID_Sale
+            WHERE s.ID_Client = ?
+              AND cs.CurrentStatus IN ('Active', 'Frozen')
+              AND cs.EndDate >= CURRENT_DATE
+            ORDER BY cs.EndDate DESC LIMIT 1
+            """,
+            (rs, rowNum) -> rs.getDate("EndDate").toLocalDate(),
+            req.clientId()
+        );
+        if (!activeEnds.isEmpty()) {
+            LocalDate activeEnd = activeEnds.get(0);
+            long daysUntilEnd = ChronoUnit.DAYS.between(LocalDate.now(), activeEnd);
+            if (daysUntilEnd > 7) {
+                throw new BusinessLogicException("Оформити новий абонемент можна не раніше ніж за 7 днів до закінчення діючого (доступно з " + activeEnd.minusDays(7) + ").");
+            }
+            if (req.startDate() != null && !req.startDate().isAfter(activeEnd)) {
+                throw new BusinessLogicException("Дата початку нового абонемента (" + req.startDate() + ") не може перетинатися з діючим абонементом (діє до " + activeEnd + ").");
+            }
+        }
 
         Integer managerId = req.managerId();
         if (managerId == null) {
@@ -261,25 +288,32 @@ public class ManagerRepository {
     /**
      * M5: Book client into group class
      */
-    public void bookGroupClass(Integer clientId, Integer instanceId) {
+    public void bookGroupClass(Integer clientId, Integer instanceId, String promoCode) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        jdbc.update("CALL sp_book_group_class(?, NULL, ?, NULL)", instanceId, clientId);
+        String promo = (promoCode != null && !promoCode.isBlank()) ? promoCode.trim() : null;
+        jdbc.update("CALL sp_book_group_class(?, NULL, ?, ?)", instanceId, clientId, promo);
     }
 
     /**
      * M6: Book client into personal training
      */
-    public Integer bookPersonalTraining(Integer clientId, Integer coachId, Integer hallId, LocalDateTime dateTime) {
+    public Integer bookPersonalTraining(Integer clientId, Integer coachId, Integer hallId, LocalDateTime dateTime, String promoCode) {
+        if (dateTime == null || dateTime.isBefore(LocalDateTime.now())) {
+            throw new BusinessLogicException("Дата та час персонального тренування не можуть бути в минулому.");
+        }
+
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         Integer managerId = getDefaultClientManagerId(jdbc);
+        String promo = (promoCode != null && !promoCode.isBlank()) ? promoCode.trim() : null;
 
         return jdbc.queryForObject(
-                "SELECT personal_id FROM sp_book_personal_training(?, ?, ?, ?, NULL, ?)",
+                "SELECT personal_id FROM sp_book_personal_training(?, ?, ?, ?, ?, ?)",
                 Integer.class,
                 clientId,
                 coachId,
                 hallId,
                 dateTime,
+                promo,
                 managerId
         );
     }
@@ -288,21 +322,27 @@ public class ManagerRepository {
      * M7: Freeze subscription
      */
     public void freezeSubscription(FreezeRequest req) {
+        if (req.startDate() == null || req.startDate().isBefore(LocalDate.now())) {
+            throw new BusinessLogicException("Дата початку заморозки не може бути в минулому.");
+        }
+        if (req.endDate() == null || !req.endDate().isAfter(req.startDate())) {
+            throw new BusinessLogicException("Дата закінчення заморозки повинна бути пізнішою за дату початку.");
+        }
+
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
 
         long freezeDays = ChronoUnit.DAYS.between(req.startDate(), req.endDate());
-        if (freezeDays <= 0) throw new BusinessLogicException("Невірний діапазон дат заморозки.");
 
         List<Object[]> rows = jdbc.query(
                 "SELECT cs.ID_ClientSub, cs.RemainingFreezingDays, cs.EndDate FROM ClientSubscriptions cs " +
-                "LEFT JOIN Sales s ON cs.ID_Sale = s.ID_Sale " +
+                "JOIN Sales s ON cs.ID_Sale = s.ID_Sale " +
                 "WHERE cs.ID_ClientSub = ? OR (s.ID_Client = ? AND cs.CurrentStatus = 'Active') " +
-                "ORDER BY (cs.ID_ClientSub = ?) DESC, cs.EndDate DESC LIMIT 1 FOR UPDATE",
+                "ORDER BY (cs.ID_ClientSub = ?) DESC, cs.EndDate DESC LIMIT 1 FOR UPDATE OF cs",
                 (rs, rowNum) -> new Object[]{rs.getInt("ID_ClientSub"), rs.getInt("RemainingFreezingDays"), rs.getDate("EndDate").toLocalDate()},
                 req.clientSubId(), req.clientSubId(), req.clientSubId()
         );
 
-        if (rows.isEmpty()) throw new BusinessLogicException("Активний абонемент для вказаного клієнта не знайдено.");
+        if (rows.isEmpty()) throw new BusinessLogicException("У клієнта немає активного абонемента для заморозки.");
         int targetSubId = (int) rows.get(0)[0];
         int remaining = (int) rows.get(0)[1];
         LocalDate endDate = (LocalDate) rows.get(0)[2];
@@ -330,6 +370,10 @@ public class ManagerRepository {
                 jdbc.update("INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp, Status) VALUES (?, 'Cancel', ?, ?, CURRENT_TIMESTAMP, 'Approved')",
                         req.bookingId(), req.reason(), req.initiator() != null ? req.initiator() : "Manager");
             } else if ("Reschedule".equalsIgnoreCase(req.action())) {
+                if (req.newDateTime() == null || req.newDateTime().isBefore(LocalDateTime.now())) {
+                    throw new BusinessLogicException("Новий час тренування не може бути в минулому.");
+                }
+
                 LocalDateTime oldTime = jdbc.queryForObject(
                         "SELECT TrainingDateTime FROM PersonalTrainings WHERE ID_Personal = ?", LocalDateTime.class, req.bookingId()
                 );
@@ -491,6 +535,10 @@ public class ManagerRepository {
                 throw new BusinessLogicException("Для запиту на перенесення не вказано новий час у PT_TimeChangeDetails.");
             }
             LocalDateTime newDateTime = timeRows.get(0);
+
+            if (newDateTime.isBefore(LocalDateTime.now())) {
+                throw new BusinessLogicException("Неможливо погодити запит: запропонований час перенесення вже минув.");
+            }
 
             // Оновлення тренування (тригери БД перевірять зайнятість тренера та клієнта)
             jdbc.update("UPDATE PersonalTrainings SET TrainingDateTime = ? WHERE ID_Personal = ?", newDateTime, personalId);

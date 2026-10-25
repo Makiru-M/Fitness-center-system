@@ -77,9 +77,10 @@ public class ManagerController {
     @PostMapping("/bookings/group")
     public ResponseEntity<Map<String, String>> bookGroupClass(
             @RequestParam("clientId") Integer clientId,
-            @RequestParam("instanceId") Integer instanceId
+            @RequestParam("instanceId") Integer instanceId,
+            @RequestParam(value = "promoCode", required = false) String promoCode
     ) {
-        managerRepository.bookGroupClass(clientId, instanceId);
+        managerRepository.bookGroupClass(clientId, instanceId, promoCode);
         return ResponseEntity.ok(Map.of("message", "Клієнта успішно записано на групове заняття."));
     }
 
@@ -91,9 +92,10 @@ public class ManagerController {
             @RequestParam("clientId") Integer clientId,
             @RequestParam("coachId") Integer coachId,
             @RequestParam("hallId") Integer hallId,
-            @RequestParam("dateTime") LocalDateTime dateTime
+            @RequestParam("dateTime") LocalDateTime dateTime,
+            @RequestParam(value = "promoCode", required = false) String promoCode
     ) {
-        Integer ptId = managerRepository.bookPersonalTraining(clientId, coachId, hallId, dateTime);
+        Integer ptId = managerRepository.bookPersonalTraining(clientId, coachId, hallId, dateTime, promoCode);
         return ResponseEntity.ok(Map.of(
                 "personalId", ptId,
                 "message", "Персональне тренування успішно призначено."

@@ -39,14 +39,16 @@ export const managerApi = {
     });
   },
 
-  bookGroupClass(clientId, instanceId) {
-    return apiFetch(`/manager/bookings/group?clientId=${clientId}&instanceId=${instanceId}`, {
+  bookGroupClass(clientId, instanceId, promoCode = '') {
+    const p = promoCode ? `&promoCode=${encodeURIComponent(promoCode)}` : '';
+    return apiFetch(`/manager/bookings/group?clientId=${clientId}&instanceId=${instanceId}${p}`, {
       method: 'POST'
     });
   },
 
-  bookPersonalTraining(clientId, coachId, hallId, dateTime) {
-    return apiFetch(`/manager/bookings/personal?clientId=${clientId}&coachId=${coachId}&hallId=${hallId}&dateTime=${encodeURIComponent(dateTime)}`, {
+  bookPersonalTraining(clientId, coachId, hallId, dateTime, promoCode = '') {
+    const p = promoCode ? `&promoCode=${encodeURIComponent(promoCode)}` : '';
+    return apiFetch(`/manager/bookings/personal?clientId=${clientId}&coachId=${coachId}&hallId=${hallId}&dateTime=${encodeURIComponent(dateTime)}${p}`, {
       method: 'POST'
     });
   },

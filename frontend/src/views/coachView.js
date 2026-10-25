@@ -46,16 +46,11 @@ export function getActiveCoach() {
 
 export async function renderCoachSchedule() {
   const tbody = document.getElementById('coach-schedule-tbody');
-  const badgeEl = document.getElementById('coach-active-name-badge');
   if (!tbody) return;
 
   try {
     const items = await coachApi.getSchedule();
     cachedCoachSchedule = items || [];
-
-    if (badgeEl && AppState.currentUser) {
-      badgeEl.innerHTML = `<i class="fa-solid fa-stopwatch mr-1"></i> Тренер: ${AppState.currentUser.name || 'Активний тренер'}`;
-    }
 
     tbody.innerHTML = '';
     if (!cachedCoachSchedule.length) {
@@ -377,6 +372,14 @@ export function toggleC5NewTime(type) {
   const container = document.getElementById('c5-newtime-container');
   if (type === 'Reschedule') {
     if (container) container.classList.remove('hidden');
+    const nowIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    const c5Input = document.getElementById('c5-newtime');
+    if (c5Input) {
+      c5Input.setAttribute('min', nowIso);
+      if (c5Input._flatpickr) {
+        c5Input._flatpickr.set('minDate', nowIso);
+      }
+    }
   } else {
     if (container) container.classList.add('hidden');
   }
@@ -394,6 +397,17 @@ export async function handleC5Request(e) {
   }
 
   const newTime = type === 'Reschedule' ? document.getElementById('c5-newtime').value : null;
+
+  if (type === 'Reschedule') {
+    if (!newTime) {
+      showToast('Вкажіть новий час для перенесення', 'warning');
+      return;
+    }
+    if (new Date(newTime) <= new Date()) {
+      showToast('Запропонований час не може бути в минулому!', 'warning');
+      return;
+    }
+  }
 
   try {
     await coachApi.requestScheduleChange({

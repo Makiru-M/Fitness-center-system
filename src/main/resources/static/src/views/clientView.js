@@ -59,6 +59,39 @@ export function switchClientTab(tabId) {
   if (norm === 'cl6' || tabId === 'cl6') {
     populateCl6Options();
   }
+  if (norm === 'cl3' || tabId === 'cl3') {
+    initCl3DateLimits();
+  }
+}
+
+export function initCl3DateLimits() {
+  const today = new Date().toISOString().split('T')[0];
+  const startEl = document.getElementById('cl3-start');
+  const endEl = document.getElementById('cl3-end');
+  if (startEl) {
+    startEl.setAttribute('min', today);
+    if (startEl._flatpickr) {
+      startEl._flatpickr.set('minDate', today);
+    }
+    if (!startEl.dataset.hasMinListener) {
+      startEl.addEventListener('change', () => {
+        if (endEl && startEl.value) {
+          endEl.setAttribute('min', startEl.value);
+          if (endEl._flatpickr) {
+            endEl._flatpickr.set('minDate', startEl.value);
+          }
+        }
+      });
+      startEl.dataset.hasMinListener = 'true';
+    }
+  }
+  if (endEl) {
+    const minEnd = (startEl && startEl.value && startEl.value >= today) ? startEl.value : today;
+    endEl.setAttribute('min', minEnd);
+    if (endEl._flatpickr) {
+      endEl._flatpickr.set('minDate', minEnd);
+    }
+  }
 }
 
 export function getActiveClient() {
@@ -531,6 +564,16 @@ export async function handleCl3Freeze(e) {
   const endStr = document.getElementById('cl3-end').value;
   const reason = document.getElementById('cl3-reason').value.trim();
 
+  const today = new Date().toISOString().split('T')[0];
+  if (startStr < today) {
+    showToast('Дата початку заморозки не може бути в минулому!', 'warning');
+    return;
+  }
+  if (endStr <= startStr) {
+    showToast('Дата закінчення заморозки повинна бути пізнішою за дату початку!', 'warning');
+    return;
+  }
+
   if (!cachedClientSubscriptions.length) {
     showToast('У вас немає активного абонемента для заморозки.', 'warning');
     return;
@@ -589,6 +632,7 @@ export function renderCl3Tab(activeSub) {
   } else {
     if (form) form.classList.remove('hidden');
     if (frozenBanner) frozenBanner.classList.add('hidden');
+    initCl3DateLimits();
   }
 }
 
@@ -1009,8 +1053,14 @@ export async function populateCl45Options() {
     tmr.setHours(12, 0, 0, 0);
     const dtEl = document.getElementById('cl5-datetime');
     if (dtEl) {
-      dtEl.value = tmr.toISOString().substring(0, 16);
-      dtEl.min = new Date().toISOString().substring(0, 16);
+      const nowIso = new Date().toISOString().substring(0, 16);
+      const valIso = tmr.toISOString().substring(0, 16);
+      dtEl.value = valIso;
+      dtEl.min = nowIso;
+      if (dtEl._flatpickr) {
+        dtEl._flatpickr.set('minDate', nowIso);
+        dtEl._flatpickr.setDate(valIso, false);
+      }
     }
 
     // Prerequisite check for Cl5: active subscription
@@ -1200,7 +1250,7 @@ export async function confirmGroupBooking() {
     if (latestSub && latestSub.currentStatus === 'Frozen') {
       showToast('Запис неможливий: ваш абонемент заморожено. Достроково скасувати заморозку можна у вкладці «Абонемент».', 'warning');
     } else {
-      showToast('Запис неможливий: у вас немає активного абонемента.', 'warning');
+      showToast('Запис неможливий: відсутній активний абонемент.', 'warning');
     }
     return;
   }
@@ -1257,7 +1307,7 @@ export async function handleCl5Booking(e) {
     if (latestSub && latestSub.currentStatus === 'Frozen') {
       showToast('Запис неможливий: ваш абонемент заморожено. Достроково скасувати заморозку можна у вкладці «Абонемент».', 'warning');
     } else {
-      showToast('Запис неможливий: у вас немає активного абонемента.', 'warning');
+      showToast('Запис неможливий: відсутній активний абонемент.', 'warning');
     }
     return;
   }

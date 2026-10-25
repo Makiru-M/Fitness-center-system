@@ -1,6 +1,7 @@
 package com.fitness.repository;
 
 import com.fitness.config.DynamicDataSourceService;
+import com.fitness.exception.BusinessLogicException;
 import com.fitness.model.CoachDto.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -195,6 +196,12 @@ public class CoachRepository {
      * C5: Submit request for reschedule or cancellation
      */
     public void submitChangeRequest(CoachChangeRequest req) {
+        if ("Reschedule".equalsIgnoreCase(req.requestType())) {
+            if (req.newDateTime() == null || req.newDateTime().isBefore(LocalDateTime.now())) {
+                throw new BusinessLogicException("Запропонований час перенесення не може бути в минулому.");
+            }
+        }
+
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
 
         Integer logId = jdbc.queryForObject(
