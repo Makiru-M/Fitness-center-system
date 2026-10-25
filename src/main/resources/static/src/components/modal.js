@@ -18,6 +18,9 @@ function showModal(modal) {
   if (!modal) return;
   modal.classList.remove('hidden');
   modal.classList.add('active');
+  if (typeof window.initFlatpickr === 'function') {
+    window.initFlatpickr(modal);
+  }
 }
 
 function hideModal(modal) {

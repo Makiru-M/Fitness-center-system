@@ -225,6 +225,10 @@ export function switchRoleView(role) {
     else if (cleanRole === 'hr') switchHrTab('hr_coaches');
     else if (cleanRole === 'coach') switchCoachTab('c1');
     else if (cleanRole === 'director') switchDirectorTab('d1');
+
+    if (typeof window.initFlatpickr === 'function') {
+      window.initFlatpickr(targetView);
+    }
   }
 }
 
