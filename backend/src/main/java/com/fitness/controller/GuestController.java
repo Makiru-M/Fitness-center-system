@@ -53,4 +53,12 @@ public class GuestController {
         List<HallDto> halls = guestRepository.getHalls();
         return ResponseEntity.ok(halls);
     }
+    /**
+     * View Class Types with current prices
+     */
+    @GetMapping("/class-types")
+    public ResponseEntity<List<ClassTypePublicDto>> getClassTypes() {
+        List<ClassTypePublicDto> classTypes = guestRepository.getClassTypes();
+        return ResponseEntity.ok(classTypes);
+    }
 }

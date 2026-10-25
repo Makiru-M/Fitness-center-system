@@ -923,11 +923,17 @@ export function updateCl4Price() {
   const promoBadge = document.getElementById('modal-cl4-promo-badge');
   const confirmBtn = document.getElementById('modal-cl4-confirm-btn');
 
-  let price = BASE_CL4_PRICE;
+  const instId = parseInt(document.getElementById('modal-cl4-instance-id')?.value || '0', 10);
+  const gc = cachedGroupClasses.find(c => c.instanceId === instId);
+  const basePrice = (gc && gc.price != null && !isNaN(parseFloat(gc.price)))
+    ? parseFloat(gc.price)
+    : BASE_CL4_PRICE;
+
+  let price = basePrice;
   const promo = findPromo(promoInput);
   const now = new Date().toISOString().split('T')[0];
   if (promo && !(promo.expiryDate && promo.expiryDate < now)) {
-    price = (BASE_CL4_PRICE * (100 - promo.discountPercent)) / 100;
+    price = (basePrice * (100 - promo.discountPercent)) / 100;
     if (promoBadge) {
       promoBadge.innerHTML = `<span class="badge badge-active text-xs">Знижка ${promo.discountPercent}% застосована!</span>`;
       promoBadge.classList.remove('hidden');
@@ -978,11 +984,17 @@ export function updateCl5Price() {
   const promoBadge = document.getElementById('cl5-promo-badge');
   const submitBtn = document.getElementById('cl5-submit-btn');
 
-  let price = BASE_CL5_PRICE;
+  const itemSel = document.getElementById('cl5-item');
+  const selectedOpt = itemSel ? itemSel.options[itemSel.selectedIndex] : null;
+  const basePrice = (selectedOpt && selectedOpt.dataset.price)
+    ? parseFloat(selectedOpt.dataset.price)
+    : BASE_CL5_PRICE;
+
+  let price = basePrice;
   const promo = findPromo(promoInput);
   const now = new Date().toISOString().split('T')[0];
   if (promo && !(promo.expiryDate && promo.expiryDate < now)) {
-    price = (BASE_CL5_PRICE * (100 - promo.discountPercent)) / 100;
+    price = (basePrice * (100 - promo.discountPercent)) / 100;
     if (promoBadge) {
       promoBadge.innerHTML = `<span class="badge badge-active text-xs">Знижка ${promo.discountPercent}% застосована!</span>`;
       promoBadge.classList.remove('hidden');
@@ -1029,14 +1041,38 @@ export function applyCl5Promo() {
 
 export async function populateCl45Options() {
   try {
-    const [halls, coaches, groupClasses] = await Promise.all([
+    const [halls, coaches, groupClasses, priceList] = await Promise.all([
       guestApi.getHalls(),
       guestApi.getCoaches(),
-      clientApi.getAvailableGroupClasses().catch(() => [])
+      clientApi.getAvailableGroupClasses().catch(() => []),
+      guestApi.getPriceList().catch(() => [])
     ]);
 
     cachedGroupClasses = groupClasses || [];
     renderCl4Schedule();
+
+    // Populate Cl5 Personal Training Items from active PriceList
+    const cl5Item = document.getElementById('cl5-item');
+    if (cl5Item) {
+      cl5Item.innerHTML = '';
+      const personalItems = (priceList || []).filter(item => item.category === 'Personal training');
+      if (personalItems.length > 0) {
+        personalItems.forEach(item => {
+          const opt = document.createElement('option');
+          opt.value = item.itemId;
+          opt.dataset.price = item.price;
+          opt.textContent = `${item.itemName} — ${parseFloat(item.price).toFixed(2)} грн`;
+          cl5Item.appendChild(opt);
+        });
+      } else {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.dataset.price = '400.00';
+        opt.textContent = 'Персональне тренування — 400.00 грн';
+        cl5Item.appendChild(opt);
+      }
+      updateCl5Price();
+    }
 
     const cl5Hall = document.getElementById('cl5-hall');
     if (cl5Hall) {
@@ -1182,8 +1218,9 @@ export async function openGroupBookingModal(instanceId) {
   if (promoInput) promoInput.value = '';
   const promoBadge = document.getElementById('modal-cl4-promo-badge');
   if (promoBadge) promoBadge.classList.add('hidden');
+  const basePriceVal = (gc.price != null && !isNaN(parseFloat(gc.price))) ? parseFloat(gc.price).toFixed(2) : '200.00';
   const priceDisplay = document.getElementById('modal-cl4-price-display');
-  if (priceDisplay) priceDisplay.textContent = '200.00 грн';
+  if (priceDisplay) priceDisplay.textContent = `${basePriceVal} грн`;
   updateCl4Price();
 
   // Ensure subscriptions are loaded
@@ -1315,6 +1352,8 @@ export async function handleCl5Booking(e) {
   const hallId = parseInt(document.getElementById('cl5-hall').value);
   const dt = document.getElementById('cl5-datetime').value;
   const promoCode = document.getElementById('cl5-promo')?.value.trim().toUpperCase() || null;
+  const itemVal = document.getElementById('cl5-item')?.value;
+  const itemId = itemVal ? parseInt(itemVal, 10) : null;
 
   const latestSub = getLatestClientSubscription(cachedClientSubscriptions);
   if (!latestSub || latestSub.currentStatus !== 'Active') {
@@ -1351,6 +1390,7 @@ export async function handleCl5Booking(e) {
       trainingDateTime: dt
     };
     if (promoCode) payload.promoCode = promoCode;
+    if (itemId) payload.itemId = itemId;
     await clientApi.bookPersonalTraining(payload);
     bookedCoachSlots.add(slotKey);
     showToast('Успішно оплачено та записано на персональне тренування! (Cl5)', 'success');

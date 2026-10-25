@@ -257,4 +257,30 @@ public class DirectorDto {
             Long clientsWithPersonalTrainings,
             Double personalTrainingSharePercent
     ) {}
+    public record UpdateTariffRequest(
+            @JsonAlias({"new_price", "price"}) BigDecimal newPrice
+    ) {}
+
+    public record CreateTurnkeyServiceRequest(
+            @JsonAlias({"name", "item_name"}) String itemName,
+            String category,
+            BigDecimal price,
+            String description,
+            // Membership fields
+            Integer durationDays,
+            Integer maxFreezingDays,
+            // Group training fields
+            Integer dayOfWeek,
+            LocalTime startTime,
+            Integer durationMinutes,
+            Integer hallId,
+            Integer coachId
+    ) {}
+
+    public record ClassTypeDto(
+            Integer classTypeId,
+            String typeName,
+            Integer itemId,
+            BigDecimal price
+    ) {}
 }

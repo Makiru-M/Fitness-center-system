@@ -12,6 +12,10 @@ import { populateManagerDropdowns } from './managerView.js';
 import { renderGuestPriceList, renderGuestHalls } from './guestView.js';
 import { refreshCombobox } from '../components/combobox.js';
 
+let cachedPriceListD10 = [];
+let cachedDirectorHalls = [];
+let cachedDirectorCoaches = [];
+
 export function switchDirectorTab(tabId) {
   document.querySelectorAll('.director-pane').forEach(el => el.classList.add('hidden'));
   document.querySelectorAll('#view-director .nav-tab-btn').forEach(b => b.classList.remove('active'));
@@ -26,6 +30,7 @@ export function switchDirectorTab(tabId) {
   else if (tabId === 'd3') renderD3Coaches();
   else if (tabId === 'd5') renderD5Problems();
   else if (tabId === 'd6') renderD6Audit();
+  else if (tabId === 'd10') renderD10PriceList();
 }
 
 export async function renderD1Revenue() {
@@ -51,10 +56,10 @@ export async function renderD1Revenue() {
       rowsHtml += `
         <tr>
           <td class="font-bold text-white font-heading">${d.category}</td>
-          <td>${count}</td>
+          <td class="font-mono text-slate-300">${count}</td>
           <td class="font-mono">${full.toFixed(2)} грн</td>
-          <td class="font-bold text-emerald-400 font-mono">${actual.toFixed(2)} грн</td>
-          <td class="text-cyan-400 font-mono">${disc.toFixed(2)} грн</td>
+          <td class="font-bold text-cyan-400 font-mono">${actual.toFixed(2)} грн</td>
+          <td class="text-blue-400 font-mono">${disc.toFixed(2)} грн</td>
           <td class="font-mono">${d.promoCodeUsage || 0}</td>
         </tr>
       `;
@@ -247,25 +252,67 @@ export async function renderD6Audit() {
 
 export async function populateDirectorDropdowns() {
   try {
-    const [halls, coaches, archivedHalls] = await Promise.all([
+    const [halls, coaches, archivedHalls, classTypes] = await Promise.all([
       guestApi.getHalls(),
       guestApi.getCoaches(),
       directorApi.getArchivedHalls().catch(err => {
         console.warn('Error fetching archived halls:', err);
         return [];
+      }),
+      guestApi.getClassTypes().catch(err => {
+        console.warn('Error fetching class types:', err);
+        return [];
       })
     ]);
 
-    // D11 ClassTypes
+    // Cache options for modals
+    cachedDirectorHalls = halls || [];
+    cachedDirectorCoaches = coaches || [];
+
+    // Populate D10 Create Modal dropdowns (halls, coaches)
+    const d10Hall = document.getElementById('modal-d10-hall');
+    if (d10Hall) {
+      d10Hall.innerHTML = '';
+      cachedDirectorHalls.forEach(h => {
+        const opt = document.createElement('option');
+        opt.value = h.hallId;
+        opt.textContent = `${h.hallName} (${h.maxCapacity} місць)`;
+        d10Hall.appendChild(opt);
+      });
+    }
+
+    const d10Coach = document.getElementById('modal-d10-coach');
+    if (d10Coach) {
+      d10Coach.innerHTML = '<option value="" disabled selected>-- Оберіть тренера --</option>';
+      cachedDirectorCoaches.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.coachId;
+        opt.textContent = `${c.fullName} (${c.specName || 'Тренер'})`;
+        d10Coach.appendChild(opt);
+      });
+    }
+
+    // D11 ClassTypes (dynamically populated from API)
     const d11Ct = document.getElementById('d11-classtype');
     if (d11Ct) {
-      d11Ct.innerHTML = `
-        <option value="1">Crossfit Intense</option>
-        <option value="2">Hatha Yoga</option>
-        <option value="3">Pilates Core</option>
-        <option value="4">Boxing Technique</option>
-        <option value="5">Aqua Aerobics</option>
-      `;
+      d11Ct.innerHTML = '';
+      if (classTypes && classTypes.length > 0) {
+        classTypes.forEach(ct => {
+          const opt = document.createElement('option');
+          opt.value = ct.classTypeId;
+          const priceText = ct.price ? ` (${parseFloat(ct.price).toFixed(2)} грн)` : '';
+          opt.textContent = `${ct.typeName}${priceText}`;
+          d11Ct.appendChild(opt);
+        });
+      } else {
+        d11Ct.innerHTML = `
+          <option value="1">Crossfit Intense</option>
+          <option value="2">Hatha Yoga</option>
+          <option value="3">Pilates Core</option>
+          <option value="4">Boxing Technique</option>
+          <option value="5">Aqua Aerobics</option>
+        `;
+      }
     }
 
     // D11 & D12 Halls
@@ -459,29 +506,259 @@ export async function handleD9CreatePromo(e) {
 }
 
 export async function handleD10CreateService(e) {
-  e.preventDefault();
-  const name = document.getElementById('d10-name').value.trim();
-  const category = document.getElementById('d10-category').value;
-  const price = parseFloat(document.getElementById('d10-price').value);
-  const desc = document.getElementById('d10-desc').value.trim();
+  if (e && e.preventDefault) e.preventDefault();
+  openD10CreateModal();
+}
+
+export function filterD10PriceList(term = '') {
+  renderD10PriceList(term);
+}
+
+export async function renderD10PriceList(searchTerm = '') {
+  const tbody = document.getElementById('d10-pricelist-tbody');
+  if (!tbody) return;
 
   try {
-    await directorApi.createService({
-      itemName: name,
-      name,
-      category,
-      price,
-      durationDays: null,
-      maxFreezingDays: null,
-      description: desc
-    });
+    const showArchived = document.getElementById('d10-show-archived')?.checked ?? false;
+    const items = await directorApi.getPrices(showArchived);
+    cachedPriceListD10 = items || [];
 
-    showToast(`Послугу '${name}' успішно додано до прайсу! (D10)`, 'success');
-    await populateManagerDropdowns();
+    const term = (searchTerm || document.getElementById('d10-search')?.value || '').trim().toLowerCase();
+    const filtered = term
+      ? cachedPriceListD10.filter(item =>
+          (item.itemName && item.itemName.toLowerCase().includes(term)) ||
+          (item.category && item.category.toLowerCase().includes(term)) ||
+          (item.description && item.description.toLowerCase().includes(term))
+        )
+      : cachedPriceListD10;
+
+    if (!filtered || filtered.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500 font-mono text-xs">Послуг не знайдено</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(item => {
+      const isArchived = item.isActive === false || item.priceEndDate != null;
+      let badgeClass = 'badge badge-neutral text-xs font-mono';
+      if (!isArchived) {
+        if (item.category === 'Membership') badgeClass = 'badge badge-active text-xs font-mono';
+        else if (item.category === 'Group training') badgeClass = 'badge badge-cyan text-xs font-mono';
+        else if (item.category === 'Personal training') badgeClass = 'badge badge-scheduled text-xs font-mono';
+        else if (item.category === 'Extra') badgeClass = 'badge badge-warning text-xs font-mono';
+      }
+
+      const priceVal = parseFloat(item.price || 0).toFixed(2);
+      const startDate = item.priceStartDate ? item.priceStartDate.substring(0, 10) : '—';
+      const desc = item.description || (item.durationDays ? `Термін: ${item.durationDays} дн., Заморозка: ${item.maxFreezingDays || 0} дн.` : '—');
+
+      const actionsHtml = isArchived
+        ? `<span class="text-xs text-slate-500 font-mono italic">Знято з продажу</span>`
+        : `
+          <div class="flex items-center gap-2">
+            <button onclick="openD10EditModal(${item.itemId})" class="btn btn-secondary btn-sm" title="Редагувати тариф">
+              <i class="fa-solid fa-pen-to-square mr-1"></i> Редагувати
+            </button>
+            <button onclick="confirmDeactivatePriceItem(${item.itemId}, '${escapeHtml(item.itemName)}')" class="btn btn-secondary-cyan btn-sm whitespace-nowrap" title="Вилучити з прайсу">
+              <i class="fa-solid fa-box-archive mr-1"></i> Вилучити
+            </button>
+          </div>
+        `;
+
+      return `
+        <tr class="${isArchived ? 'opacity-70 bg-slate-900/30' : ''}">
+          <td class="font-mono text-xs font-bold text-slate-300">#${item.itemId}</td>
+          <td class="font-medium text-white">
+            ${escapeHtml(item.itemName)}
+            ${isArchived ? '<span class="badge badge-neutral text-xs font-mono ml-2">Архівна</span>' : ''}
+          </td>
+          <td><span class="${badgeClass}">${escapeHtml(item.category)}</span></td>
+          <td class="font-mono text-cyan-400 font-bold">${priceVal} грн</td>
+          <td class="font-mono text-xs text-slate-400">${startDate}</td>
+          <td class="text-xs text-slate-400 max-w-xs truncate" title="${escapeHtml(desc)}">${escapeHtml(desc)}</td>
+          <td>${actionsHtml}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    console.warn('Error fetching price list for D10:', err);
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-rose-400 font-mono text-xs">Помилка завантаження прайс-листа: ${escapeHtml(err.message)}</td></tr>`;
+  }
+}
+
+export async function confirmDeactivatePriceItem(itemId, itemName) {
+  const confirmed = confirm(`Ви дійсно бажаєте вилучити послугу "${itemName}" з активного прайсу? Вона більше не буде доступна для нових покупок та бронювань.`);
+  if (!confirmed) return;
+
+  try {
+    const res = await directorApi.deactivatePriceItem(itemId);
+    showToast(res?.message || 'Послугу успішно вилучено з активного прайсу', 'success');
+    await renderD10PriceList();
     await renderGuestPriceList();
   } catch (err) {
-    showToast(`Помилка створення послуги: ${err.message}`, 'danger');
+    showToast(`Помилка вилучення послуги: ${err.message}`, 'danger');
   }
+}
+
+export function openD10EditModal(itemId) {
+  const item = cachedPriceListD10.find(i => i.itemId === itemId);
+  if (!item) {
+    showToast('Послугу не знайдено', 'warning');
+    return;
+  }
+
+  const modal = document.getElementById('modal-d10-edit-tariff');
+  if (!modal) return;
+
+  const idEl = document.getElementById('modal-d10-edit-id');
+  const nameEl = document.getElementById('modal-d10-edit-name');
+  const currentPriceEl = document.getElementById('modal-d10-current-price');
+  const newPriceEl = document.getElementById('modal-d10-new-price');
+
+  if (idEl) idEl.value = item.itemId;
+  if (nameEl) nameEl.value = item.itemName;
+  if (currentPriceEl) currentPriceEl.value = `${parseFloat(item.price).toFixed(2)} грн`;
+  if (newPriceEl) {
+    newPriceEl.value = parseFloat(item.price).toFixed(2);
+    newPriceEl.focus();
+  }
+
+  modal.classList.remove('hidden');
+  modal.classList.add('active');
+}
+
+export function closeD10EditModal() {
+  const modal = document.getElementById('modal-d10-edit-tariff');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.classList.add('hidden');
+  }
+}
+
+export async function handleD10UpdateTariff(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const itemId = parseInt(document.getElementById('modal-d10-edit-id').value, 10);
+  const newPrice = parseFloat(document.getElementById('modal-d10-new-price').value);
+
+  if (!itemId || isNaN(newPrice) || newPrice <= 0) {
+    showToast('Будь ласка, введіть коректну нову ціну!', 'warning');
+    return;
+  }
+
+  const saveBtn = document.getElementById('btn-d10-save-tariff');
+  if (saveBtn) saveBtn.disabled = true;
+
+  try {
+    const res = await directorApi.updatePriceTariff(itemId, newPrice);
+    showToast(res.message || `Тариф послуги успішно оновлено до ${newPrice.toFixed(2)} грн! (D10)`, 'success');
+    closeD10EditModal();
+    await renderD10PriceList();
+    await renderGuestPriceList();
+    await populateManagerDropdowns();
+    await populateDirectorDropdowns();
+  } catch (err) {
+    showToast(`Помилка оновлення тарифу: ${err.message}`, 'danger');
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+export function openD10CreateModal() {
+  const modal = document.getElementById('modal-d10-create-service');
+  if (!modal) return;
+
+  const form = document.getElementById('form-d10-create-service');
+  if (form) form.reset();
+
+  toggleD10CategoryFields('Group training');
+  const catSel = document.getElementById('modal-d10-category');
+  if (catSel) catSel.value = 'Group training';
+
+  // Ensure halls and coaches in D10 create modal are populated
+  populateDirectorDropdowns();
+
+  modal.classList.remove('hidden');
+  modal.classList.add('active');
+}
+
+export function closeD10CreateModal() {
+  const modal = document.getElementById('modal-d10-create-service');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.classList.add('hidden');
+  }
+}
+
+export function toggleD10CategoryFields(category) {
+  const groupFields = document.getElementById('modal-d10-group-fields');
+  const membFields = document.getElementById('modal-d10-membership-fields');
+
+  if (groupFields) {
+    if (category === 'Group training') groupFields.classList.remove('hidden');
+    else groupFields.classList.add('hidden');
+  }
+
+  if (membFields) {
+    if (category === 'Membership') membFields.classList.remove('hidden');
+    else membFields.classList.add('hidden');
+  }
+}
+
+export async function handleD10CreateTurnkey(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const name = document.getElementById('modal-d10-name').value.trim();
+  const category = document.getElementById('modal-d10-category').value;
+  const price = parseFloat(document.getElementById('modal-d10-price').value);
+  const desc = document.getElementById('modal-d10-desc')?.value.trim() || '';
+
+  if (!name || isNaN(price) || price <= 0) {
+    showToast('Будь ласка, заповніть назву та коректну ціну послуги!', 'warning');
+    return;
+  }
+
+  const payload = {
+    itemName: name,
+    category,
+    price,
+    description: desc
+  };
+
+  if (category === 'Membership') {
+    payload.durationDays = parseInt(document.getElementById('modal-d10-durationdays')?.value || '30', 10);
+    payload.maxFreezingDays = parseInt(document.getElementById('modal-d10-maxfreezing')?.value || '0', 10);
+  } else if (category === 'Group training') {
+    payload.dayOfWeek = parseInt(document.getElementById('modal-d10-dayofweek')?.value || '1', 10);
+    payload.startTime = document.getElementById('modal-d10-starttime')?.value || '11:00';
+    payload.durationMinutes = parseInt(document.getElementById('modal-d10-duration')?.value || '60', 10);
+    payload.hallId = parseInt(document.getElementById('modal-d10-hall')?.value || '1', 10);
+    payload.coachId = parseInt(document.getElementById('modal-d10-coach')?.value || '1', 10);
+  }
+
+  const submitBtn = document.getElementById('btn-d10-submit-create');
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    const res = await directorApi.createTurnkeyService(payload);
+    showToast(res.message || `Послугу '${name}' успішно створено та введено в дію! (D10)`, 'success');
+    closeD10CreateModal();
+    await renderD10PriceList();
+    await renderGuestPriceList();
+    await populateManagerDropdowns();
+    await populateDirectorDropdowns();
+  } catch (err) {
+    showToast(`Помилка створення послуги під ключ: ${err.message}`, 'danger');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 export async function handleD11CreateTemplate(e) {

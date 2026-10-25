@@ -71,7 +71,7 @@ public class GlobalExceptionHandler {
             if (message.contains("uq_coach_active_slot")) {
                 return buildResponse(HttpStatus.CONFLICT, "Conflict", "Цей тренер уже має призначене тренування на обраний час!");
             }
-            return buildResponse(HttpStatus.CONFLICT, "Conflict", "Порушення унікальності даних: такий запис вже існує (" + extractConstraintDetail(message) + ").");
+            return buildResponse(HttpStatus.CONFLICT, "Conflict", "Запис з такими даними вже існує (перевірте номер телефону або логін).");
         }
         if (message.contains("[SCHEDULE_CONFLICT]")) {
             String cleanMsg = cleanPgMessage(message).replace("[SCHEDULE_CONFLICT]", "").trim();
@@ -141,10 +141,25 @@ public class GlobalExceptionHandler {
     }
 
     private String extractConstraintDetail(String msg) {
-        int detailIdx = msg.indexOf("Detail:");
-        if (detailIdx != -1) {
-            return msg.substring(detailIdx).trim();
+        if (msg == null) return "";
+        String detail = msg;
+        int detailIdx = -1;
+        int prefixLen = 0;
+
+        String[] detailMarkers = {"Detail:", "Подробности:", "Подробиці:"};
+        for (String m : detailMarkers) {
+            int idx = msg.indexOf(m);
+            if (idx != -1 && (detailIdx == -1 || idx < detailIdx)) {
+                detailIdx = idx;
+                prefixLen = m.length();
+            }
         }
-        return msg;
+
+        if (detailIdx != -1) {
+            detail = msg.substring(detailIdx + prefixLen).trim();
+        }
+
+        // Clean out PostgreSQL context markers (Where, SQL statement, PL/pgSQL, etc.)
+        return cleanPgMessage(detail);
     }
 }

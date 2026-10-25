@@ -297,7 +297,7 @@ public class ManagerRepository {
     /**
      * M6: Book client into personal training
      */
-    public Integer bookPersonalTraining(Integer clientId, Integer coachId, Integer hallId, LocalDateTime dateTime, String promoCode) {
+    public Integer bookPersonalTraining(Integer clientId, Integer coachId, Integer hallId, LocalDateTime dateTime, String promoCode, Integer itemId) {
         if (dateTime == null || dateTime.isBefore(LocalDateTime.now())) {
             throw new BusinessLogicException("Дата та час персонального тренування не можуть бути в минулому.");
         }
@@ -307,15 +307,20 @@ public class ManagerRepository {
         String promo = (promoCode != null && !promoCode.isBlank()) ? promoCode.trim() : null;
 
         return jdbc.queryForObject(
-                "SELECT personal_id FROM sp_book_personal_training(?, ?, ?, ?, ?, ?)",
+                "SELECT personal_id FROM sp_book_personal_training(?, ?, ?, ?, ?, ?, ?)",
                 Integer.class,
                 clientId,
                 coachId,
                 hallId,
                 dateTime,
                 promo,
-                managerId
+                managerId,
+                itemId
         );
+    }
+
+    public Integer bookPersonalTraining(Integer clientId, Integer coachId, Integer hallId, LocalDateTime dateTime, String promoCode) {
+        return bookPersonalTraining(clientId, coachId, hallId, dateTime, promoCode, null);
     }
 
     /**

@@ -142,12 +142,13 @@ public class ClientRepository {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String promo = (req.promoCode() != null && !req.promoCode().isBlank()) ? req.promoCode().trim() : null;
         jdbc.queryForObject(
-                "SELECT * FROM sp_book_personal_training(NULL, ?, ?, ?, ?, NULL)",
+                "SELECT * FROM sp_book_personal_training(NULL, ?, ?, ?, ?, NULL, ?)",
                 (rs, rowNum) -> rs.getInt("personal_id"),
                 req.coachId(),
                 req.hallId(),
                 req.trainingDateTime(),
-                promo
+                promo,
+                req.itemId()
         );
     }
 
@@ -232,10 +233,12 @@ public class ClientRepository {
                     WHERE gcb.ID_Instance = gci.ID_Instance
                       AND gcb.BookingStatus = 'Scheduled'
                       AND cl.DB_User = SESSION_USER
-                ) AS IsBookedByMe
+                ) AS IsBookedByMe,
+                pl.Price AS Price
             FROM GroupClassInstances gci
             JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
             JOIN ClassTypes ct ON gst.ID_ClassType = ct.ID_ClassType
+            LEFT JOIN PriceList pl ON ct.ID_Item = pl.ID_Item
             JOIN Halls h ON gst.ID_Hall = h.ID_Hall
             JOIN Coaches co ON gst.ID_Coach = co.ID_Coach
             JOIN Staff st ON co.ID_Staff = st.ID_Staff
@@ -257,7 +260,8 @@ public class ClientRepository {
                 rs.getInt("ActualAttendance"),
                 rs.getInt("MaxCapacity"),
                 rs.getInt("AvailableSpots"),
-                rs.getBoolean("IsBookedByMe")
+                rs.getBoolean("IsBookedByMe"),
+                rs.getBigDecimal("Price")
         ));
     }
 

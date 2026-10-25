@@ -894,6 +894,12 @@
 
               <form id="form-cl5-personal" onsubmit="handleCl5Booking(event)" class="space-y-4">
                 <div class="form-group">
+                  <label class="form-label">Тариф персонального тренування *</label>
+                  <select id="cl5-item" required class="text-xs font-mono" onchange="updateCl5Price()">
+                    <!-- Populated by JS -->
+                  </select>
+                </div>
+                <div class="form-group">
                   <label class="form-label">Оберіть тренера *</label>
                   <select id="cl5-coach" required class="text-xs font-mono">
                     <!-- Populated by JS -->
@@ -942,7 +948,7 @@
           <!-- Cl6: Cancel -->
           <div id="subtab-cl6" class="client-pane hidden">
             <div class="card p-6 max-w-xl mx-auto border-medium shadow-xl">
-              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-calendar-xmark text-rose-400 mr-2"></i> Задача Cl6: Скасувати запис на заняття</h3>
+              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-calendar-xmark text-cyan-400 mr-2"></i> Задача Cl6: Скасувати запис на заняття</h3>
               <p class="text-xs text-slate-400 mb-4">Оберіть заплановане тренування та вкажіть причину скасування.</p>
 
               <form id="form-cl6-cancel" onsubmit="handleCl6Cancel(event)" class="space-y-4">
@@ -956,7 +962,7 @@
                   <label class="form-label">Причина скасування *</label>
                   <textarea id="cl6-reason" required rows="2" placeholder="Зміна планів / погане самопочуття"></textarea>
                 </div>
-                <button type="submit" class="btn btn-danger w-full">Підтвердити скасування</button>
+                <button type="submit" class="btn btn-cyan w-full">Підтвердити скасування</button>
               </form>
             </div>
           </div>
@@ -1072,7 +1078,7 @@
                       <!-- Populated by JS -->
                     </select>
                   </div>
-                  <button type="submit" id="m4-checkin-btn" class="btn btn-success w-full py-2.5 font-bold shadow-md">
+                  <button type="submit" id="m4-checkin-btn" class="btn btn-primary w-full py-2.5 font-bold shadow-md">
                     <i class="fa-solid fa-arrow-right-to-bracket mr-1.5"></i> Здійснити Check-in (M4)
                   </button>
                 </form>
@@ -1330,6 +1336,12 @@
                   <span id="m6-med-warning-text"></span>
                 </div>
                 <div class="form-group">
+                  <label class="form-label">Тариф персонального тренування *</label>
+                  <select id="m6-item" required class="font-mono text-sm" onchange="updateM6Price()">
+                    <!-- Populated by JS -->
+                  </select>
+                </div>
+                <div class="form-group">
                   <label class="form-label">Тренер *</label>
                   <select id="m6-coach" required class="font-mono text-sm">
                     <!-- Populated by JS -->
@@ -1347,7 +1359,28 @@
                     </select>
                   </div>
                 </div>
-                <button type="submit" class="btn btn-primary w-full">Оформити персональне (M6)</button>
+
+                <!-- M6 Payment & Pricing Block -->
+                <div class="form-group">
+                  <label class="form-label">Промокод (якщо є)</label>
+                  <div class="flex gap-2">
+                    <input type="text" id="m6-promo" placeholder="PROMO20" class="flex-1 uppercase font-mono text-sm">
+                    <button type="button" onclick="applyM6Promo()" class="btn btn-secondary btn-sm">Застосувати</button>
+                  </div>
+                </div>
+
+                <!-- Price summary card -->
+                <div class="bg-void p-4 rounded-xl border border-subtle flex justify-between items-center text-sm font-mono mb-4">
+                  <div>
+                    <span class="text-slate-400 block text-xs">Сума до сплати:</span>
+                    <span id="m6-price-display" class="text-2xl font-bold text-cyan-400">400.00 грн</span>
+                  </div>
+                  <div id="m6-promo-badge" class="hidden">
+                    <span class="badge badge-active text-xs">Знижка застосована!</span>
+                  </div>
+                </div>
+
+                <button type="submit" id="m6-submit-btn" class="btn btn-primary w-full">Оформити персональне (M6)</button>
               </form>
             </div>
           </div>
@@ -1429,7 +1462,7 @@
 
             <!-- Manual Schedule Action Form -->
             <div class="card p-6 max-w-xl mx-auto border-medium shadow-xl">
-              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-calendar-xmark text-rose-400 mr-2"></i> Задача M8: Скасування або перенесення тренування</h3>
+              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-calendar-xmark text-cyan-400 mr-2"></i> Задача M8: Скасування або перенесення тренування</h3>
               <p class="text-xs text-slate-400 mb-4">Зміна часу чи статусу заняття менеджером вручну з обов'язковим записом у PT_Changelog.</p>
 
               <form id="form-m8-action" onsubmit="handleM8Action(event)" class="space-y-4">
@@ -1909,7 +1942,7 @@
           <!-- C5: Request Change -->
           <div id="subtab-c5" class="coach-pane hidden">
             <div class="card p-6 max-w-xl mx-auto border-medium shadow-xl">
-              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-code-pull-request text-amber-400 mr-2"></i> Задача C5: Подати запит на перенесення / скасування</h3>
+              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-code-pull-request text-cyan-400 mr-2"></i> Задача C5: Подати запит на перенесення / скасування</h3>
               <p class="text-xs text-slate-400 mb-4">Фіксація запиту тренера в PT_Changelog та PT_TimeChangeDetails.</p>
 
               <form id="form-c5-request" onsubmit="handleC5Request(event)" class="space-y-4">
@@ -2039,7 +2072,7 @@
               </div>
               <div class="metric-box">
                 <span class="metric-label">Кількість продажів</span>
-                <div id="d1-total-sales-count" class="metric-value text-emerald-400">0</div>
+                <div id="d1-total-sales-count" class="metric-value text-white">0</div>
                 <span class="text-xs text-slate-400 mt-1 block font-mono">Успішних угод у Sales</span>
               </div>
               <div class="metric-box">
@@ -2099,7 +2132,7 @@
           <!-- D3: Coaches Popularity -->
           <div id="subtab-d3" class="director-pane hidden space-y-4">
             <div class="card p-5 border-subtle">
-              <h3 class="font-bold text-white text-sm font-heading mb-3"><i class="fa-solid fa-ranking-star text-amber-400 mr-2"></i> Задача D3: Рейтинг та продуктивність тренерів</h3>
+              <h3 class="font-bold text-white text-sm font-heading mb-3"><i class="fa-solid fa-ranking-star text-cyan-400 mr-2"></i> Задача D3: Рейтинг та продуктивність тренерів</h3>
               <p class="text-xs text-slate-400 mb-4 font-mono">Кількість проведених тренувань, клієнтська база та заповнюваність груп.</p>
               <div class="table-responsive">
                 <table>
@@ -2208,7 +2241,7 @@
           <!-- D8: Introduce Hall -->
           <div id="subtab-d8" class="director-pane hidden">
             <div class="card p-6 max-w-xl mx-auto border-medium shadow-xl">
-              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-door-open text-emerald-400 mr-2"></i> Задача D8: Введення залу в експлуатацію</h3>
+              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-door-open text-cyan-400 mr-2"></i> Задача D8: Введення залу в експлуатацію</h3>
               <p class="text-xs text-slate-400 mb-4">Реєстрація нового тренувального залу в таблиці Halls.</p>
 
               <form id="form-d8-hall" onsubmit="handleD8CreateHall(event)" class="space-y-4">
@@ -2225,7 +2258,7 @@
             </div>
 
             <div class="card p-6 max-w-xl mx-auto border-medium shadow-xl mt-6">
-              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-door-closed text-rose-400 mr-2"></i> Виведення залу з експлуатації</h3>
+              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-door-closed text-cyan-400 mr-2"></i> Виведення залу з експлуатації</h3>
               <p class="text-xs text-slate-400 mb-4">Переведення залу в архів (IsActive = FALSE). Зал стає недоступним для нових бронювань та розкладу.</p>
               <form id="form-d8-decommission" onsubmit="handleD8DecommissionHall(event)" class="space-y-4">
                 <div class="form-group">
@@ -2234,8 +2267,8 @@
                     <!-- Populated by JS -->
                   </select>
                 </div>
-                <button type="submit" class="btn btn-danger w-full py-2.5 font-bold shadow-md">
-                  <i class="fa-solid fa-ban mr-1.5"></i> Вивести зал з експлуатації (D8)
+                <button type="submit" class="btn btn-cyan w-full py-2.5 font-bold shadow-md">
+                  <i class="fa-solid fa-box-archive mr-1.5"></i> Вивести зал з експлуатації (D8)
                 </button>
               </form>
             </div>
@@ -2286,36 +2319,40 @@
           </div>
 
           <!-- D10: Manage Price List -->
-          <div id="subtab-d10" class="director-pane hidden">
-            <div class="card p-6 max-w-xl mx-auto border-medium shadow-xl">
-              <h3 class="text-lg font-bold text-white font-heading mb-1"><i class="fa-solid fa-list-check text-cyan-400 mr-2"></i> Задача D10: Формування прайсу (додаткові послуги)</h3>
-              <p class="text-xs text-slate-400 mb-4">Додавання окремих послуг (тренування, оренда шафки, масаж тощо) у PriceList.</p>
-
-              <form id="form-d10-service" onsubmit="handleD10CreateService(event)" class="space-y-4">
-                <div class="form-group">
-                  <label class="form-label">Назва послуги *</label>
-                  <input type="text" id="d10-name" required placeholder="Консультація дієтолога">
+          <div id="subtab-d10" class="director-pane space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h3 class="text-base font-bold text-white font-heading" style="color: #ffffff !important;">Прайс-лист клубу</h3>
+                <p class="text-xs text-slate-400 font-mono">D10: Управління послугами та тарифами</p>
+              </div>
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                <div class="w-full sm:w-64">
+                  <input type="text" id="d10-search" oninput="filterD10PriceList(this.value)" class="text-xs font-mono w-full" placeholder="🔍 Пошук за назвою чи категорією...">
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="form-group">
-                    <label class="form-label">Категорія *</label>
-                    <select id="d10-category" class="font-mono text-sm">
-                      <option value="Personal training">Personal training</option>
-                      <option value="Group training">Group training</option>
-                      <option value="Extra">Extra (Додаткові)</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Вартість (грн) *</label>
-                    <input type="number" id="d10-price" required min="0" step="0.01" class="font-mono text-sm" value="500.00">
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Опис послуги</label>
-                  <textarea id="d10-desc" rows="2" placeholder="Опис умов надання послуги"></textarea>
-                </div>
-                <button type="submit" class="btn btn-primary w-full">Додати до прайсу (D10)</button>
-              </form>
+                <label class="flex items-center gap-2 text-xs font-mono text-slate-300 cursor-pointer select-none">
+                  <input type="checkbox" id="d10-show-archived" onchange="renderD10PriceList()" class="rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-0">
+                  <span>Показати зняті з продажу (архівні)</span>
+                </label>
+                <button onclick="openD10CreateModal()" class="btn btn-primary btn-sm whitespace-nowrap">+ Додати послугу</button>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Назва послуги</th>
+                    <th>Категорія</th>
+                    <th>Ціна (грн)</th>
+                    <th>Діє з</th>
+                    <th>Опис</th>
+                    <th>Дії</th>
+                  </tr>
+                </thead>
+                <tbody id="d10-pricelist-tbody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -2735,6 +2772,146 @@
         <button onclick="closeEditStaffModal()" class="btn btn-secondary btn-sm">Скасувати</button>
         <button onclick="saveEditStaffModal()" class="btn btn-primary btn-sm">Зберегти дані (HR5)</button>
       </div>
+    </div>
+  </div>
+
+  <!-- D10: Edit Price Tariff Modal -->
+  <div id="modal-d10-edit-tariff" class="modal-backdrop hidden">
+    <div class="modal-content max-w-md">
+      <div class="modal-header">
+        <h3 class="text-base font-bold text-white font-heading" style="color: #22d3ee !important;">
+          <i class="fa-solid fa-pen-to-square text-cyan-400 mr-2"></i> Оновлення тарифу послуги (D10)
+        </h3>
+        <button onclick="closeD10EditModal()" class="text-slate-400 hover:text-white text-lg transition">&times;</button>
+      </div>
+      <form id="form-d10-edit-tariff" onsubmit="handleD10UpdateTariff(event)">
+        <div class="modal-body space-y-3">
+          <input type="hidden" id="modal-d10-edit-id">
+          <div class="form-group">
+            <label class="form-label">Назва послуги</label>
+            <input type="text" id="modal-d10-edit-name" disabled class="font-mono opacity-80 cursor-not-allowed">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-group">
+              <label class="form-label">Поточна ціна (грн)</label>
+              <input type="text" id="modal-d10-current-price" disabled class="font-mono opacity-80 cursor-not-allowed">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Нова ціна (грн) *</label>
+              <input type="number" id="modal-d10-new-price" required min="0.01" step="0.01" class="font-mono text-sm" placeholder="0.00">
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400 font-mono">
+            * При збереженні створюється нова версія тарифу, а попередній тариф архівується із завершенням дії сьогоднішньою датою.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" onclick="closeD10EditModal()" class="btn btn-secondary btn-sm">Скасувати</button>
+          <button type="submit" id="btn-d10-save-tariff" class="btn btn-primary btn-sm">Оновити тариф</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- D10: Create Turnkey Service Modal -->
+  <div id="modal-d10-create-service" class="modal-backdrop hidden">
+    <div class="modal-content max-w-xl">
+      <div class="modal-header">
+        <h3 class="text-base font-bold text-white font-heading" style="color: #22d3ee !important;">
+          <i class="fa-solid fa-plus-circle text-cyan-400 mr-2"></i> Додати послугу клубу (D10)
+        </h3>
+        <button onclick="closeD10CreateModal()" class="text-slate-400 hover:text-white text-lg transition">&times;</button>
+      </div>
+      <form id="form-d10-create-service" onsubmit="handleD10CreateTurnkey(event)" class="space-y-4">
+        <div class="modal-body space-y-4">
+          <div class="form-group">
+            <label class="form-label">Назва послуги *</label>
+            <input type="text" id="modal-d10-name" required placeholder="Наприклад: Дитячий стретчинг або Спліт-тренування">
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="form-group">
+              <label class="form-label">Категорія послуги *</label>
+              <select id="modal-d10-category" required class="font-mono text-sm" onchange="toggleD10CategoryFields(this.value)">
+                <option value="Group training">Group training (Групове тренування)</option>
+                <option value="Personal training">Personal training (Персональне тренування)</option>
+                <option value="Membership">Membership (Абонемент)</option>
+                <option value="Extra">Extra (Додаткова послуга)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ціна (грн) *</label>
+              <input type="number" id="modal-d10-price" required min="0.01" step="0.01" class="font-mono text-sm" placeholder="250.00">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Опис послуги</label>
+            <textarea id="modal-d10-desc" rows="2" placeholder="Опис умов надання послуги"></textarea>
+          </div>
+
+          <!-- Dynamic fields for Group training -->
+          <div id="modal-d10-group-fields" class="p-3 bg-surface-elevated rounded-xl border border-subtle space-y-3">
+            <h4 class="text-xs font-bold text-cyan-400 font-heading uppercase tracking-wide">Параметри розкладу (під ключ)</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div class="form-group">
+                <label class="form-label">День тижня *</label>
+                <select id="modal-d10-dayofweek" class="font-mono text-xs">
+                  <option value="1">Понеділок</option>
+                  <option value="2">Вівторок</option>
+                  <option value="3">Середа</option>
+                  <option value="4">Четвер</option>
+                  <option value="5">П'ятниця</option>
+                  <option value="6">Субота</option>
+                  <option value="7">Неділя</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Час початку *</label>
+                <input type="time" id="modal-d10-starttime" class="font-mono text-xs" value="11:00">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Тривалість (хв) *</label>
+                <input type="number" id="modal-d10-duration" class="font-mono text-xs" value="60" min="15" max="180">
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="form-group">
+                <label class="form-label">Зал клубу *</label>
+                <select id="modal-d10-hall" class="font-mono text-xs">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Тренер *</label>
+                <select id="modal-d10-coach" class="font-mono text-xs">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+            </div>
+            <p class="text-[11px] text-slate-400 font-mono">
+              * Автоматично створить напрямок ClassTypes, шаблон у GroupScheduleTemplates та згенерує заняття в календарі клубу.
+            </p>
+          </div>
+
+          <!-- Dynamic fields for Membership -->
+          <div id="modal-d10-membership-fields" class="hidden p-3 bg-surface-elevated rounded-xl border border-subtle space-y-3">
+            <h4 class="text-xs font-bold text-cyan-400 font-heading uppercase tracking-wide">Параметри абонемента</h4>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="form-group">
+                <label class="form-label">Термін дії (дні) *</label>
+                <input type="number" id="modal-d10-durationdays" min="1" class="font-mono text-xs" value="30">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Ліміт заморозки (дні) *</label>
+                <input type="number" id="modal-d10-maxfreezing" min="0" class="font-mono text-xs" value="7">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" onclick="closeD10CreateModal()" class="btn btn-secondary btn-sm">Скасувати</button>
+          <button type="submit" id="btn-d10-submit-create" class="btn btn-primary btn-sm">Створити послугу</button>
+        </div>
+      </form>
     </div>
   </div>
 

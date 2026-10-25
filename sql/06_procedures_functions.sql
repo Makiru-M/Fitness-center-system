@@ -234,7 +234,8 @@ CREATE OR REPLACE FUNCTION sp_book_personal_training(
     p_hall_id INT,
     p_training_datetime TIMESTAMP,
     p_promo_code VARCHAR DEFAULT NULL,
-    p_manager_id INT DEFAULT NULL
+    p_manager_id INT DEFAULT NULL,
+    p_item_id INT DEFAULT NULL
 )
 RETURNS TABLE (
     personal_id INT,
@@ -251,6 +252,7 @@ DECLARE
     v_sale_id INT;
     v_final_price NUMERIC(10,2);
     v_personal_id INT;
+    v_target_item_id INT := p_item_id;
 BEGIN
     SELECT pg_has_role(SESSION_USER, 'client_role', 'MEMBER') INTO v_is_client_user;
 
@@ -291,10 +293,28 @@ BEGIN
         RAISE EXCEPTION 'Тренера не знайдено.';
     END IF;
 
-    -- Створення чека продажу послуги персонального тренування
-    SELECT res.out_sale_id, res.out_final_price
-    INTO v_sale_id, v_final_price
-    FROM fn_process_sale_with_promo(v_client_id, 'Personal training', NULL, p_promo_code, p_manager_id) res;
+    -- Валідація категорії товару при вказаному p_item_id
+    IF v_target_item_id IS NOT NULL THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM PriceList 
+            WHERE ID_Item = v_target_item_id 
+              AND Category = 'Personal training' 
+              AND PriceEndDate IS NULL
+        ) THEN
+            RAISE EXCEPTION 'Обрана послуга не належить до активної категорії "Personal training"!';
+        END IF;
+    END IF;
+
+    -- Створення чека продажу послуги персонального тренування (з урахуванням p_item_id або активного тарифу)
+    IF v_target_item_id IS NOT NULL THEN
+        SELECT res.out_sale_id, res.out_final_price
+        INTO v_sale_id, v_final_price
+        FROM fn_process_sale_with_promo(v_client_id, NULL, v_target_item_id, p_promo_code, p_manager_id) res;
+    ELSE
+        SELECT res.out_sale_id, res.out_final_price
+        INTO v_sale_id, v_final_price
+        FROM fn_process_sale_with_promo(v_client_id, 'Personal training', NULL, p_promo_code, p_manager_id) res;
+    END IF;
 
     -- Вставка в PersonalTrainings:
     -- 1) trg_check_personal_training_sub_status перевірить статус абонемента клієнта (Active vs Frozen/відсутній)
@@ -448,6 +468,13 @@ DECLARE
     v_coach_id INT;
     v_pos_id INT;
 BEGIN
+    IF p_db_user IS NULL OR length(trim(p_db_user)) = 0 THEN
+        RAISE EXCEPTION 'Логін користувача БД обов''язковий!';
+    END IF;
+    IF p_password IS NULL OR length(trim(p_password)) = 0 THEN
+        RAISE EXCEPTION 'Пароль користувача обов''язковий!';
+    END IF;
+
     IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = p_db_user) THEN
         RAISE EXCEPTION 'Користувач % вже існує!', p_db_user;
     END IF;
@@ -497,6 +524,13 @@ DECLARE
     v_staff_id INT;
     v_pos_id INT;
 BEGIN
+    IF p_db_user IS NULL OR length(trim(p_db_user)) = 0 THEN
+        RAISE EXCEPTION 'Логін користувача БД обов''язковий!';
+    END IF;
+    IF p_password IS NULL OR length(trim(p_password)) = 0 THEN
+        RAISE EXCEPTION 'Пароль користувача обов''язковий!';
+    END IF;
+
     IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = p_db_user) THEN
         RAISE EXCEPTION 'Користувач % вже існує!', p_db_user;
     END IF;
@@ -809,6 +843,7 @@ DECLARE
     v_sale_id           INTEGER := p_sale_id;
     v_client_id         INTEGER := p_client_id;
     v_is_client_user    BOOLEAN;
+    v_item_id           INTEGER;
 BEGIN
     SELECT pg_has_role(SESSION_USER, 'client_role', 'MEMBER') INTO v_is_client_user;
 
@@ -843,8 +878,20 @@ BEGIN
 
     -- Якщо чек продажу не було передано, генеруємо його через fn_process_sale_with_promo
     IF v_sale_id IS NULL THEN
-        SELECT res.out_sale_id INTO v_sale_id
-        FROM fn_process_sale_with_promo(v_client_id, 'Group training', NULL, p_promo_code, NULL) res;
+        -- Підтягуємо ID_Item безпосередньо з ClassTypes обраного екземпляра заняття
+        SELECT ct.ID_Item INTO v_item_id
+        FROM GroupClassInstances gci
+        JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
+        JOIN ClassTypes ct ON gst.ID_ClassType = ct.ID_ClassType
+        WHERE gci.ID_Instance = p_instance_id;
+
+        IF v_item_id IS NOT NULL THEN
+            SELECT res.out_sale_id INTO v_sale_id
+            FROM fn_process_sale_with_promo(v_client_id, NULL, v_item_id, p_promo_code, NULL) res;
+        ELSE
+            SELECT res.out_sale_id INTO v_sale_id
+            FROM fn_process_sale_with_promo(v_client_id, 'Group training', NULL, p_promo_code, NULL) res;
+        END IF;
     ELSE
         -- Перевіряємо належність переданого чека клієнту
         IF NOT EXISTS (SELECT 1 FROM Sales WHERE ID_Sale = v_sale_id AND ID_Client = v_client_id) THEN
@@ -956,9 +1003,12 @@ BEGIN
     -- Для зміщення тижнів w IN 0..v_weeks
     FOR w IN 0..v_weeks LOOP
         FOR gst IN 
-            SELECT ID_Template, DayOfWeek, StartTime 
-            FROM GroupScheduleTemplates 
-            ORDER BY ID_Template 
+            SELECT gst.ID_Template, gst.DayOfWeek, gst.StartTime 
+            FROM GroupScheduleTemplates gst
+            JOIN ClassTypes ct ON gst.ID_ClassType = ct.ID_ClassType
+            LEFT JOIN PriceList pl ON ct.ID_Item = pl.ID_Item
+            WHERE pl.PriceEndDate IS NULL OR pl.ID_Item IS NULL
+            ORDER BY gst.ID_Template 
         LOOP
             v_target_date := v_monday + (w * 7) + (gst.DayOfWeek - 1);
             IF v_target_date >= CURRENT_DATE THEN
@@ -978,7 +1028,7 @@ $$;
 -- Права на виклик збережених функцій
 GRANT EXECUTE ON FUNCTION fn_process_sale_with_promo(INT, VARCHAR, INT, VARCHAR, INT) TO client_role, manager_role, director_role;
 GRANT EXECUTE ON FUNCTION sp_purchase_subscription(INT, INT, VARCHAR, INT, DATE) TO client_role, manager_role, director_role;
-GRANT EXECUTE ON FUNCTION sp_book_personal_training(INT, INT, INT, TIMESTAMP, VARCHAR, INT) TO client_role, manager_role, director_role;
+GRANT EXECUTE ON FUNCTION sp_book_personal_training(INT, INT, INT, TIMESTAMP, VARCHAR, INT, INT) TO client_role, manager_role, director_role;
 GRANT EXECUTE ON FUNCTION sp_register_client TO guest, manager_role, director_role;
 GRANT EXECUTE ON FUNCTION sp_create_client_user(VARCHAR, VARCHAR) TO manager_role, director_role;
 GRANT EXECUTE ON FUNCTION sp_hire_coach TO hr_role, director_role;
@@ -990,4 +1040,204 @@ GRANT EXECUTE ON FUNCTION sp_register_visit(INT, INT) TO manager_role, director_
 GRANT EXECUTE ON PROCEDURE sp_book_group_class(INTEGER, INTEGER, INTEGER, VARCHAR) TO client_role, manager_role, director_role;
 GRANT EXECUTE ON PROCEDURE sp_cancel_group_booking(INTEGER) TO client_role, manager_role;
 GRANT EXECUTE ON PROCEDURE sp_generate_weekly_group_instances(INTEGER) TO director_role, manager_role, client_role, coach_role;
+
+-- 6.10. Оновлення та версіонування тарифу прайс-листа (D10, SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION sp_update_price_tariff(
+    p_item_id INT,
+    p_new_price NUMERIC
+)
+RETURNS TABLE (
+    old_item_id INT,
+    new_item_id INT,
+    item_name VARCHAR,
+    new_price NUMERIC,
+    effective_date DATE
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_old_rec RECORD;
+    v_new_id INT;
+BEGIN
+    IF p_new_price IS NULL OR p_new_price < 0 THEN
+        RAISE EXCEPTION 'Ціна тарифу повинна бути невід''ємною!';
+    END IF;
+
+    SELECT ID_Item, ItemName, Category, Description, PriceStartDate, PriceEndDate
+    INTO v_old_rec
+    FROM PriceList
+    WHERE ID_Item = p_item_id
+    FOR UPDATE;
+
+    IF v_old_rec.ID_Item IS NULL THEN
+        RAISE EXCEPTION 'Тариф із ID % не знайдено в прайс-листі!', p_item_id;
+    END IF;
+
+    IF v_old_rec.PriceEndDate IS NOT NULL THEN
+        RAISE EXCEPTION 'Тариф із ID % вже є закритим (історичним)!', p_item_id;
+    END IF;
+
+    UPDATE PriceList
+    SET PriceEndDate = CURRENT_DATE
+    WHERE ID_Item = p_item_id;
+
+    INSERT INTO PriceList (ItemName, Category, Price, PriceStartDate, PriceEndDate, Description)
+    VALUES (v_old_rec.ItemName, v_old_rec.Category, p_new_price, CURRENT_DATE, NULL, v_old_rec.Description)
+    RETURNING ID_Item INTO v_new_id;
+
+    UPDATE ClassTypes
+    SET ID_Item = v_new_id
+    WHERE ID_Item = p_item_id;
+
+    UPDATE PriceListSubs
+    SET ID_Item = v_new_id
+    WHERE ID_Item = p_item_id;
+
+    RETURN QUERY SELECT p_item_id, v_new_id, v_old_rec.ItemName, p_new_price, CURRENT_DATE;
+END;
+$$;
+
+-- 6.11. Створення послуги під ключ з автоматичним налаштуванням зв'язків (D10, SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION sp_create_service_turnkey(
+    p_item_name VARCHAR,
+    p_category VARCHAR,
+    p_price NUMERIC,
+    p_description TEXT,
+    -- Поля для Membership
+    p_duration_days INT DEFAULT NULL,
+    p_max_freezing_days INT DEFAULT NULL,
+    -- Поля для Group training
+    p_day_of_week INT DEFAULT NULL,
+    p_start_time TIME DEFAULT NULL,
+    p_duration_minutes INT DEFAULT NULL,
+    p_hall_id INT DEFAULT NULL,
+    p_coach_id INT DEFAULT NULL
+)
+RETURNS TABLE (
+    item_id INT,
+    classtype_id INT,
+    template_id INT,
+    message TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_item_id INT;
+    v_classtype_id INT := NULL;
+    v_template_id INT := NULL;
+    v_duration_min INT := COALESCE(p_duration_minutes, 60);
+BEGIN
+    IF p_price IS NULL OR p_price < 0 THEN
+        RAISE EXCEPTION 'Ціна послуги повинна бути невід''ємною!';
+    END IF;
+
+    IF p_item_name IS NULL OR length(trim(p_item_name)) = 0 THEN
+        RAISE EXCEPTION 'Назва послуги не може бути порожньою!';
+    END IF;
+
+    IF p_category NOT IN ('Membership', 'Personal training', 'Group training', 'Extra') THEN
+        RAISE EXCEPTION 'Некоректна категорія послуги: %!', p_category;
+    END IF;
+
+    -- Створюємо запис у PriceList
+    INSERT INTO PriceList (ItemName, Category, Price, PriceStartDate, PriceEndDate, Description)
+    VALUES (trim(p_item_name), p_category, p_price, CURRENT_DATE, NULL, p_description)
+    RETURNING ID_Item INTO v_item_id;
+
+    IF p_category = 'Membership' THEN
+        IF p_duration_days IS NULL OR p_duration_days <= 0 THEN
+            RAISE EXCEPTION 'Для категорії Membership тривалість абонемента (duration_days) є обов''язковою і повинна бути більшою за 0!';
+        END IF;
+        IF p_max_freezing_days IS NOT NULL AND p_max_freezing_days < 0 THEN
+            RAISE EXCEPTION 'Кількість днів заморозки не може бути від''ємною!';
+        END IF;
+
+        INSERT INTO PriceListSubs (ID_Item, DurationDays, MaxFreezingDays)
+        VALUES (v_item_id, p_duration_days, COALESCE(p_max_freezing_days, 0));
+
+    ELSIF p_category = 'Group training' THEN
+        -- Створюємо або прив'язуємо ClassTypes
+        SELECT ID_ClassType INTO v_classtype_id
+        FROM ClassTypes
+        WHERE TypeName = trim(p_item_name);
+
+        IF v_classtype_id IS NOT NULL THEN
+            UPDATE ClassTypes
+            SET ID_Item = v_item_id
+            WHERE ID_ClassType = v_classtype_id;
+        ELSE
+            INSERT INTO ClassTypes (TypeName, ID_Item)
+            VALUES (trim(p_item_name), v_item_id)
+            RETURNING ID_ClassType INTO v_classtype_id;
+        END IF;
+
+        -- Якщо передано розклад, створюємо шаблон і генеруємо екземпляри
+        IF p_day_of_week IS NOT NULL AND p_start_time IS NOT NULL AND p_hall_id IS NOT NULL AND p_coach_id IS NOT NULL THEN
+            INSERT INTO GroupScheduleTemplates (ID_ClassType, DayOfWeek, StartTime, DurationMinutes, ID_Hall, ID_Coach)
+            VALUES (v_classtype_id, p_day_of_week, p_start_time, v_duration_min, p_hall_id, p_coach_id)
+            RETURNING ID_Template INTO v_template_id;
+
+            CALL sp_generate_weekly_group_instances(1);
+        END IF;
+
+    END IF;
+
+    RETURN QUERY SELECT v_item_id, v_classtype_id, v_template_id, 'Послугу успішно створено під ключ'::TEXT;
+END;
+$$;
+
+-- Додаткові права на нові функції/процедури
+GRANT EXECUTE ON FUNCTION sp_update_price_tariff(INT, NUMERIC) TO director_role;
+GRANT EXECUTE ON FUNCTION sp_create_service_turnkey(VARCHAR, VARCHAR, NUMERIC, TEXT, INT, INT, INT, TIME, INT, INT, INT) TO director_role;
+GRANT EXECUTE ON FUNCTION sp_book_personal_training(INT, INT, INT, TIMESTAMP, VARCHAR, INT, INT) TO client_role, manager_role, director_role;
+
+-- 6.12. Деактивація / архівування послуги з прайсу (TICKET-062, Soft Delete, SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION sp_deactivate_price_item(
+    p_item_id INT
+)
+RETURNS TABLE (
+    item_id INT,
+    item_name VARCHAR,
+    status TEXT,
+    message TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_item_name VARCHAR(100);
+    v_price_end_date DATE;
+BEGIN
+    SELECT ItemName, PriceEndDate
+    INTO v_item_name, v_price_end_date
+    FROM PriceList
+    WHERE ID_Item = p_item_id
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Послугу з ID % не знайдено в прайс-листі!', p_item_id;
+    END IF;
+
+    IF v_price_end_date IS NOT NULL THEN
+        RAISE EXCEPTION 'Послуга з ID % вже вилучена з прайсу (архівна)!', p_item_id;
+    END IF;
+
+    UPDATE PriceList
+    SET PriceEndDate = CURRENT_DATE
+    WHERE ID_Item = p_item_id;
+
+    RETURN QUERY SELECT 
+        p_item_id, 
+        v_item_name, 
+        'Archived'::TEXT, 
+        'Послугу успішно вилучено з активного прайсу.'::TEXT;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION sp_deactivate_price_item(INT) TO director_role;
 

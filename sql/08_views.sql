@@ -63,7 +63,7 @@ SELECT
     pl.Price,
     COUNT(s.ID_Sale) AS SalesCount,
     COALESCE(SUM(s.SalePrice), 0.00) AS TotalRevenue,
-    COALESCE(SUM(pl.Price - s.SalePrice), 0.00) AS TotalDiscountGiven,
+    COALESCE(SUM(CASE WHEN s.ID_Sale IS NOT NULL THEN pl.Price - s.SalePrice ELSE 0 END), 0.00) AS TotalDiscountGiven,
     COUNT(ap.ID_Promo) AS PromoUsagesCount
 FROM PriceList pl
 LEFT JOIN Sales s ON pl.ID_Item = s.ID_Item

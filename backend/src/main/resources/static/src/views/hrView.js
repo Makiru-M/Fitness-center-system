@@ -162,7 +162,7 @@ export async function renderHrCoachesTable(searchTerm = '') {
                   <i class="fa-solid fa-ban mr-1"></i> Ви
                 </button>
               ` : `
-                <button onclick="quickDismissCoach(${c.staffId})" class="btn btn-danger btn-sm" title="Звільнити тренера">
+                <button onclick="quickDismissCoach(${c.staffId})" class="btn btn-secondary-cyan btn-sm" title="Звільнити тренера">
                   <i class="fa-solid fa-user-xmark"></i> Звільнити
                 </button>
               `}
@@ -243,7 +243,7 @@ export async function renderHrStaffTable(searchTerm = '') {
                   <i class="fa-solid fa-ban mr-1"></i> Ви
                 </button>
               ` : `
-                <button onclick="quickDismissStaff(${st.staffId})" class="btn btn-danger btn-sm" title="Звільнити співробітника">
+                <button onclick="quickDismissStaff(${st.staffId})" class="btn btn-secondary-cyan btn-sm" title="Звільнити співробітника">
                   <i class="fa-solid fa-user-xmark"></i> Звільнити
                 </button>
               `}

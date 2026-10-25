@@ -33,18 +33,7 @@ INSERT INTO Halls (HallName, MaxCapacity) VALUES
 ('Kids Zone', 15)
 ON CONFLICT (HallName) DO NOTHING;
 
-INSERT INTO ClassTypes (TypeName) VALUES 
-('Hatha Yoga'), 
-('Power Crossfit'), 
-('Zumba'), 
-('Morning Stretch'), 
-('Box Training'), 
-('Aqua Aerobics'), 
-('Pilates Basics'), 
-('Body Pump'), 
-('Total Abs'), 
-('Tai Chi')
-ON CONFLICT (TypeName) DO NOTHING;
+-- ClassTypes are seeded after PriceList below
 
 INSERT INTO Staff (FullName, BirthDate, Phone, ID_Position, DB_User, HireDate) VALUES 
 ('Іваненко Іван Іванович', '1985-05-15', '+380501111111', 5, 'boss_ivan', '2020-01-01'),
@@ -98,8 +87,32 @@ INSERT INTO PriceList (ItemName, Category, Price, Description) VALUES
 ('Річний безліміт (Gold)', 'Membership', 10000.00, '12 місяців занять.'),
 ('Персональне тренування з експертом', 'Personal training', 400.00, 'Індивідуальне заняття 60 хв.'),
 ('Разове групове заняття', 'Group training', 200.00, 'Одне групове заняття.'),
-('Дитяче тренування (Kids Fitness)', 'Group training', 150.00, 'Заняття для дітей.')
-ON CONFLICT (ItemName) DO NOTHING;
+('Дитяче тренування (Kids Fitness)', 'Group training', 150.00, 'Заняття для дітей.'),
+('Hatha Yoga', 'Group training', 200.00, 'Групове заняття Hatha Yoga'),
+('Power Crossfit', 'Group training', 200.00, 'Групове заняття Power Crossfit'),
+('Zumba', 'Group training', 200.00, 'Групове заняття Zumba'),
+('Morning Stretch', 'Group training', 200.00, 'Групове заняття Morning Stretch'),
+('Box Training', 'Group training', 200.00, 'Групове заняття Box Training'),
+('Aqua Aerobics', 'Group training', 200.00, 'Групове заняття Aqua Aerobics'),
+('Pilates Basics', 'Group training', 200.00, 'Групове заняття Pilates Basics'),
+('Body Pump', 'Group training', 200.00, 'Групове заняття Body Pump'),
+('Total Abs', 'Group training', 200.00, 'Групове заняття Total Abs'),
+('Tai Chi', 'Group training', 200.00, 'Групове заняття Tai Chi')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO ClassTypes (TypeName, ID_Item) VALUES 
+('Hatha Yoga', 7), 
+('Power Crossfit', 8), 
+('Zumba', 9), 
+('Morning Stretch', 10), 
+('Box Training', 11), 
+('Aqua Aerobics', 12), 
+('Pilates Basics', 13), 
+('Body Pump', 14), 
+('Total Abs', 15), 
+('Tai Chi', 16),
+('Kids Fitness', 6)
+ON CONFLICT (TypeName) DO UPDATE SET ID_Item = EXCLUDED.ID_Item;
 
 INSERT INTO PriceListSubs (ID_Item, DurationDays, MaxFreezingDays) VALUES 
 (1, 30, 7),
@@ -215,7 +228,8 @@ INSERT INTO GroupScheduleTemplates (ID_ClassType, DayOfWeek, StartTime, Duration
 (3, 4, '19:00', 60, 3, 5), 
 (5, 5, '17:00', 60, 1, 6), 
 (7, 6, '11:00', 60, 6, 7),
-(2, 4, '18:00', 60, 4, 1);
+(2, 4, '18:00', 60, 4, 1),
+(11, 6, '12:30', 60, 7, 7);
 
 INSERT INTO GroupClassInstances (ID_Template, ClassDate, ClassStatus, ActualAttendance, ClassStartTime) VALUES 
 (1, '2026-05-18', 'Scheduled', 3, '09:00'), 

@@ -68,7 +68,7 @@ export async function renderCoachSchedule() {
       if (isScheduled) {
         if (finished) {
           actionHtml = isPersonal
-            ? `<button onclick="quickMarkC3(${it.activityId})" class="btn btn-primary btn-sm"><i class="fa-solid fa-check mr-1"></i> Відмітити (C3)</button>`
+            ? `<button onclick="quickMarkC3(${it.activityId})" class="btn btn-secondary-cyan btn-sm"><i class="fa-solid fa-check mr-1"></i> Відмітити (C3)</button>`
             : `<button onclick="quickMarkC4(${it.activityId})" class="btn btn-secondary btn-sm"><i class="fa-solid fa-check mr-1"></i> Відмітити (C4)</button>`;
         } else {
           actionHtml = `

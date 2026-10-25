@@ -22,12 +22,6 @@ CREATE TABLE IF NOT EXISTS Halls (
     IsActive BOOLEAN DEFAULT TRUE
 );
 
--- Види групових занять
-CREATE TABLE IF NOT EXISTS ClassTypes (
-    ID_ClassType SERIAL PRIMARY KEY,
-    TypeName VARCHAR(50) NOT NULL UNIQUE
-);
-
 -- Співробітники фітнес-клубу
 CREATE TABLE IF NOT EXISTS Staff (
     ID_Staff SERIAL PRIMARY KEY,
@@ -69,10 +63,11 @@ CREATE TABLE IF NOT EXISTS MedicalNotes (
 -- Прайс-лист послуг та абонементів клубу
 CREATE TABLE IF NOT EXISTS PriceList (
     ID_Item SERIAL PRIMARY KEY,
-    ItemName VARCHAR(100) NOT NULL UNIQUE,
+    ItemName VARCHAR(100) NOT NULL,
     Category VARCHAR(30) NOT NULL CHECK (Category IN ('Membership', 'Personal training', 'Group training', 'Extra')),
     Price DECIMAL(10, 2) NOT NULL CHECK (Price >= 0),
     PriceStartDate DATE NOT NULL DEFAULT CURRENT_DATE,
+    PriceEndDate DATE DEFAULT NULL,
     Description TEXT
 );
 
@@ -81,6 +76,13 @@ CREATE TABLE IF NOT EXISTS PriceListSubs (
     ID_Item INTEGER PRIMARY KEY REFERENCES PriceList(ID_Item) ON DELETE CASCADE,
     DurationDays INTEGER NOT NULL CHECK (DurationDays > 0),
     MaxFreezingDays INTEGER NOT NULL DEFAULT 0 CHECK (MaxFreezingDays >= 0)
+);
+
+-- Види групових занять
+CREATE TABLE IF NOT EXISTS ClassTypes (
+    ID_ClassType SERIAL PRIMARY KEY,
+    TypeName VARCHAR(50) NOT NULL UNIQUE,
+    ID_Item INTEGER REFERENCES PriceList(ID_Item)
 );
 
 -- Довідник промокодів для знижок

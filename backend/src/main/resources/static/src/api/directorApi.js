@@ -83,7 +83,31 @@ export const directorApi = {
     });
   },
 
+  updatePriceTariff(itemId, newPrice) {
+    return apiFetch(`/director/prices/${itemId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ newPrice: parseFloat(newPrice) })
+    });
+  },
+
+  createTurnkeyService(data) {
+    return apiFetch('/director/services/turnkey', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
   getGroupIndividualShareView() {
     return apiFetch('/director/views/group-individual-share');
+  },
+
+  getPrices(includeArchived = false) {
+    return apiFetch(`/director/prices?includeArchived=${includeArchived}`);
+  },
+
+  deactivatePriceItem(itemId) {
+    return apiFetch(`/director/prices/${itemId}`, {
+      method: 'DELETE'
+    });
   }
 };

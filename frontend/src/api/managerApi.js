@@ -13,6 +13,10 @@ export const managerApi = {
     });
   },
 
+  getAvailableGroupClasses() {
+    return apiFetch('/manager/group-classes/available');
+  },
+
   getClients(searchTerm = '') {
     const q = searchTerm ? `?search=${encodeURIComponent(searchTerm)}` : '';
     return apiFetch(`/manager/clients${q}`);
@@ -46,9 +50,16 @@ export const managerApi = {
     });
   },
 
-  bookPersonalTraining(clientId, coachId, hallId, dateTime, promoCode = '') {
-    const p = promoCode ? `&promoCode=${encodeURIComponent(promoCode)}` : '';
-    return apiFetch(`/manager/bookings/personal?clientId=${clientId}&coachId=${coachId}&hallId=${hallId}&dateTime=${encodeURIComponent(dateTime)}${p}`, {
+  bookPersonalTraining(clientId, coachId, hallId, dateTime, promoCode = '', itemId = null) {
+    const params = new URLSearchParams({
+      clientId: String(clientId),
+      coachId: String(coachId),
+      hallId: String(hallId),
+      dateTime: String(dateTime)
+    });
+    if (promoCode) params.append('promoCode', promoCode);
+    if (itemId) params.append('itemId', String(itemId));
+    return apiFetch(`/manager/bookings/personal?${params.toString()}`, {
       method: 'POST'
     });
   },

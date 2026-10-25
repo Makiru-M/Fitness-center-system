@@ -15,4 +15,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_coach_active_slot ON PersonalTrainings (ID_
 CREATE INDEX IF NOT EXISTS idx_group_instances_date ON GroupClassInstances(ClassDate);
 CREATE INDEX IF NOT EXISTS idx_group_instances_template ON GroupClassInstances(ID_Template);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_group_booking_active ON GroupClassBookings (ID_Instance, ID_Sale) WHERE BookingStatus = 'Scheduled';
-
+CREATE UNIQUE INDEX IF NOT EXISTS uq_pricelist_active_itemname ON PriceList(ItemName) WHERE PriceEndDate IS NULL;

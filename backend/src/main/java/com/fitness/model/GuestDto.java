@@ -43,12 +43,33 @@ public class GuestDto {
             BigDecimal price,
             Integer durationDays,
             Integer maxFreezingDays,
-            String description
-    ) {}
+            String description,
+            LocalDate priceStartDate,
+            LocalDate priceEndDate,
+            Boolean isActive
+    ) {
+        public PriceListItemDto(
+                Integer itemId,
+                String itemName,
+                String category,
+                BigDecimal price,
+                Integer durationDays,
+                Integer maxFreezingDays,
+                String description
+        ) {
+            this(itemId, itemName, category, price, durationDays, maxFreezingDays, description, null, null, true);
+        }
+    }
 
     public record HallDto(
             Integer hallId,
             String hallName,
             Integer maxCapacity
+    ) {}
+    public record ClassTypePublicDto(
+            Integer classTypeId,
+            String typeName,
+            Integer itemId,
+            BigDecimal price
     ) {}
 }

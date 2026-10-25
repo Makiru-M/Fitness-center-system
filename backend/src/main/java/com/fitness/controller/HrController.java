@@ -24,6 +24,20 @@ public class HrController {
      */
     @PostMapping("/coaches")
     public ResponseEntity<Map<String, Object>> hireCoach(@RequestBody HireCoachRequest req) {
+        if (req.dbUser() == null || req.dbUser().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", 400,
+                    "error", "Bad Request",
+                    "message", "Логін облікового запису обов'язковий!"
+            ));
+        }
+        if (req.password() == null || req.password().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", 400,
+                    "error", "Bad Request",
+                    "message", "Пароль облікового запису обов'язковий!"
+            ));
+        }
         Integer coachId = hrRepository.hireCoach(req);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "coachId", coachId,
@@ -54,6 +68,20 @@ public class HrController {
      */
     @PostMapping("/managers")
     public ResponseEntity<Map<String, Object>> hireManager(@RequestBody HireManagerRequest req) {
+        if (req.dbUser() == null || req.dbUser().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", 400,
+                    "error", "Bad Request",
+                    "message", "Логін облікового запису обов'язковий!"
+            ));
+        }
+        if (req.password() == null || req.password().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", 400,
+                    "error", "Bad Request",
+                    "message", "Пароль облікового запису обов'язковий!"
+            ));
+        }
         Integer staffId = hrRepository.hireManager(req);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "staffId", staffId,

@@ -186,6 +186,16 @@ import {
   handleD8RecommissionHall,
   handleD9CreatePromo,
   handleD10CreateService,
+  renderD10PriceList,
+  filterD10PriceList,
+  openD10EditModal,
+  closeD10EditModal,
+  handleD10UpdateTariff,
+  confirmDeactivatePriceItem,
+  openD10CreateModal,
+  closeD10CreateModal,
+  toggleD10CategoryFields,
+  handleD10CreateTurnkey,
   handleD11CreateTemplate,
   handleD12Slot
 } from './views/directorView.js';
@@ -433,6 +443,16 @@ Object.assign(window, {
   handleD8RecommissionHall,
   handleD9CreatePromo,
   handleD10CreateService,
+  renderD10PriceList,
+  filterD10PriceList,
+  openD10EditModal,
+  closeD10EditModal,
+  handleD10UpdateTariff,
+  confirmDeactivatePriceItem,
+  openD10CreateModal,
+  closeD10CreateModal,
+  toggleD10CategoryFields,
+  handleD10CreateTurnkey,
   handleD11CreateTemplate,
   handleD12Slot
 });

@@ -8,7 +8,9 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Repository
 @Transactional
@@ -26,16 +28,21 @@ public class DirectorRepository {
     public List<RevenueReportItem> getRevenueReport(LocalDate fromDate, LocalDate toDate) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         StringBuilder sql = new StringBuilder("""
-            WITH CategorySales AS (
+            WITH Categories AS (
+                SELECT unnest(ARRAY['Membership', 'Personal training', 'Group training', 'Extra']) AS Category
+            ),
+            CategorySales AS (
                 SELECT 
-                    pl.Category,
+                    c.Category,
                     COUNT(s.ID_Sale) AS Sales_Count,
-                    COALESCE(SUM(pl.Price), 0) AS Full_Price_Total,
-                    COALESCE(SUM(s.SalePrice), 0) AS Actual_Revenue,
-                    COALESCE(SUM(pl.Price - s.SalePrice), 0) AS Total_Discounts,
+                    COALESCE(SUM(pl.Price), 0.00) AS Full_Price_Total,
+                    COALESCE(SUM(s.SalePrice), 0.00) AS Actual_Revenue,
+                    COALESCE(SUM(pl.Price - s.SalePrice), 0.00) AS Total_Discounts,
                     COUNT(ap.ID_Promo) AS Promo_Code_Usage
-                FROM PriceList pl
-                LEFT JOIN Sales s ON pl.ID_Item = s.ID_Item
+                FROM Categories c
+                LEFT JOIN (
+                    Sales s 
+                    JOIN PriceList pl ON s.ID_Item = pl.ID_Item
             """);
 
         List<Object> params = new java.util.ArrayList<>();
@@ -46,8 +53,9 @@ public class DirectorRepository {
         }
 
         sql.append("""
+                ) ON c.Category = pl.Category
                 LEFT JOIN AppliedPromo ap ON s.ID_Sale = ap.ID_Sale
-                GROUP BY pl.Category
+                GROUP BY c.Category
             )
             SELECT 
                 Category,
@@ -445,5 +453,43 @@ public class DirectorRepository {
                 rs.getLong("ClientsWithPersonalTrainings"),
                 rs.getDouble("PersonalTrainingSharePercent")
         ));
+    }
+    /**
+     * D10: Update price tariff (versioning via sp_update_price_tariff)
+     */
+    public Map<String, Object> updatePriceTariff(Integer itemId, BigDecimal newPrice) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = "SELECT * FROM sp_update_price_tariff(?, ?)";
+        return jdbc.queryForMap(sql, itemId, newPrice);
+    }
+
+    /**
+     * D10: Create turnkey service (via sp_create_service_turnkey)
+     */
+    public Map<String, Object> createTurnkeyService(CreateTurnkeyServiceRequest req) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = "SELECT * FROM sp_create_service_turnkey(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        return jdbc.queryForMap(sql,
+                req.itemName(),
+                req.category(),
+                req.price(),
+                req.description(),
+                req.durationDays(),
+                req.maxFreezingDays(),
+                req.dayOfWeek(),
+                req.startTime(),
+                req.durationMinutes(),
+                req.hallId(),
+                req.coachId()
+        );
+    }
+
+    /**
+     * D10: Deactivate / soft delete price item (via sp_deactivate_price_item)
+     */
+    public Map<String, Object> deactivatePriceItem(Integer itemId) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = "SELECT * FROM sp_deactivate_price_item(?)";
+        return jdbc.queryForMap(sql, itemId);
     }
 }

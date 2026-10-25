@@ -107,11 +107,18 @@ public class GuestRepository {
     }
 
     /**
-     * G3: View Price List
+     * G3: View Price List (Active items only for public guests)
      */
     public List<PriceListItemDto> getPriceList() {
+        return getPriceList(false);
+    }
+
+    /**
+     * G3 / D10: View Price List with optional archived items
+     */
+    public List<PriceListItemDto> getPriceList(boolean includeArchived) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = """
+        StringBuilder sql = new StringBuilder("""
             SELECT 
                 pl.ID_Item,
                 pl.ItemName,
@@ -119,21 +126,36 @@ public class GuestRepository {
                 pl.Price,
                 pls.DurationDays,
                 pls.MaxFreezingDays,
-                pl.Description
+                pl.Description,
+                pl.PriceStartDate,
+                pl.PriceEndDate
             FROM PriceList pl
             LEFT JOIN PriceListSubs pls ON pl.ID_Item = pls.ID_Item
-            ORDER BY pl.Category, pl.Price
-            """;
+            """);
 
-        return jdbc.query(sql, (rs, rowNum) -> new PriceListItemDto(
-                rs.getInt("ID_Item"),
-                rs.getString("ItemName"),
-                rs.getString("Category"),
-                rs.getBigDecimal("Price"),
-                (Integer) rs.getObject("DurationDays"),
-                (Integer) rs.getObject("MaxFreezingDays"),
-                rs.getString("Description")
-        ));
+        if (!includeArchived) {
+            sql.append(" WHERE pl.PriceEndDate IS NULL ");
+            sql.append(" ORDER BY pl.Category, pl.Price");
+        } else {
+            sql.append(" ORDER BY pl.PriceEndDate NULLS FIRST, pl.Category, pl.Price");
+        }
+
+        return jdbc.query(sql.toString(), (rs, rowNum) -> {
+            java.sql.Date startDate = rs.getDate("PriceStartDate");
+            java.sql.Date endDate = rs.getDate("PriceEndDate");
+            return new PriceListItemDto(
+                    rs.getInt("ID_Item"),
+                    rs.getString("ItemName"),
+                    rs.getString("Category"),
+                    rs.getBigDecimal("Price"),
+                    (Integer) rs.getObject("DurationDays"),
+                    (Integer) rs.getObject("MaxFreezingDays"),
+                    rs.getString("Description"),
+                    startDate != null ? startDate.toLocalDate() : null,
+                    endDate != null ? endDate.toLocalDate() : null,
+                    endDate == null
+            );
+        });
     }
 
     /**
@@ -147,6 +169,29 @@ public class GuestRepository {
                 rs.getInt("ID_Hall"),
                 rs.getString("HallName"),
                 rs.getInt("MaxCapacity")
+        ));
+    }
+    /**
+     * Get all class types with current tariff prices
+     */
+    public List<ClassTypePublicDto> getClassTypes() {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = """
+            SELECT 
+                ct.ID_ClassType,
+                ct.TypeName,
+                ct.ID_Item,
+                pl.Price
+            FROM ClassTypes ct
+            LEFT JOIN PriceList pl ON ct.ID_Item = pl.ID_Item
+            ORDER BY ct.ID_ClassType ASC
+            """;
+
+        return jdbc.query(sql, (rs, rowNum) -> new ClassTypePublicDto(
+                rs.getInt("ID_ClassType"),
+                rs.getString("TypeName"),
+                (Integer) rs.getObject("ID_Item"),
+                rs.getBigDecimal("Price")
         ));
     }
 }

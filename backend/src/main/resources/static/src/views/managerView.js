@@ -7,8 +7,6 @@
 import { AppState, findPromo, TEST_ACCOUNTS } from '../state/state.js';
 import { managerApi } from '../api/managerApi.js';
 import { guestApi } from '../api/guestApi.js';
-import { clientApi } from '../api/clientApi.js';
-import { hrApi } from '../api/hrApi.js';
 import { showToast } from '../components/toast.js';
 import { refreshCombobox } from '../components/combobox.js';
 
@@ -186,12 +184,11 @@ export function initM7DateLimits() {
 
 export async function populateManagerDropdowns() {
   try {
-    const [clients, halls, items, coaches, employees] = await Promise.all([
+    const [clients, halls, items, coaches] = await Promise.all([
       managerApi.getClients(),
       guestApi.getHalls(),
       guestApi.getPriceList(),
-      guestApi.getCoaches(),
-      hrApi.getEmployees()
+      guestApi.getCoaches()
     ]);
 
     cachedClients = clients || [];
@@ -262,6 +259,29 @@ export async function populateManagerDropdowns() {
       const sDate = document.getElementById('m3-startdate');
       initM3DateLimits();
       updateM3Price();
+    }
+
+    // PriceList items for M6: Personal training
+    const m6Item = document.getElementById('m6-item');
+    if (m6Item) {
+      m6Item.innerHTML = '';
+      const personalItems = cachedPriceList.filter(item => item.category === 'Personal training');
+      if (personalItems.length > 0) {
+        personalItems.forEach(item => {
+          const opt = document.createElement('option');
+          opt.value = item.itemId;
+          opt.dataset.price = item.price;
+          opt.textContent = `${item.itemName} — ${parseFloat(item.price).toFixed(2)} грн`;
+          m6Item.appendChild(opt);
+        });
+      } else {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.dataset.price = '400.00';
+        opt.textContent = 'Персональне тренування — 400.00 грн';
+        m6Item.appendChild(opt);
+      }
+      updateM6Price();
     }
 
     // Coaches for M6
@@ -803,7 +823,7 @@ export function checkM5Promo() {
 
 export async function loadM5Schedule() {
   try {
-    const classes = await clientApi.getAvailableGroupClasses();
+    const classes = await managerApi.getAvailableGroupClasses();
     cachedM5GroupClasses = classes || [];
     renderM5Schedule();
   } catch (err) {
@@ -976,11 +996,17 @@ export function updateM5Price() {
   const promoBadge = document.getElementById('modal-m5-promo-badge');
   const confirmBtn = document.getElementById('modal-m5-confirm-btn');
 
-  let price = BASE_M5_PRICE;
+  const instId = parseInt(document.getElementById('modal-m5-instance-id')?.value || '0', 10);
+  const gc = (cachedM5GroupClasses || []).find(c => c.instanceId === instId);
+  const basePrice = (gc && gc.price != null && !isNaN(parseFloat(gc.price)))
+    ? parseFloat(gc.price)
+    : BASE_M5_PRICE;
+
+  let price = basePrice;
   const promo = findPromo(promoInput);
   const now = new Date().toISOString().split('T')[0];
   if (promo && !(promo.expiryDate && promo.expiryDate < now)) {
-    price = (BASE_M5_PRICE * (100 - promo.discountPercent)) / 100;
+    price = (basePrice * (100 - promo.discountPercent)) / 100;
     if (promoBadge) {
       promoBadge.innerHTML = `<span class="badge badge-active text-xs">Знижка ${promo.discountPercent}% застосована!</span>`;
       promoBadge.classList.remove('hidden');
@@ -1194,11 +1220,17 @@ export function updateM6Price() {
   const promoBadge = document.getElementById('m6-promo-badge');
   const submitBtn = document.getElementById('m6-submit-btn');
 
-  let price = BASE_M6_PRICE;
+  const itemSel = document.getElementById('m6-item');
+  const selectedOpt = itemSel ? itemSel.options[itemSel.selectedIndex] : null;
+  const basePrice = (selectedOpt && selectedOpt.dataset.price)
+    ? parseFloat(selectedOpt.dataset.price)
+    : BASE_M6_PRICE;
+
+  let price = basePrice;
   const promo = findPromo(promoInput);
   const now = new Date().toISOString().split('T')[0];
   if (promo && !(promo.expiryDate && promo.expiryDate < now)) {
-    price = (BASE_M6_PRICE * (100 - promo.discountPercent)) / 100;
+    price = (basePrice * (100 - promo.discountPercent)) / 100;
     if (promoBadge) {
       promoBadge.innerHTML = `<span class="badge badge-active text-xs">Знижка ${promo.discountPercent}% застосована!</span>`;
       promoBadge.classList.remove('hidden');
@@ -1254,6 +1286,8 @@ export async function handleM6Booking(e) {
   const hallId = parseInt(document.getElementById('m6-hall').value, 10);
   const dateTime = document.getElementById('m6-datetime').value;
   const promoCode = document.getElementById('m6-promo')?.value.trim().toUpperCase() || '';
+  const itemVal = document.getElementById('m6-item')?.value;
+  const itemId = itemVal ? parseInt(itemVal, 10) : null;
 
   if (!dateTime) {
     showToast('Вкажіть дату та час тренування!', 'warning');
@@ -1265,7 +1299,7 @@ export async function handleM6Booking(e) {
   }
 
   try {
-    const res = await managerApi.bookPersonalTraining(clientId, coachId, hallId, dateTime, promoCode);
+    const res = await managerApi.bookPersonalTraining(clientId, coachId, hallId, dateTime, promoCode, itemId);
     showToast(`Персональне тренування #${res.personalId} успішно призначено! (M6)`, 'success');
     switchManagerTab('m2');
   } catch (err) {
@@ -1473,7 +1507,7 @@ export async function renderM8Requests() {
             <button onclick="handleApproveRequest(${req.logId})" class="btn btn-primary btn-xs" title="Схвалити запит">
               <i class="fa-solid fa-check mr-1"></i> Схвалити
             </button>
-            <button onclick="handleRejectRequest(${req.logId})" class="btn btn-danger btn-xs" title="Відхилити запит">
+            <button onclick="handleRejectRequest(${req.logId})" class="btn btn-cyan btn-xs" title="Відхилити запит">
               <i class="fa-solid fa-xmark mr-1"></i> Відхилити
             </button>
           </div>

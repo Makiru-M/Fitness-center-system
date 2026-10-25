@@ -21,8 +21,13 @@ public class ClientDto {
             Integer actualAttendance,
             Integer maxCapacity,
             Integer availableSpots,
-            Boolean isBookedByMe
-    ) {}
+            Boolean isBookedByMe,
+            BigDecimal price
+    ) {
+        public AvailableGroupClassDto(Integer instanceId, Integer templateId, String title, String coachName, String hallName, LocalDate classDate, LocalTime startTime, Integer durationMinutes, String status, Integer actualAttendance, Integer maxCapacity, Integer availableSpots, Boolean isBookedByMe) {
+            this(instanceId, templateId, title, coachName, hallName, classDate, startTime, durationMinutes, status, actualAttendance, maxCapacity, availableSpots, isBookedByMe, null);
+        }
+    }
 
     public record ClientProfileDto(
             Integer clientId,
@@ -69,10 +74,14 @@ public class ClientDto {
             Integer hallId,
             LocalDateTime trainingDateTime,
             String promoCode,
-            Integer saleId
+            Integer saleId,
+            Integer itemId
     ) {
         public PersonalBookingRequest(Integer coachId, Integer hallId, LocalDateTime trainingDateTime, String promoCode) {
-            this(coachId, hallId, trainingDateTime, promoCode, null);
+            this(coachId, hallId, trainingDateTime, promoCode, null, null);
+        }
+        public PersonalBookingRequest(Integer coachId, Integer hallId, LocalDateTime trainingDateTime, String promoCode, Integer saleId) {
+            this(coachId, hallId, trainingDateTime, promoCode, saleId, null);
         }
     }
 

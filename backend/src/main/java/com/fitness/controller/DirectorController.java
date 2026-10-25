@@ -2,7 +2,9 @@ package com.fitness.controller;
 
 import com.fitness.model.DirectorDto.*;
 import com.fitness.model.GuestDto.HallDto;
+import com.fitness.model.GuestDto.PriceListItemDto;
 import com.fitness.repository.DirectorRepository;
+import com.fitness.repository.GuestRepository;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,9 +19,11 @@ import java.util.Map;
 public class DirectorController {
 
     private final DirectorRepository directorRepository;
+    private final GuestRepository guestRepository;
 
-    public DirectorController(DirectorRepository directorRepository) {
+    public DirectorController(DirectorRepository directorRepository, GuestRepository guestRepository) {
         this.directorRepository = directorRepository;
+        this.guestRepository = guestRepository;
     }
 
     /**
@@ -171,5 +175,54 @@ public class DirectorController {
     @GetMapping("/views/group-individual-share")
     public ResponseEntity<List<GroupIndividualShareItem>> getGroupIndividualShareView() {
         return ResponseEntity.ok(directorRepository.getGroupIndividualShareView());
+    }
+    /**
+     * D10: Update price tariff (versioning)
+     */
+    @PutMapping("/prices/{id}")
+    public ResponseEntity<Map<String, Object>> updatePriceTariff(
+            @PathVariable("id") Integer itemId,
+            @RequestBody UpdateTariffRequest req
+    ) {
+        Map<String, Object> result = directorRepository.updatePriceTariff(itemId, req.newPrice());
+        return ResponseEntity.ok(Map.of(
+                "message", "Тариф успішно оновлено зі збереженням історії версій.",
+                "details", result
+        ));
+    }
+
+    /**
+     * D10: Create turnkey service
+     */
+    @PostMapping("/services/turnkey")
+    public ResponseEntity<Map<String, Object>> createTurnkeyService(@RequestBody CreateTurnkeyServiceRequest req) {
+        Map<String, Object> result = directorRepository.createTurnkeyService(req);
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "message", "Послугу успішно налаштовано та введено в дію під ключ.",
+                "details", result
+        ));
+    }
+
+    /**
+     * D10: Get price list with optional archived items
+     */
+    @GetMapping("/prices")
+    public ResponseEntity<List<PriceListItemDto>> getPrices(
+            @RequestParam(value = "includeArchived", defaultValue = "false") boolean includeArchived
+    ) {
+        return ResponseEntity.ok(guestRepository.getPriceList(includeArchived));
+    }
+
+    /**
+     * D10: Deactivate / archive price item (Soft Delete)
+     */
+    @DeleteMapping("/prices/{itemId}")
+    public ResponseEntity<Map<String, Object>> deactivatePriceItem(@PathVariable("itemId") Integer itemId) {
+        Map<String, Object> result = directorRepository.deactivatePriceItem(itemId);
+        return ResponseEntity.ok(Map.of(
+                "itemId", itemId,
+                "status", result.getOrDefault("status", "Archived"),
+                "message", result.getOrDefault("message", "Послугу успішно вилучено з активного прайсу.")
+        ));
     }
 }

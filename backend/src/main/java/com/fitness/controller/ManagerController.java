@@ -1,6 +1,8 @@
 package com.fitness.controller;
 
+import com.fitness.model.ClientDto.AvailableGroupClassDto;
 import com.fitness.model.ManagerDto.*;
+import com.fitness.repository.ClientRepository;
 import com.fitness.repository.ManagerRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,9 +17,11 @@ import java.util.Map;
 public class ManagerController {
 
     private final ManagerRepository managerRepository;
+    private final ClientRepository clientRepository;
 
-    public ManagerController(ManagerRepository managerRepository) {
+    public ManagerController(ManagerRepository managerRepository, ClientRepository clientRepository) {
         this.managerRepository = managerRepository;
+        this.clientRepository = clientRepository;
     }
 
     /**
@@ -151,6 +155,14 @@ public class ManagerController {
     public ResponseEntity<Map<String, String>> approveScheduleRequest(@PathVariable("logId") Integer logId) {
         managerRepository.approveScheduleRequest(logId);
         return ResponseEntity.ok(Map.of("message", "Запит успішно схвалено та зміни застосовано до розкладу."));
+    }
+
+    /**
+     * Cl4 / M5: View available group classes scheduled for current and future dates
+     */
+    @GetMapping("/group-classes/available")
+    public ResponseEntity<List<AvailableGroupClassDto>> getAvailableGroupClasses() {
+        return ResponseEntity.ok(clientRepository.getAvailableGroupClasses());
     }
 
     /**
