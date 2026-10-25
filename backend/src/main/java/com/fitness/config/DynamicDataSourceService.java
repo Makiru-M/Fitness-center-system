@@ -199,17 +199,80 @@ public class DynamicDataSourceService {
      * Throws AuthenticationRequiredException if authentication is rejected.
      */
     public void testConnection(String username, String password) {
-        DataSource ds = getDataSource(username, password);
-        try (Connection conn = ds.getConnection()) {
-            if (!conn.isValid(3)) {
-                throw new SQLException("Connection isValid check returned false");
+        try {
+            DataSource ds = getDataSource(username, password);
+            try (Connection conn = ds.getConnection()) {
+                if (!conn.isValid(3)) {
+                    throw new SQLException("Connection isValid check returned false");
+                }
             }
-        } catch (SQLException e) {
+        } catch (Exception e) {
             log.warn("PostgreSQL connection test failed for user [{}]: {}", username, e.getMessage());
             // Evict broken datasource from cache
             dataSourceCache.remove(username + "::" + password);
-            throw new AuthenticationRequiredException("PostgreSQL authentication failed: " + e.getMessage());
+            mapAndThrowAuthException(e);
         }
+    }
+
+    private SQLException findSqlException(Throwable t) {
+        while (t != null) {
+            if (t instanceof SQLException) {
+                return (SQLException) t;
+            }
+            t = t.getCause();
+        }
+        return null;
+    }
+
+    private void mapAndThrowAuthException(Exception e) {
+        SQLException sqlEx = findSqlException(e);
+        String sqlState = sqlEx != null ? sqlEx.getSQLState() : null;
+
+        if (sqlState != null) {
+            if ("28P01".equals(sqlState)) {
+                throw new AuthenticationRequiredException("Невірний логін або пароль.");
+            } else if ("28000".equals(sqlState)) {
+                throw new AuthenticationRequiredException("Обліковий запис співробітника деактивовано (звільнено). Доступ заблоковано.");
+            } else if ("42704".equals(sqlState)) {
+                throw new AuthenticationRequiredException("Користувача не знайдено в системі.");
+            } else if (sqlState.startsWith("08")) {
+                throw new AuthenticationRequiredException("Сервер бази даних недоступний. Спробуйте пізніше.");
+            }
+        }
+
+        // Fallback check against message
+        String msg = e.getMessage() != null ? e.getMessage() : "";
+        if (sqlEx != null && sqlEx.getMessage() != null) {
+            msg = msg + " " + sqlEx.getMessage();
+        }
+
+        if (msg.contains("not permitted to log in") || msg.contains("NOLOGIN") || msg.contains("is not permitted")) {
+            throw new AuthenticationRequiredException("Обліковий запис співробітника деактивовано (звільнено). Доступ заблоковано.");
+        } else if (msg.contains("password authentication failed")) {
+            throw new AuthenticationRequiredException("Невірний логін або пароль.");
+        } else if (msg.contains("does not exist")) {
+            throw new AuthenticationRequiredException("Користувача не знайдено в системі.");
+        } else {
+            throw new AuthenticationRequiredException("Помилка авторизації в системі. Будь ласка, перевірте дані або зверніться до адміністратора.");
+        }
+    }
+
+    public void evictUser(String username) {
+        if (username == null || username.isBlank()) return;
+        String prefix = username + "::";
+        dataSourceCache.entrySet().removeIf(entry -> {
+            if (entry.getKey().startsWith(prefix)) {
+                try {
+                    if (!entry.getValue().isClosed()) {
+                        entry.getValue().close();
+                    }
+                } catch (Exception e) {
+                    log.warn("Error closing evicted DataSource pool for user [{}]: {}", username, e.getMessage());
+                }
+                return true;
+            }
+            return false;
+        });
     }
 
     private HikariDataSource createHikariDataSource(String username, String password) {
@@ -234,6 +297,7 @@ public class DynamicDataSourceService {
             return new HikariDataSource(config);
         } catch (Exception e) {
             log.error("Failed to initialize HikariDataSource for user [{}]: {}", username, e.getMessage());
+            mapAndThrowAuthException(e);
             throw new AuthenticationRequiredException("Failed to connect to PostgreSQL as '" + username + "': " + e.getMessage());
         }
     }

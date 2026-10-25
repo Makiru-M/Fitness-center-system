@@ -9,8 +9,7 @@ INSERT INTO Positions (PositionName) VALUES
 ('Старший тренер'), 
 ('Тренер'), 
 ('HR Менеджер'), 
-('Директор'),
-('Адміністратор')
+('Директор')
 ON CONFLICT (PositionName) DO NOTHING;
 
 INSERT INTO Specializations (SpecName) VALUES 
@@ -80,7 +79,9 @@ INSERT INTO Clients (FullName, BirthDate, Phone, Gender, DB_User) VALUES
 ('Кузьменко Денис Віталійович', '1991-09-05', '+380677777777', 'Male', 'client_denis'),
 ('Жук Катерина Іванівна', '1994-12-22', '+380678888888', 'Female', 'client_kateryna'),
 ('Поліщук Артем Дмитрович', '1997-07-12', '+380679999999', 'Male', 'client_artem'),
-('Білоус Наталія Юріївна', '1993-01-05', '+380670000000', 'Female', 'client_nataliya')
+('Білоус Наталія Юріївна', '1993-01-05', '+380670000000', 'Female', 'client_nataliya'),
+('Тестовий Клієнт Олександрович', '1995-05-15', '+380671234567', 'Male', 'test_client_login'),
+('Особистий Клієнт Тест', '1998-08-20', '+380677654321', 'Female', 'my_login')
 ON CONFLICT (Phone) DO NOTHING;
 
 INSERT INTO MedicalNotes (ID_Client, NotesText) VALUES 

@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -27,11 +28,37 @@ public class AuthRepository {
      * Authenticates the user credentials against PostgreSQL, inspects the role, and resolves profile details.
      */
     public LoginResponse authenticate(String username, String password) {
+        // 0. Check if employee is fired before attempting connection
+        try {
+            JdbcTemplate adminJdbc = dataSourceService.getAdminJdbcTemplate();
+            List<LocalDate> fireDates = adminJdbc.query(
+                "SELECT FireDate FROM Staff WHERE DB_User = ?",
+                (rs, rowNum) -> rs.getDate("FireDate") != null ? rs.getDate("FireDate").toLocalDate() : null,
+                username
+            );
+            if (!fireDates.isEmpty() && fireDates.get(0) != null) {
+                throw new AuthenticationRequiredException("Обліковий запис співробітника деактивовано (звільнено). Доступ заблоковано.");
+            }
+        } catch (AuthenticationRequiredException are) {
+            throw are;
+        } catch (Exception ignored) {
+            // Fallback if adminJdbc fails
+        }
+
         // 1. Verify credentials by attempting a connection
         dataSourceService.testConnection(username, password);
 
         // 2. Query system catalogs to determine user role and profile details
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplateForUser(username, password);
+
+        List<LocalDate> fireDates = jdbc.query(
+            "SELECT FireDate FROM Staff WHERE DB_User = ?",
+            (rs, rowNum) -> rs.getDate("FireDate") != null ? rs.getDate("FireDate").toLocalDate() : null,
+            username
+        );
+        if (!fireDates.isEmpty() && fireDates.get(0) != null) {
+            throw new AuthenticationRequiredException("Обліковий запис співробітника деактивовано (звільнено). Доступ заблоковано.");
+        }
 
         String role = determineRole(jdbc, username);
         ProfileInfo profile = resolveProfile(jdbc, username, role);
@@ -107,7 +134,7 @@ public class AuthRepository {
                     SELECT s.ID_Staff, s.FullName, s.Phone, s.BirthDate, p.PositionName
                     FROM Staff s
                     JOIN Positions p ON s.ID_Position = p.ID_Position
-                    WHERE s.DB_User = ?
+                    WHERE s.DB_User = ? AND s.FireDate IS NULL
                     """;
                 List<ProfileInfo> list = jdbc.query(sql, (rs, rowNum) -> new ProfileInfo(
                         rs.getInt("ID_Staff"),
@@ -123,7 +150,7 @@ public class AuthRepository {
                     FROM Coaches c
                     JOIN Staff s ON c.ID_Staff = s.ID_Staff
                     LEFT JOIN Specializations sp ON c.ID_Spec = sp.ID_Spec
-                    WHERE s.DB_User = ?
+                    WHERE s.DB_User = ? AND s.FireDate IS NULL
                     """;
                 List<ProfileInfo> list = jdbc.query(sql, (rs, rowNum) -> new ProfileInfo(
                         rs.getInt("ID_Coach"),

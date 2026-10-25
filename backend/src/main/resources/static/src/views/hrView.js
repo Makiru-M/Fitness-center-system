@@ -44,15 +44,21 @@ export async function populateHrDropdowns() {
         <option value="4">Плавання & Аквааеробіка</option>
         <option value="5">Реабілітація & ЛФК</option>
       `;
-      const hr1Hire = document.getElementById('hr1-hiredate');
-      if (hr1Hire) hr1Hire.value = today;
+// hr1-hiredate removed (auto-assigned today)
     }
 
     // Coaches for HR3 (Dismiss)
     const hr3Coach = document.getElementById('hr3-coach');
     if (hr3Coach) {
       hr3Coach.innerHTML = '<option value="" disabled selected>-- Оберіть тренера для звільнення --</option>';
-      const activeCoaches = cachedEmployees.filter(e => e.isCoach && e.isActive);
+      const currentDbUser = AppState.currentUser?.dbUser || AppState.user?.username;
+      const currentStaffId = AppState.currentUser?.staffId || AppState.currentUser?.entityId || AppState.user?.profile?.staffId;
+      const activeCoaches = cachedEmployees.filter(e => {
+        if (!e.isCoach || !e.isActive) return false;
+        if (currentDbUser && e.dbUser === currentDbUser) return false;
+        if (currentStaffId && e.staffId === currentStaffId) return false;
+        return true;
+      });
       activeCoaches.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.staffId;
@@ -68,26 +74,32 @@ export async function populateHrDropdowns() {
     const posSelect = document.getElementById('hr4-position');
     if (posSelect) {
       posSelect.innerHTML = `
-        <option value="Адміністратор">Адміністратор рецепції</option>
-        <option value="Менеджер клієнтів">Менеджер клієнтів</option>
+        <option value="Менеджер клієнтів" selected>Менеджер клієнтів</option>
         <option value="HR Менеджер">HR Менеджер</option>
-        <option value="Керуючий клубом">Керуючий клубом</option>
+        <option value="Директор">Директор клубу</option>
       `;
-      const hr4Hire = document.getElementById('hr4-hiredate');
-      if (hr4Hire) hr4Hire.value = today;
+// hr4-hiredate removed (auto-assigned today)
     }
 
     // Staff for HR6
     const hr6Staff = document.getElementById('hr6-staff');
     if (hr6Staff) {
       hr6Staff.innerHTML = '<option value="" disabled selected>-- Оберіть співробітника для звільнення --</option>';
-      const activeStaff = cachedEmployees.filter(e => !e.isCoach && e.isActive);
+      const currentDbUser = AppState.currentUser?.dbUser || AppState.user?.username;
+      const currentStaffId = AppState.currentUser?.staffId || AppState.currentUser?.entityId || AppState.user?.profile?.staffId;
+      const activeStaff = cachedEmployees.filter(e => {
+        if (e.isCoach || !e.isActive) return false;
+        if (currentDbUser && e.dbUser === currentDbUser) return false;
+        if (currentStaffId && e.staffId === currentStaffId) return false;
+        return true;
+      });
       activeStaff.forEach(st => {
         const opt = document.createElement('option');
         opt.value = st.staffId;
         opt.textContent = `${st.fullName} [${st.positionName || 'Персонал'}]`;
         hr6Staff.appendChild(opt);
       });
+      refreshCombobox(hr6Staff);
     }
     const hr6Fire = document.getElementById('hr6-firedate');
     if (hr6Fire) hr6Fire.value = today;
@@ -122,9 +134,16 @@ export async function renderHrCoachesTable(searchTerm = '') {
       return;
     }
 
+    const currentDbUser = AppState.currentUser?.dbUser || AppState.user?.username;
+    const currentStaffId = AppState.currentUser?.staffId || AppState.currentUser?.entityId || AppState.user?.profile?.staffId;
+
     coaches.forEach(c => {
       const row = document.createElement('tr');
       const isFired = !c.isActive || !!c.fireDate;
+      const isSelf = Boolean(
+        (currentDbUser && c.dbUser && c.dbUser === currentDbUser) ||
+        (currentStaffId && c.staffId === currentStaffId)
+      );
       row.innerHTML = `
         <td class="font-mono text-xs text-slate-400">#${c.coachId || c.staffId}</td>
         <td class="font-bold text-white font-heading">${c.fullName}</td>
@@ -138,9 +157,15 @@ export async function renderHrCoachesTable(searchTerm = '') {
               <button onclick="openEditCoachModal(${c.coachId || c.staffId})" class="btn btn-secondary btn-sm" title="Редагувати тренера">
                 <i class="fa-solid fa-pen-to-square"></i> Редагувати
               </button>
-              <button onclick="quickDismissCoach(${c.staffId})" class="btn btn-danger btn-sm" title="Звільнити тренера">
-                <i class="fa-solid fa-user-xmark"></i> Звільнити
-              </button>
+              ${isSelf ? `
+                <button class="btn btn-secondary btn-sm opacity-50 cursor-not-allowed" disabled title="Неможливо звільнити себе">
+                  <i class="fa-solid fa-ban mr-1"></i> Ви
+                </button>
+              ` : `
+                <button onclick="quickDismissCoach(${c.staffId})" class="btn btn-danger btn-sm" title="Звільнити тренера">
+                  <i class="fa-solid fa-user-xmark"></i> Звільнити
+                </button>
+              `}
             </div>
           ` : '<span class="text-xs text-slate-500">—</span>'}
         </td>
@@ -190,9 +215,16 @@ export async function renderHrStaffTable(searchTerm = '') {
       return;
     }
 
+    const currentDbUser = AppState.currentUser?.dbUser || AppState.user?.username;
+    const currentStaffId = AppState.currentUser?.staffId || AppState.currentUser?.entityId || AppState.user?.profile?.staffId;
+
     staffMembers.forEach(st => {
       const row = document.createElement('tr');
       const isFired = !st.isActive || !!st.fireDate;
+      const isSelf = Boolean(
+        (currentDbUser && st.dbUser && st.dbUser === currentDbUser) ||
+        (currentStaffId && st.staffId === currentStaffId)
+      );
       row.innerHTML = `
         <td class="font-mono text-xs text-slate-400">#${st.staffId}</td>
         <td class="font-bold text-white font-heading">${st.fullName}</td>
@@ -206,9 +238,15 @@ export async function renderHrStaffTable(searchTerm = '') {
               <button onclick="openEditStaffModal(${st.staffId})" class="btn btn-secondary btn-sm" title="Редагувати менеджера">
                 <i class="fa-solid fa-pen-to-square"></i> Редагувати
               </button>
-              <button onclick="quickDismissStaff(${st.staffId})" class="btn btn-danger btn-sm" title="Звільнити співробітника">
-                <i class="fa-solid fa-user-xmark"></i> Звільнити
-              </button>
+              ${isSelf ? `
+                <button class="btn btn-secondary btn-sm opacity-50 cursor-not-allowed" disabled title="Неможливо звільнити себе">
+                  <i class="fa-solid fa-ban mr-1"></i> Ви
+                </button>
+              ` : `
+                <button onclick="quickDismissStaff(${st.staffId})" class="btn btn-danger btn-sm" title="Звільнити співробітника">
+                  <i class="fa-solid fa-user-xmark"></i> Звільнити
+                </button>
+              `}
             </div>
           ` : '<span class="text-xs text-slate-500">—</span>'}
         </td>
@@ -239,7 +277,9 @@ export async function handleHr1Hire(e) {
   const birthDate = document.getElementById('hr1-birthdate').value;
   const specId = parseInt(document.getElementById('hr1-spec').value);
   const dbUser = document.getElementById('hr1-dbuser').value.trim();
+  const password = document.getElementById('hr1-password').value;
   const bio = document.getElementById('hr1-bio').value.trim();
+  const hireDate = new Date().toISOString().split('T')[0];
 
   try {
     const res = await hrApi.hireCoach({
@@ -248,8 +288,9 @@ export async function handleHr1Hire(e) {
       phone,
       specId,
       dbUser,
-      password: 'coach_pass_123',
-      biography: bio
+      password,
+      biography: bio,
+      hireDate
     });
 
     showToast(`Тренера ${fullName} успішно прийнято на роботу! Код #${res.coachId} (HR1)`, 'success');
@@ -307,7 +348,8 @@ export async function handleHr4Hire(e) {
   const birthDate = document.getElementById('hr4-birthdate').value;
   const positionName = document.getElementById('hr4-position').value;
   const dbUser = document.getElementById('hr4-dbuser').value.trim();
-  const hireDate = document.getElementById('hr4-hiredate').value;
+  const password = document.getElementById('hr4-password').value;
+  const hireDate = new Date().toISOString().split('T')[0];
 
   try {
     const res = await hrApi.hireManager({
@@ -315,7 +357,7 @@ export async function handleHr4Hire(e) {
       birthDate,
       phone,
       dbUser,
-      password: 'manager_pass_123',
+      password,
       positionName,
       hireDate
     });

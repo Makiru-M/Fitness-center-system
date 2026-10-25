@@ -1,7 +1,9 @@
 package com.fitness.repository;
 
 import com.fitness.config.DynamicDataSourceService;
+import com.fitness.exception.BusinessLogicException;
 import com.fitness.model.HrDto.*;
+import com.fitness.security.SessionRegistry;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,9 +15,11 @@ import java.util.List;
 public class HrRepository {
 
     private final DynamicDataSourceService dataSourceService;
+    private final SessionRegistry sessionRegistry;
 
-    public HrRepository(DynamicDataSourceService dataSourceService) {
+    public HrRepository(DynamicDataSourceService dataSourceService, SessionRegistry sessionRegistry) {
         this.dataSourceService = dataSourceService;
+        this.sessionRegistry = sessionRegistry;
     }
 
     /**
@@ -64,7 +68,27 @@ public class HrRepository {
      */
     public void fireEmployee(FireEmployeeRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+
+        List<String> targetUser = jdbc.query(
+            "SELECT DB_User FROM Staff WHERE ID_Staff = ?",
+            (rs, rowNum) -> rs.getString("DB_User"),
+            req.staffId()
+        );
+        String dbUser = null;
+        if (!targetUser.isEmpty()) {
+            dbUser = targetUser.get(0);
+            String currentSessionUser = jdbc.queryForObject("SELECT SESSION_USER", String.class);
+            if (dbUser != null && dbUser.equalsIgnoreCase(currentSessionUser)) {
+                throw new BusinessLogicException("Співробітник не може звільнити сам себе.");
+            }
+        }
+
         jdbc.query("SELECT sp_fire_employee(?, ?)", (rs, rowNum) -> null, req.staffId(), req.fireDate());
+
+        if (dbUser != null) {
+            sessionRegistry.invalidateUserSessions(dbUser);
+            dataSourceService.evictUser(dbUser);
+        }
     }
 
     /**
@@ -74,14 +98,16 @@ public class HrRepository {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String sql = "SELECT staff_id FROM sp_hire_manager(?, ?, ?, ?, ?, ?, ?)";
 
+        java.time.LocalDate hireDate = req.hireDate() != null ? req.hireDate() : java.time.LocalDate.now();
+
         List<Integer> list = jdbc.query(sql, (rs, rowNum) -> rs.getInt("staff_id"),
                 req.fullName(),
                 req.birthDate(),
                 req.phone(),
                 req.dbUser(),
                 req.password(),
-                req.positionName() != null ? req.positionName() : "Адміністратор",
-                req.hireDate()
+                req.positionName() != null ? req.positionName() : "Менеджер клієнтів",
+                hireDate
         );
 
         return list.isEmpty() ? null : list.get(0);

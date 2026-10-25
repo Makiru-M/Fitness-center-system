@@ -337,6 +337,20 @@ export async function renderClientDashboard() {
     populateCl6Options();
   } catch (err) {
     console.warn('API Client dashboard load error:', err);
+    const nameHeading = document.getElementById('client-name-heading');
+    if (nameHeading) {
+      const loginName = AppState.currentUser?.name || AppState.currentUser?.dbUser || 'Клієнт';
+      nameHeading.textContent = loginName;
+    }
+    const detailsSub = document.getElementById('client-details-sub');
+    if (detailsSub) {
+      detailsSub.textContent = 'Помилка завантаження даних або профіль не знайдено';
+    }
+    const subBadge = document.getElementById('client-sub-badge');
+    if (subBadge) {
+      subBadge.className = 'badge badge-expired';
+      subBadge.textContent = '—';
+    }
   }
 }
 

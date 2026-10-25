@@ -74,7 +74,6 @@ BEGIN
             p.PositionName ILIKE '%менеджер клієнтів%' 
             OR p.PositionName ILIKE '%менеджер по роботі з клієнтами%'
             OR (p.PositionName ILIKE '%менеджер%' AND p.PositionName NOT ILIKE '%hr%')
-            OR p.PositionName ILIKE '%адміністратор%'
           )
         ORDER BY s.ID_Staff ASC
         LIMIT 1;
@@ -388,7 +387,7 @@ BEGIN
     -- Визначення відповідального менеджера (дефолтний менеджер із персоналу)
     SELECT ID_Staff INTO v_manager_id 
     FROM Staff 
-    WHERE ID_Position IN (SELECT ID_Position FROM Positions WHERE PositionName IN ('Менеджер клієнтів', 'Менеджер по роботі з клієнтами', 'Адміністратор', 'HR Менеджер'))
+    WHERE ID_Position IN (SELECT ID_Position FROM Positions WHERE PositionName IN ('Менеджер клієнтів', 'Менеджер по роботі з клієнтами', 'HR Менеджер'))
     ORDER BY ID_Staff
     LIMIT 1;
 
@@ -483,7 +482,7 @@ CREATE OR REPLACE FUNCTION sp_hire_manager(
     p_phone VARCHAR,
     p_db_user VARCHAR,
     p_password VARCHAR,
-    p_position_name VARCHAR DEFAULT 'Адміністратор',
+    p_position_name VARCHAR DEFAULT 'Менеджер клієнтів',
     p_hire_date DATE DEFAULT CURRENT_DATE
 )
 RETURNS TABLE (
@@ -511,7 +510,7 @@ BEGIN
     END IF;
 
     INSERT INTO Staff (FullName, BirthDate, Phone, ID_Position, DB_User, HireDate)
-    VALUES (p_fullname, p_birthdate, p_phone, v_pos_id, p_db_user, p_hire_date)
+    VALUES (p_fullname, p_birthdate, p_phone, v_pos_id, p_db_user, COALESCE(p_hire_date, CURRENT_DATE))
     RETURNING ID_Staff INTO v_staff_id;
 
     RETURN QUERY SELECT v_staff_id, p_db_user;
@@ -534,6 +533,11 @@ BEGIN
     SELECT DB_User INTO v_db_user FROM Staff WHERE ID_Staff = p_staff_id;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Працівника з ID % не знайдено!', p_staff_id;
+    END IF;
+
+    -- Захист від самозвільнення
+    IF v_db_user = SESSION_USER THEN
+        RAISE EXCEPTION 'Помилка безпеки: Співробітник не може звільнити сам себе!';
     END IF;
 
     UPDATE Staff SET FireDate = p_fire_date WHERE ID_Staff = p_staff_id;

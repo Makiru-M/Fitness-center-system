@@ -637,10 +637,10 @@
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <h2 id="client-name-heading" class="text-xl font-bold text-white font-heading">Остапенко Віталій</h2>
-                <span id="client-sub-badge" class="badge badge-active">Активний абонемент</span>
+                <h2 id="client-name-heading" class="text-xl font-bold text-white font-heading">Завантаження...</h2>
+                <span id="client-sub-badge" class="badge badge-expired">—</span>
               </div>
-              <p id="client-details-sub" class="text-xs text-slate-400 font-mono mt-1">Телефон: +380671111111 | ID: #1</p>
+              <p id="client-details-sub" class="text-xs text-slate-400 font-mono mt-1">Телефон: — | ID: —</p>
               <div id="client-medical-alert" class="mt-2 text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg inline-flex items-center gap-1.5 border border-emerald-500/30 font-mono">
                 <i class="fa-solid fa-notes-medical"></i> <span>Медичні обмеження: Відсутні</span>
               </div>
@@ -1196,19 +1196,11 @@
               <p class="text-xs text-slate-400 mb-4">Фіксація продажу в Sales, застосування промокоду в AppliedPromo та оновлення ClientSubscriptions.</p>
 
               <form id="form-m3-sale" onsubmit="handleM3Sale(event)" class="space-y-4">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div class="form-group">
-                    <label class="form-label">Клієнт *</label>
-                    <select id="m3-client" required class="text-sm font-mono">
-                      <!-- Populated by JS -->
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Менеджер оформлення *</label>
-                    <select id="m3-staff" name="m3-staff" required class="text-sm font-mono">
-                      <!-- Populated by JS -->
-                    </select>
-                  </div>
+                <div class="form-group">
+                  <label class="form-label">Клієнт *</label>
+                  <select id="m3-client" required class="text-sm font-mono">
+                    <!-- Populated by JS -->
+                  </select>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1575,8 +1567,8 @@
                     <input type="text" id="hr1-dbuser" required placeholder="coach_roman" class="font-mono">
                   </div>
                   <div class="form-group">
-                    <label class="form-label">Дата прийому на роботу *</label>
-                    <input type="date" id="hr1-hiredate" required class="font-mono text-sm">
+                    <label class="form-label">Пароль облікового запису *</label>
+                    <input type="password" id="hr1-password" required placeholder="••••••••" class="font-mono text-sm">
                   </div>
                 </div>
 
@@ -1663,7 +1655,7 @@
                 <h3 class="text-lg font-bold text-white font-heading"><i class="fa-solid fa-user-plus text-cyan-400 mr-2"></i> Задача HR4: Прийняти менеджера на роботу</h3>
                 <button type="button" onclick="switchHrTab('hr_staff')" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrow-left mr-1"></i> Назад до списку</button>
               </div>
-              <p class="text-xs text-slate-400 mb-4">Створення запису у Staff з посадою Адміністратор / Менеджер.</p>
+              <p class="text-xs text-slate-400 mb-4">Створення запису у Staff з посадою Менеджер клієнтів / HR.</p>
 
               <form id="form-hr4-hire" onsubmit="handleHr4Hire(event)" class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1696,8 +1688,8 @@
                     <input type="text" id="hr4-dbuser" required placeholder="admin_maksym" class="font-mono">
                   </div>
                   <div class="form-group">
-                    <label class="form-label">Дата прийому *</label>
-                    <input type="date" id="hr4-hiredate" required class="font-mono text-sm">
+                    <label class="form-label">Пароль облікового запису *</label>
+                    <input type="password" id="hr4-password" required placeholder="••••••••" class="font-mono text-sm">
                   </div>
                 </div>
 
@@ -2731,9 +2723,10 @@
         <div class="form-group">
           <label class="form-label">Посада *</label>
           <select id="edit-staff-position" required class="font-mono">
-            <option value="4">Адміністратор рецепції</option>
-            <option value="1">HR Менеджер</option>
+            <option value="1">Менеджер клієнтів</option>
+            <option value="4">HR Менеджер</option>
             <option value="2">Старший тренер</option>
+            <option value="3">Тренер</option>
             <option value="5">Директор клубу</option>
           </select>
         </div>

@@ -317,11 +317,14 @@ export async function quickSwitchRole(role) {
       setActiveRole(targetRole);
       showToast(`Авторизовано через API: ${account.name} (${account.pos})`, 'success');
     } catch (err) {
-      // Fallback: set basic auth credentials for session
-      const userObj = { dbUser: matchedUserKey, ...account, role: targetRole };
-      setCurrentUser(userObj);
-      setActiveRole(targetRole);
-      showToast(`Профіль активовано: ${account.name}`, 'info');
+      setCurrentUser(null);
+      setAuthToken(null);
+      setActiveRole('guest');
+      updateHeaderUI();
+      renderRoleNav();
+      switchRoleView('guest');
+      showToast(err.message || 'Помилка зміни ролі: доступ заборонено', 'danger');
+      return;
     }
   } else {
     setActiveRole(targetRole);
@@ -352,10 +355,14 @@ export async function fillAndLogin(dbUser, role) {
     setActiveRole(targetRole);
     showToast(`Успішний вхід через REST API: ${res.fullName} (${res.role})`, 'success');
   } catch (err) {
-    const userObj = { dbUser, ...account, role: targetRole };
-    setCurrentUser(userObj);
-    setActiveRole(targetRole);
-    showToast(`Вхід виконано: ${account.name} (${account.pos})`, 'info');
+    setCurrentUser(null);
+    setAuthToken(null);
+    setActiveRole('guest');
+    updateHeaderUI();
+    renderRoleNav();
+    switchRoleView('guest');
+    showToast(err.message || 'Помилка авторизації: вхід заблоковано', 'danger');
+    return;
   }
 
   updateHeaderUI();
@@ -388,6 +395,11 @@ export async function handleLoginForm(e) {
     switchRoleView(targetRole);
   } catch (err) {
     console.warn('API Login failed:', err);
+    setCurrentUser(null);
+    setAuthToken(null);
+    setActiveRole('guest');
+    updateHeaderUI();
+    renderRoleNav();
     showToast(`Помилка авторизації: ${err.message}`, 'danger');
   }
 }

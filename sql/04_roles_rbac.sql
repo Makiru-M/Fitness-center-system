@@ -90,6 +90,18 @@ BEGIN
     ELSE
         ALTER USER client_vitaliy WITH PASSWORD 'client123';
     END IF;
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'test_client_login') THEN
+        CREATE USER test_client_login WITH PASSWORD 'client123' IN ROLE client_role;
+    ELSE
+        ALTER USER test_client_login WITH PASSWORD 'client123';
+        GRANT client_role TO test_client_login;
+    END IF;
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'my_login') THEN
+        CREATE USER my_login WITH PASSWORD 'client123' IN ROLE client_role;
+    ELSE
+        ALTER USER my_login WITH PASSWORD 'client123';
+        GRANT client_role TO my_login;
+    END IF;
 
     FOR r IN SELECT unnest(ARRAY['client_hanna', 'client_maksym', 'client_olga', 'client_igor', 'client_svitlana', 'client_denis', 'client_kateryna', 'client_artem', 'client_nataliya']) AS usr
     LOOP

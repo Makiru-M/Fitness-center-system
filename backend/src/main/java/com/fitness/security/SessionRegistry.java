@@ -39,4 +39,9 @@ public class SessionRegistry {
             sessions.remove(token);
         }
     }
+
+    public void invalidateUserSessions(String username) {
+        if (username == null || username.isBlank()) return;
+        sessions.entrySet().removeIf(entry -> username.equalsIgnoreCase(entry.getValue().getUsername()));
+    }
 }

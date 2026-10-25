@@ -317,13 +317,13 @@ export function openEditStaffModal(staffId) {
   const posEl = document.getElementById('edit-staff-position');
   if (posEl) {
     const posMap = {
-      'HR Менеджер': 1,
+      'Менеджер клієнтів': 1,
       'Старший тренер': 2,
       'Тренер': 3,
-      'Адміністратор': 4,
+      'HR Менеджер': 4,
       'Директор': 5
     };
-    posEl.value = posMap[emp.positionName] || 4;
+    posEl.value = posMap[emp.positionName] || 1;
   }
 
   const modal = document.getElementById('modal-edit-staff');
