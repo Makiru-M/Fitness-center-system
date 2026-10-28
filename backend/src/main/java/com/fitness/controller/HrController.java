@@ -1,7 +1,7 @@
 package com.fitness.controller;
 
 import com.fitness.dto.hr.*;
-import com.fitness.repository.HrRepository;
+import com.fitness.service.HrService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,10 +13,10 @@ import java.util.Map;
 @RequestMapping("/api/hr")
 public class HrController {
 
-    private final HrRepository hrRepository;
+    private final HrService hrService;
 
-    public HrController(HrRepository hrRepository) {
-        this.hrRepository = hrRepository;
+    public HrController(HrService hrService) {
+        this.hrService = hrService;
     }
 
     /**
@@ -38,7 +38,7 @@ public class HrController {
                     "message", "Пароль облікового запису обов'язковий!"
             ));
         }
-        Integer coachId = hrRepository.hireCoach(request);
+        Integer coachId = hrService.hireCoach(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "coachId", coachId,
                 "message", "Тренера успішно прийнято на роботу та створено обліковий запис у PostgreSQL."
@@ -50,7 +50,7 @@ public class HrController {
      */
     @PutMapping("/coaches")
     public ResponseEntity<Map<String, String>> updateCoach(@RequestBody UpdateCoachRequest request) {
-        hrRepository.updateCoach(request);
+        hrService.updateCoach(request);
         return ResponseEntity.ok(Map.of("message", "Дані тренера успішно оновлено."));
     }
 
@@ -59,7 +59,7 @@ public class HrController {
      */
     @PostMapping("/employees/fire")
     public ResponseEntity<Map<String, String>> fireEmployee(@RequestBody FireEmployeeRequest request) {
-        hrRepository.fireEmployee(request);
+        hrService.fireEmployee(request);
         return ResponseEntity.ok(Map.of("message", "Працівника успішно звільнено та заблоковано вхід до системи."));
     }
 
@@ -82,7 +82,7 @@ public class HrController {
                     "message", "Пароль облікового запису обов'язковий!"
             ));
         }
-        Integer staffId = hrRepository.hireManager(request);
+        Integer staffId = hrService.hireManager(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "staffId", staffId,
                 "message", "Менеджера успішно прийнято на роботу."
@@ -94,7 +94,7 @@ public class HrController {
      */
     @PutMapping("/managers")
     public ResponseEntity<Map<String, String>> updateManager(@RequestBody UpdateManagerRequest request) {
-        hrRepository.updateManager(request);
+        hrService.updateManager(request);
         return ResponseEntity.ok(Map.of("message", "Дані менеджера успішно оновлено."));
     }
 
@@ -103,6 +103,6 @@ public class HrController {
      */
     @GetMapping("/employees")
     public ResponseEntity<List<EmployeeDto>> getAllEmployees() {
-        return ResponseEntity.ok(hrRepository.getAllStaff());
+        return ResponseEntity.ok(hrService.getAllEmployees());
     }
 }

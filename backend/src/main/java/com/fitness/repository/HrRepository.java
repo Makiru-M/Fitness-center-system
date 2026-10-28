@@ -1,25 +1,35 @@
 package com.fitness.repository;
 
 import com.fitness.config.DynamicDataSourceService;
-import com.fitness.exception.BusinessLogicException;
 import com.fitness.dto.hr.*;
-import com.fitness.security.SessionRegistry;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 @Transactional
 public class HrRepository {
 
     private final DynamicDataSourceService dataSourceService;
-    private final SessionRegistry sessionRegistry;
 
-    public HrRepository(DynamicDataSourceService dataSourceService, SessionRegistry sessionRegistry) {
+    public HrRepository(DynamicDataSourceService dataSourceService) {
         this.dataSourceService = dataSourceService;
-        this.sessionRegistry = sessionRegistry;
+    }
+
+    /**
+     * Find database username by staff ID
+     */
+    public Optional<String> findDbUserByStaffId(Integer staffId) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        List<String> list = jdbc.query(
+                "SELECT DB_User FROM Staff WHERE ID_Staff = ?",
+                (rs, rowNum) -> rs.getString("DB_User"),
+                staffId
+        );
+        return list.stream().findFirst();
     }
 
     /**
@@ -68,26 +78,7 @@ public class HrRepository {
      */
     public void fireEmployee(FireEmployeeRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-
-        List<String> targetUser = jdbc.query(
-            "SELECT DB_User FROM Staff WHERE ID_Staff = ?",
-            (rs, rowNum) -> rs.getString("DB_User"),
-            req.staffId()
-        );
-        String dbUser = targetUser.stream().findFirst().orElse(null);
-        if (dbUser != null) {
-            String currentSessionUser = jdbc.queryForObject("SELECT SESSION_USER", String.class);
-            if (dbUser.equalsIgnoreCase(currentSessionUser)) {
-                throw new BusinessLogicException("Співробітник не може звільнити сам себе.");
-            }
-        }
-
         jdbc.query("SELECT sp_fire_employee(?, ?)", (rs, rowNum) -> null, req.staffId(), req.fireDate());
-
-        if (dbUser != null) {
-            sessionRegistry.invalidateUserSessions(dbUser);
-            dataSourceService.evictUser(dbUser);
-        }
     }
 
     /**
