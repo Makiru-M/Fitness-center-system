@@ -68,12 +68,16 @@ public class ClientRepository {
         jdbc.update(updateClientSql, req.fullName(), req.phone());
 
         if (req.medicalNotes() != null) {
-            String upsertNotes = """
-                INSERT INTO MedicalNotes (ID_Client, NotesText)
-                VALUES ((SELECT ID_Client FROM Clients WHERE DB_User = SESSION_USER), ?)
-                ON CONFLICT (ID_Client) DO UPDATE SET NotesText = EXCLUDED.NotesText
-                """;
-            jdbc.update(upsertNotes, req.medicalNotes());
+            if (req.medicalNotes().isBlank()) {
+                jdbc.update("DELETE FROM MedicalNotes WHERE ID_Client = (SELECT ID_Client FROM Clients WHERE DB_User = SESSION_USER)");
+            } else {
+                String upsertNotes = """
+                    INSERT INTO MedicalNotes (ID_Client, NotesText)
+                    VALUES ((SELECT ID_Client FROM Clients WHERE DB_User = SESSION_USER), ?)
+                    ON CONFLICT (ID_Client) DO UPDATE SET NotesText = EXCLUDED.NotesText
+                    """;
+                jdbc.update(upsertNotes, req.medicalNotes().trim());
+            }
         }
     }
 
