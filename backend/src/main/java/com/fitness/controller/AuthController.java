@@ -6,11 +6,7 @@ import com.fitness.dto.auth.RefreshTokenRequest;
 import com.fitness.dto.auth.SessionResponse;
 import com.fitness.dto.auth.TokenRefreshResponse;
 import com.fitness.dto.auth.UserProfileResponse;
-import com.fitness.exception.AuthenticationRequiredException;
-import com.fitness.repository.AuthRepository;
-import com.fitness.security.SecurityContextHolder;
-import com.fitness.security.SessionRegistry;
-import com.fitness.security.UserSession;
+import com.fitness.service.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,34 +16,19 @@ import java.util.Map;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final AuthRepository authRepository;
-    private final SessionRegistry sessionRegistry;
+    private final AuthService authService;
 
-    public AuthController(AuthRepository authRepository, SessionRegistry sessionRegistry) {
-        this.authRepository = authRepository;
-        this.sessionRegistry = sessionRegistry;
+    public AuthController(AuthService authService) {
+        this.authService = authService;
     }
 
     /**
      * Authenticate via PostgreSQL credentials.
-     * Returns session token and resolved user role.
+     * Returns session token, refresh token, role, and user profile summary.
      */
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
-        LoginResponse response = authRepository.authenticate(request.username(), request.password());
-
-        // Register session in memory
-        UserSession session = new UserSession(
-                response.token(),
-                response.refreshToken(),
-                response.username(),
-                request.password(),
-                response.role(),
-                response.fullName(),
-                response.entityId()
-        );
-        sessionRegistry.register(session);
-
+        LoginResponse response = authService.authenticate(request);
         return ResponseEntity.ok(response);
     }
 
@@ -56,9 +37,8 @@ public class AuthController {
      */
     @PostMapping("/refresh")
     public ResponseEntity<TokenRefreshResponse> refresh(@RequestBody RefreshTokenRequest request) {
-        return sessionRegistry.rotateTokens(request.refreshToken())
-                .map(ResponseEntity::ok)
-                .orElseThrow(() -> new AuthenticationRequiredException("Недійсний або прострочений Refresh Token. Потрібна повторна авторизація."));
+        TokenRefreshResponse response = authService.refreshToken(request);
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -66,7 +46,7 @@ public class AuthController {
      */
     @GetMapping("/me")
     public ResponseEntity<SessionResponse> me() {
-        return ResponseEntity.ok(authRepository.getSessionInfo());
+        return ResponseEntity.ok(authService.getSessionInfo());
     }
 
     /**
@@ -74,18 +54,15 @@ public class AuthController {
      */
     @GetMapping("/profile")
     public ResponseEntity<UserProfileResponse> profile() {
-        return ResponseEntity.ok(authRepository.getUserProfile());
+        return ResponseEntity.ok(authService.getUserProfile());
     }
 
     /**
-     * Invalidate user session.
+     * Invalidate user session and clear security context.
      */
     @PostMapping("/logout")
     public ResponseEntity<Map<String, String>> logout(@RequestHeader(value = "X-Auth-Token", required = false) String token) {
-        if (token != null) {
-            sessionRegistry.invalidate(token);
-        }
-        SecurityContextHolder.clear();
+        authService.logout(token);
         return ResponseEntity.ok(Map.of("message", "Сесію успішно завершено."));
     }
 }
