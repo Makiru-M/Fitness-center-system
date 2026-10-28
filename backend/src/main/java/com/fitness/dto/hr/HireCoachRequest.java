@@ -6,7 +6,7 @@ public record HireCoachRequest(
         String fullName,
         LocalDate birthDate,
         String phone,
-        Integer specId,
+        Integer specializationId,
         String dbUser,
         String password,
         String biography

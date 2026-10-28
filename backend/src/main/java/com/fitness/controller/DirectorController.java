@@ -73,7 +73,7 @@ public class DirectorController {
      * D6: Audit log of changes (PT_Changelog)
      */
     @GetMapping("/reports/audit-log")
-    public ResponseEntity<List<PtAuditLogDto>> getAuditLog() {
+    public ResponseEntity<List<PersonalTrainingAuditLogDto>> getAuditLog() {
         return ResponseEntity.ok(directorRepository.getAuditLog());
     }
 
@@ -81,8 +81,8 @@ public class DirectorController {
      * D7: Create new subscription type
      */
     @PostMapping("/subscriptions")
-    public ResponseEntity<Map<String, Object>> createSubscriptionType(@RequestBody CreateSubscriptionTypeRequest req) {
-        Integer itemId = directorRepository.createSubscriptionType(req);
+    public ResponseEntity<Map<String, Object>> createSubscriptionType(@RequestBody CreateSubscriptionTypeRequest request) {
+        Integer itemId = directorRepository.createSubscriptionType(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "itemId", itemId,
                 "message", "Новий тип абонемента успішно додано до прайс-листа."
@@ -93,8 +93,8 @@ public class DirectorController {
      * D10: Create price list service (single/extra service)
      */
     @PostMapping("/services")
-    public ResponseEntity<Map<String, Object>> createService(@RequestBody CreateServiceRequest req) {
-        Integer itemId = directorRepository.createService(req);
+    public ResponseEntity<Map<String, Object>> createService(@RequestBody CreateServiceRequest request) {
+        Integer itemId = directorRepository.createService(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "itemId", itemId,
                 "message", "Послугу успішно додано до прайс-листа."
@@ -105,8 +105,8 @@ public class DirectorController {
      * D8: Commission hall into operation
      */
     @PostMapping("/halls")
-    public ResponseEntity<Map<String, Object>> commissionHall(@RequestBody CommissionHallRequest req) {
-        Integer hallId = directorRepository.commissionHall(req);
+    public ResponseEntity<Map<String, Object>> commissionHall(@RequestBody CommissionHallRequest request) {
+        Integer hallId = directorRepository.commissionHall(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "hallId", hallId,
                 "message", "Спортивний зал успішно введено в експлуатацію."
@@ -149,8 +149,8 @@ public class DirectorController {
      * D9: Create promo code
      */
     @PostMapping("/promos")
-    public ResponseEntity<Map<String, Object>> createPromoCode(@RequestBody CreatePromoCodeRequest req) {
-        Integer promoId = directorRepository.createPromoCode(req);
+    public ResponseEntity<Map<String, Object>> createPromoCode(@RequestBody CreatePromoCodeRequest request) {
+        Integer promoId = directorRepository.createPromoCode(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "promoId", promoId,
                 "message", "Промокод успішно створено та активовано."
@@ -161,8 +161,8 @@ public class DirectorController {
      * D11: Create group schedule template
      */
     @PostMapping("/schedule/templates")
-    public ResponseEntity<Map<String, Object>> createScheduleTemplate(@RequestBody CreateScheduleTemplateRequest req) {
-        Integer templateId = directorRepository.createScheduleTemplate(req);
+    public ResponseEntity<Map<String, Object>> createScheduleTemplate(@RequestBody CreateScheduleTemplateRequest request) {
+        Integer templateId = directorRepository.createScheduleTemplate(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "templateId", templateId,
                 "message", "Шаблон щотижневого розкладу успішно створено."
@@ -183,9 +183,9 @@ public class DirectorController {
     @PutMapping("/prices/{id}")
     public ResponseEntity<Map<String, Object>> updatePriceTariff(
             @PathVariable("id") Integer itemId,
-            @RequestBody UpdateTariffRequest req
+            @RequestBody UpdateTariffRequest request
     ) {
-        Map<String, Object> result = directorRepository.updatePriceTariff(itemId, req.newPrice());
+        Map<String, Object> result = directorRepository.updatePriceTariff(itemId, request.newPrice());
         return ResponseEntity.ok(Map.of(
                 "message", "Тариф успішно оновлено зі збереженням історії версій.",
                 "details", result
@@ -196,8 +196,8 @@ public class DirectorController {
      * D10: Create turnkey service
      */
     @PostMapping("/services/turnkey")
-    public ResponseEntity<Map<String, Object>> createTurnkeyService(@RequestBody CreateTurnkeyServiceRequest req) {
-        Map<String, Object> result = directorRepository.createTurnkeyService(req);
+    public ResponseEntity<Map<String, Object>> createTurnkeyService(@RequestBody CreateTurnkeyServiceRequest request) {
+        Map<String, Object> result = directorRepository.createTurnkeyService(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "message", "Послугу успішно налаштовано та введено в дію під ключ.",
                 "details", result

@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record ClientSubscriptionDto(
-        Integer clientSubId,
+        Integer clientSubscriptionId,
         Integer saleId,
         String itemName,
         LocalDate startDate,

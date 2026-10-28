@@ -28,8 +28,8 @@ public class ManagerController {
      * M1: Register client as a new club member
      */
     @PostMapping("/clients")
-    public ResponseEntity<Map<String, Object>> createClient(@RequestBody CreateClientRequest req) {
-        Integer clientId = managerRepository.createClient(req);
+    public ResponseEntity<Map<String, Object>> createClient(@RequestBody CreateClientRequest request) {
+        Integer clientId = managerRepository.createClient(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "clientId", clientId,
                 "message", "Клієнта успішно зареєстровано."
@@ -40,8 +40,8 @@ public class ManagerController {
      * M2: Edit client details
      */
     @PutMapping("/clients")
-    public ResponseEntity<Map<String, String>> updateClient(@RequestBody UpdateClientRequest req) {
-        managerRepository.updateClient(req);
+    public ResponseEntity<Map<String, String>> updateClient(@RequestBody UpdateClientRequest request) {
+        managerRepository.updateClient(request);
         return ResponseEntity.ok(Map.of("message", "Дані клієнта успішно оновлено."));
     }
 
@@ -58,8 +58,8 @@ public class ManagerController {
      * M3: Sell or extend subscription
      */
     @PostMapping("/sales/subscription")
-    public ResponseEntity<Map<String, Object>> sellSubscription(@RequestBody SellSubscriptionRequest req) {
-        Integer saleId = managerRepository.sellSubscription(req);
+    public ResponseEntity<Map<String, Object>> sellSubscription(@RequestBody SellSubscriptionRequest request) {
+        Integer saleId = managerRepository.sellSubscription(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "saleId", saleId,
                 "message", "Абонемент успішно оформлено та активовано."
@@ -70,8 +70,8 @@ public class ManagerController {
      * M4: Check-in client visit
      */
     @PostMapping("/visits/check-in")
-    public ResponseEntity<CheckInResult> checkIn(@RequestBody CheckInRequest req) {
-        CheckInResult result = managerRepository.checkInVisit(req);
+    public ResponseEntity<CheckInResult> checkIn(@RequestBody CheckInRequest request) {
+        CheckInResult result = managerRepository.checkInVisit(request);
         return ResponseEntity.ok(result);
     }
 
@@ -99,9 +99,9 @@ public class ManagerController {
             @RequestParam("dateTime") LocalDateTime dateTime,
             @RequestParam(value = "promoCode", required = false) String promoCode
     ) {
-        Integer ptId = managerRepository.bookPersonalTraining(clientId, coachId, hallId, dateTime, promoCode);
+        Integer personalTrainingId = managerRepository.bookPersonalTraining(clientId, coachId, hallId, dateTime, promoCode);
         return ResponseEntity.ok(Map.of(
-                "personalId", ptId,
+                "personalId", personalTrainingId,
                 "message", "Персональне тренування успішно призначено."
         ));
     }
@@ -110,8 +110,8 @@ public class ManagerController {
      * M7: Freeze subscription
      */
     @PostMapping("/subscriptions/freeze")
-    public ResponseEntity<Map<String, String>> freezeSubscription(@RequestBody FreezeRequest req) {
-        managerRepository.freezeSubscription(req);
+    public ResponseEntity<Map<String, String>> freezeSubscription(@RequestBody FreezeRequest request) {
+        managerRepository.freezeSubscription(request);
         return ResponseEntity.ok(Map.of("message", "Абонемент успішно заморожено."));
     }
 
@@ -119,8 +119,8 @@ public class ManagerController {
      * M8: Cancel or reschedule booking
      */
     @PostMapping("/bookings/change")
-    public ResponseEntity<Map<String, String>> changeBooking(@RequestBody BookingChangeRequest req) {
-        managerRepository.changeBooking(req);
+    public ResponseEntity<Map<String, String>> changeBooking(@RequestBody BookingChangeRequest request) {
+        managerRepository.changeBooking(request);
         return ResponseEntity.ok(Map.of("message", "Статус бронювання успішно змінено."));
     }
 

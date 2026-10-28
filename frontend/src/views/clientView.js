@@ -267,7 +267,7 @@ export async function renderClientDashboard() {
         if (quickFreezeTitle) {
           quickFreezeTitle.textContent = 'Розморозити (Cl3)';
         }
-        quickFreezeBtn.onclick = () => window.handleCl3Unfreeze(activeSub.clientSubId);
+        quickFreezeBtn.onclick = () => window.handleCl3Unfreeze(activeSub.clientSubscriptionId || activeSub.clientSubId);
       } else {
         if (quickFreezeIcon) {
           quickFreezeIcon.className = 'fa-solid fa-snowflake text-lg block mb-1 text-cyan-300 group-hover:scale-110 transition-transform';
@@ -597,7 +597,7 @@ export async function handleCl3Freeze(e) {
 
   try {
     await clientApi.freezeSubscription({
-      clientSubId: activeSub.clientSubId,
+      clientSubscriptionId: activeSub.clientSubscriptionId || activeSub.clientSubId,
       startDate: startStr,
       endDate: endStr,
       reason
@@ -638,7 +638,7 @@ export function renderCl3Tab(activeSub) {
           Доступний залишок днів заморозки: <b class="text-white font-mono">${formatFreezingDays(activeSub.remainingFreezingDays)}</b>.
         </p>
       </div>
-      <button type="button" onclick="handleCl3Unfreeze(${activeSub.clientSubId})" class="btn btn-primary w-full py-2.5 font-bold flex items-center justify-center gap-2">
+      <button type="button" onclick="handleCl3Unfreeze(${activeSub.clientSubscriptionId || activeSub.clientSubId})" class="btn btn-primary w-full py-2.5 font-bold flex items-center justify-center gap-2">
         <i class="fa-solid fa-sun text-cyan-400"></i> Відновити дію абонемента (Розморозити)
       </button>
     `;
@@ -650,11 +650,11 @@ export function renderCl3Tab(activeSub) {
   }
 }
 
-export async function handleCl3Unfreeze(clientSubId) {
-  if (!clientSubId && cachedClientSubscriptions.length) {
-    clientSubId = cachedClientSubscriptions[0].clientSubId;
+export async function handleCl3Unfreeze(clientSubscriptionId) {
+  if (!clientSubscriptionId && cachedClientSubscriptions.length) {
+    clientSubscriptionId = cachedClientSubscriptions[0].clientSubscriptionId || cachedClientSubscriptions[0].clientSubId;
   }
-  if (!clientSubId) {
+  if (!clientSubscriptionId) {
     showToast('Абонемент для розморожування не знайдено.', 'warning');
     return;
   }
@@ -663,7 +663,7 @@ export async function handleCl3Unfreeze(clientSubId) {
   if (!confirmed) return;
 
   try {
-    const res = await clientApi.unfreezeSubscription(clientSubId);
+    const res = await clientApi.unfreezeSubscription(clientSubscriptionId);
     showToast(res?.message || 'Заморозку успішно скасовано. Абонемент активовано.', 'success');
     await renderClientDashboard();
     switchClientTab('cl_dash');
@@ -697,7 +697,7 @@ function formatIsoDate(d) {
 
 /**
  * Returns the most relevant/latest subscription of the client:
- * Non-expired subscriptions (endDate >= today), sorted by endDate DESC, then clientSubId DESC.
+ * Non-expired subscriptions (endDate >= today), sorted by endDate DESC, then clientSubscriptionId DESC.
  * Matches PostgreSQL trigger fn_check_booking_client_subscription() logic.
  */
 export function getLatestClientSubscription(subscriptions = cachedClientSubscriptions) {
@@ -715,8 +715,8 @@ export function getLatestClientSubscription(subscriptions = cachedClientSubscrip
     if (endB !== endA) {
       return endB.localeCompare(endA);
     }
-    const idA = Number(a.clientSubId || 0);
-    const idB = Number(b.clientSubId || 0);
+    const idA = Number(a.clientSubscriptionId || a.clientSubId || 0);
+    const idB = Number(b.clientSubscriptionId || b.clientSubId || 0);
     return idB - idA;
   });
 
@@ -1091,7 +1091,7 @@ export async function populateCl45Options() {
       coaches.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.coachId;
-        opt.textContent = `${c.fullName} (${c.specName || 'Тренер'})`;
+        opt.textContent = `${c.fullName} (${c.specializationName || c.specName || 'Тренер'})`;
         cl5Coach.appendChild(opt);
       });
       refreshCombobox(cl5Coach);

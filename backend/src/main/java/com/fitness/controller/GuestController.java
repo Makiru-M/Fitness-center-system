@@ -22,8 +22,8 @@ public class GuestController {
      * G1: Register new client and buy first membership (uses stored function sp_register_client)
      */
     @PostMapping("/register")
-    public ResponseEntity<ClientRegistrationResponse> registerClient(@RequestBody ClientRegistrationRequest req) {
-        ClientRegistrationResponse response = guestRepository.registerClient(req);
+    public ResponseEntity<ClientRegistrationResponse> registerClient(@RequestBody ClientRegistrationRequest request) {
+        ClientRegistrationResponse response = guestRepository.registerClient(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -31,8 +31,8 @@ public class GuestController {
      * G2: View coaches with popularity and specializations
      */
     @GetMapping("/coaches")
-    public ResponseEntity<List<CoachPublicDto>> getCoaches(@RequestParam(value = "specId", required = false) Integer specId) {
-        List<CoachPublicDto> coaches = guestRepository.getCoaches(specId);
+    public ResponseEntity<List<CoachPublicDto>> getCoaches(@RequestParam(value = "specializationId", required = false) Integer specializationId) {
+        List<CoachPublicDto> coaches = guestRepository.getCoaches(specializationId);
         return ResponseEntity.ok(coaches);
     }
 

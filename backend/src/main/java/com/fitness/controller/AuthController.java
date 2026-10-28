@@ -33,15 +33,15 @@ public class AuthController {
      * Returns session token and resolved user role.
      */
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest req) {
-        LoginResponse response = authRepository.authenticate(req.username(), req.password());
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
+        LoginResponse response = authRepository.authenticate(request.username(), request.password());
 
         // Register session in memory
         UserSession session = new UserSession(
                 response.token(),
                 response.refreshToken(),
                 response.username(),
-                req.password(),
+                request.password(),
                 response.role(),
                 response.fullName(),
                 response.entityId()
@@ -55,8 +55,8 @@ public class AuthController {
      * Refresh session access token using a valid refresh token with token rotation.
      */
     @PostMapping("/refresh")
-    public ResponseEntity<TokenRefreshResponse> refresh(@RequestBody RefreshTokenRequest req) {
-        return sessionRegistry.rotateTokens(req.refreshToken())
+    public ResponseEntity<TokenRefreshResponse> refresh(@RequestBody RefreshTokenRequest request) {
+        return sessionRegistry.rotateTokens(request.refreshToken())
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new AuthenticationRequiredException("Недійсний або прострочений Refresh Token. Потрібна повторна авторизація."));
     }

@@ -132,9 +132,9 @@ public class ManagerRepository {
                 c.Gender,
                 c.DB_User,
                 COALESCE(mn.NotesText, 'Немає обмежень') AS NotesText,
-                pl.ItemName AS ActiveSubName,
-                cs.EndDate AS ActiveSubEndDate,
-                COALESCE(cs.CurrentStatus, 'None') AS ActiveSubStatus
+                pl.ItemName AS ActiveSubscriptionName,
+                cs.EndDate AS ActiveSubscriptionEndDate,
+                COALESCE(cs.CurrentStatus, 'None') AS ActiveSubscriptionStatus
             FROM Clients c
             LEFT JOIN MedicalNotes mn ON c.ID_Client = mn.ID_Client
             LEFT JOIN LATERAL (
@@ -167,9 +167,9 @@ public class ManagerRepository {
                 rs.getString("Gender"),
                 rs.getString("DB_User"),
                 rs.getString("NotesText"),
-                rs.getString("ActiveSubName"),
-                rs.getDate("ActiveSubEndDate") != null ? rs.getDate("ActiveSubEndDate").toLocalDate() : null,
-                rs.getString("ActiveSubStatus")
+                rs.getString("ActiveSubscriptionName"),
+                rs.getDate("ActiveSubscriptionEndDate") != null ? rs.getDate("ActiveSubscriptionEndDate").toLocalDate() : null,
+                rs.getString("ActiveSubscriptionStatus")
         ), params.toArray());
     }
 
@@ -349,7 +349,7 @@ public class ManagerRepository {
                 "WHERE cs.ID_ClientSub = ? OR (s.ID_Client = ? AND cs.CurrentStatus = 'Active') " +
                 "ORDER BY (cs.ID_ClientSub = ?) DESC, cs.EndDate DESC LIMIT 1 FOR UPDATE OF cs",
                 (rs, rowNum) -> new Object[]{rs.getInt("ID_ClientSub"), rs.getInt("RemainingFreezingDays"), rs.getDate("EndDate").toLocalDate()},
-                req.clientSubId(), req.clientSubId(), req.clientSubId()
+                req.clientSubscriptionId(), req.clientSubscriptionId(), req.clientSubscriptionId()
         );
 
         Object[] targetRow = rows.stream()

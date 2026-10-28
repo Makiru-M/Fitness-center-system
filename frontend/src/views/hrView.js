@@ -148,7 +148,7 @@ export async function renderHrCoachesTable(searchTerm = '') {
         <td class="font-mono text-xs text-slate-400">#${c.coachId || c.staffId}</td>
         <td class="font-bold text-white font-heading">${c.fullName}</td>
         <td class="font-mono text-xs text-slate-300">${c.phone}</td>
-        <td><span class="badge badge-scheduled shrink-0">${c.specName || 'Тренер'}</span></td>
+        <td><span class="badge badge-scheduled shrink-0">${c.specializationName || c.specName || 'Тренер'}</span></td>
         <td><span class="badge ${isFired ? 'badge-cancelled' : 'badge-active'} shrink-0">${isFired ? 'Звільнений' : 'Працює'}</span></td>
         <td>${c.hireDate || '—'} ${isFired ? `(до ${c.fireDate})` : ''}</td>
         <td>
@@ -275,7 +275,7 @@ export async function handleHr1Hire(e) {
   const fullName = document.getElementById('hr1-fullname').value.trim();
   const phone = document.getElementById('hr1-phone').value.trim();
   const birthDate = document.getElementById('hr1-birthdate').value;
-  const specId = parseInt(document.getElementById('hr1-spec').value);
+  const specializationId = parseInt(document.getElementById('hr1-spec').value);
   const dbUser = document.getElementById('hr1-dbuser').value.trim();
   const password = document.getElementById('hr1-password').value;
   const bio = document.getElementById('hr1-bio').value.trim();
@@ -286,7 +286,7 @@ export async function handleHr1Hire(e) {
       fullName,
       birthDate,
       phone,
-      specId,
+      specializationId,
       dbUser,
       password,
       biography: bio,

@@ -50,7 +50,7 @@ public class GuestRepository {
     /**
      * G2: View coaches with popularity and specializations
      */
-    public List<CoachPublicDto> getCoaches(Integer specId) {
+    public List<CoachPublicDto> getCoaches(Integer specializationId) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         StringBuilder sql = new StringBuilder("""
             WITH CoachGroupAgg AS (
@@ -88,9 +88,9 @@ public class GuestRepository {
             """);
 
         List<Object> params = new java.util.ArrayList<>();
-        if (specId != null) {
+        if (specializationId != null) {
             sql.append(" AND c.ID_Spec = ? ");
-            params.add(specId);
+            params.add(specializationId);
         }
 
         sql.append(" ORDER BY GroupClassesCount DESC, IndividualClientsCount DESC");

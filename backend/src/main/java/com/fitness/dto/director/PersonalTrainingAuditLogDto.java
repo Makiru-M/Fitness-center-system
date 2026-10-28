@@ -2,7 +2,7 @@ package com.fitness.dto.director;
 
 import java.time.LocalDateTime;
 
-public record PtAuditLogDto(
+public record PersonalTrainingAuditLogDto(
         LocalDateTime changeTimestamp,
         Integer personalId,
         Integer logId,
@@ -15,11 +15,11 @@ public record PtAuditLogDto(
         Long changeSeqNum,
         LocalDateTime previousChangeTime
 ) {
-    public PtAuditLogDto(LocalDateTime changeTimestamp, Integer personalId, String requestType, String changeInitiator, String reason, String newTime) {
+    public PersonalTrainingAuditLogDto(LocalDateTime changeTimestamp, Integer personalId, String requestType, String changeInitiator, String reason, String newTime) {
         this(changeTimestamp, personalId, personalId, requestType, changeInitiator, reason, newTime, newTime, newTime, 1L, null);
     }
 
-    public PtAuditLogDto(LocalDateTime changeTimestamp, Integer personalId, String requestType, String changeInitiator, String reason, String newTime, Long changeSeqNum, LocalDateTime previousChangeTime) {
+    public PersonalTrainingAuditLogDto(LocalDateTime changeTimestamp, Integer personalId, String requestType, String changeInitiator, String reason, String newTime, Long changeSeqNum, LocalDateTime previousChangeTime) {
         this(changeTimestamp, personalId, personalId, requestType, changeInitiator, reason, newTime, newTime, newTime, changeSeqNum, previousChangeTime);
     }
 }

@@ -39,8 +39,8 @@ export const clientApi = {
     });
   },
 
-  unfreezeSubscription(clientSubId) {
-    return apiFetch('/client/subscriptions/' + clientSubId + '/unfreeze', {
+  unfreezeSubscription(clientSubscriptionId) {
+    return apiFetch('/client/subscriptions/' + clientSubscriptionId + '/unfreeze', {
       method: 'PUT'
     });
   },

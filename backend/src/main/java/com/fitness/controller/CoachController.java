@@ -46,11 +46,11 @@ public class CoachController {
      * C3: Mark personal training status (Completed, No-show)
      */
     @PostMapping("/personal/{personalId}/status")
-    public ResponseEntity<Map<String, String>> updatePtStatus(
+    public ResponseEntity<Map<String, String>> updatePersonalTrainingStatus(
             @PathVariable("personalId") Integer personalId,
-            @RequestBody UpdatePtStatusRequest req
+            @RequestBody UpdatePersonalTrainingStatusRequest request
     ) {
-        coachRepository.updatePtStatus(personalId, req);
+        coachRepository.updatePersonalTrainingStatus(personalId, request);
         return ResponseEntity.ok(Map.of("message", "Статус персонального тренування оновлено."));
     }
 
@@ -60,9 +60,9 @@ public class CoachController {
     @PostMapping("/group/{instanceId}/attendance")
     public ResponseEntity<Map<String, String>> updateGroupAttendance(
             @PathVariable("instanceId") Integer instanceId,
-            @RequestBody UpdateGroupAttendanceRequest req
+            @RequestBody UpdateGroupAttendanceRequest request
     ) {
-        coachRepository.updateGroupAttendance(instanceId, req);
+        coachRepository.updateGroupAttendance(instanceId, request);
         return ResponseEntity.ok(Map.of("message", "Відвідуваність групового заняття збережено."));
     }
 
@@ -70,8 +70,8 @@ public class CoachController {
      * C5: Submit request for reschedule or cancellation
      */
     @PostMapping("/requests/reschedule")
-    public ResponseEntity<Map<String, String>> submitChangeRequest(@RequestBody CoachChangeRequest req) {
-        coachRepository.submitChangeRequest(req);
+    public ResponseEntity<Map<String, String>> submitChangeRequest(@RequestBody CoachChangeRequest request) {
+        coachRepository.submitChangeRequest(request);
         return ResponseEntity.ok(Map.of("message", "Запит на зміну тренування успішно надіслано менеджеру."));
     }
 }

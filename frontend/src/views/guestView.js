@@ -177,7 +177,8 @@ export async function renderGuestCoaches() {
     const coaches = data.map(c => ({
       id: c.coachId,
       fullName: c.fullName,
-      specName: c.specName || 'Тренер',
+      specializationId: c.specializationId || c.specId,
+      specializationName: c.specializationName || c.specName || 'Тренер',
       bio: c.biography,
       ptCount: c.individualClientsCount || 0,
       groupCount: c.groupClassesCount || 0
@@ -200,7 +201,7 @@ export async function renderGuestCoaches() {
             </div>
             <div>
               <h4 class="font-bold text-white text-base leading-tight font-heading">${coach.fullName}</h4>
-              <span class="badge badge-cyan text-[10px] mt-1">${coach.specName}</span>
+              <span class="badge badge-cyan text-[10px] mt-1">${coach.specializationName}</span>
             </div>
           </div>
         </div>

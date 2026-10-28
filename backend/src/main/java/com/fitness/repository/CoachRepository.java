@@ -128,7 +128,7 @@ public class CoachRepository {
     /**
      * C3: Mark personal training status (Completed / No-show / Cancelled)
      */
-    public void updatePtStatus(Integer personalId, UpdatePtStatusRequest req) {
+    public void updatePersonalTrainingStatus(Integer personalId, UpdatePersonalTrainingStatusRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String status = req.status();
         boolean isCompletion = "Completed".equalsIgnoreCase(status) || "No-show".equalsIgnoreCase(status);

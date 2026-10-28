@@ -18,8 +18,9 @@ export const guestApi = {
     return apiFetch('/guest/halls');
   },
 
-  getCoaches() {
-    return apiFetch('/guest/coaches');
+  getCoaches(specializationId) {
+    const query = specializationId ? `?specializationId=${encodeURIComponent(specializationId)}` : '';
+    return apiFetch(`/guest/coaches${query}`);
   },
 
   register(registrationData) {

@@ -303,7 +303,7 @@ public class DirectorRepository {
     /**
      * D6: Change log audit - single analytical query joining PT_Changelog and PT_TimeChangeDetails with ROW_NUMBER and LAG
      */
-    public List<PtAuditLogDto> getAuditLog() {
+    public List<PersonalTrainingAuditLogDto> getAuditLog() {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String sql = """
             SELECT 
@@ -324,7 +324,7 @@ public class DirectorRepository {
             ORDER BY cl.ChangeTimestamp DESC
             """;
 
-        return jdbc.query(sql, (rs, rowNum) -> new PtAuditLogDto(
+        return jdbc.query(sql, (rs, rowNum) -> new PersonalTrainingAuditLogDto(
                 rs.getTimestamp("ChangeTimestamp").toLocalDateTime(),
                 rs.getInt("PersonalId"),
                 rs.getString("RequestType"),

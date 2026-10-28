@@ -10,7 +10,7 @@ public record ClientSummaryDto(
         String gender,
         String dbUser,
         String medicalNotes,
-        String activeSubName,
-        LocalDate activeSubEndDate,
-        String activeSubStatus
+        String activeSubscriptionName,
+        LocalDate activeSubscriptionEndDate,
+        String activeSubscriptionStatus
 ) {}

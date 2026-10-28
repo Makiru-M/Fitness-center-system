@@ -7,6 +7,6 @@ public record UpdateCoachRequest(
         String fullName,
         LocalDate birthDate,
         String phone,
-        Integer specId,
+        Integer specializationId,
         String biography
 ) {}

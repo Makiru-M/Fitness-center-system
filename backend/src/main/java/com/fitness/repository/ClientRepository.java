@@ -114,15 +114,15 @@ public class ClientRepository {
         }
 
         jdbc.update("CALL sp_freeze_client_subscription(?, ?, ?, ?)",
-                req.clientSubId(), req.startDate(), req.endDate(), req.reason());
+                req.clientSubscriptionId(), req.startDate(), req.endDate(), req.reason());
     }
 
     /**
      * Cl3: Unfreeze subscription
      */
-    public void unfreezeSubscription(Integer clientSubId) {
+    public void unfreezeSubscription(Integer clientSubscriptionId) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        jdbc.update("CALL sp_unfreeze_client_subscription(?)", clientSubId);
+        jdbc.update("CALL sp_unfreeze_client_subscription(?)", clientSubscriptionId);
     }
 
     /**

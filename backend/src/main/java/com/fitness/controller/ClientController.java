@@ -30,8 +30,8 @@ public class ClientController {
      * Cl1: Edit own profile (FullName, Phone, Medical notes)
      */
     @PutMapping("/profile")
-    public ResponseEntity<Map<String, String>> updateProfile(@RequestBody UpdateClientProfileRequest req) {
-        clientRepository.updateProfile(req);
+    public ResponseEntity<Map<String, String>> updateProfile(@RequestBody UpdateClientProfileRequest request) {
+        clientRepository.updateProfile(request);
         return ResponseEntity.ok(Map.of("message", "Профіль успішно оновлено."));
     }
 
@@ -39,8 +39,8 @@ public class ClientController {
      * Cl2: Renew / purchase subscription
      */
     @PostMapping("/subscriptions/renew")
-    public ResponseEntity<ClientSubscriptionDto> renewSubscription(@RequestBody RenewSubscriptionRequest req) {
-        ClientSubscriptionDto sub = clientRepository.renewSubscription(req);
+    public ResponseEntity<ClientSubscriptionDto> renewSubscription(@RequestBody RenewSubscriptionRequest request) {
+        ClientSubscriptionDto sub = clientRepository.renewSubscription(request);
         return ResponseEntity.ok(sub);
     }
 
@@ -48,19 +48,19 @@ public class ClientController {
      * Cl3: Freeze active subscription
      */
     @PostMapping("/subscriptions/freeze")
-    public ResponseEntity<Map<String, String>> freezeSubscription(@RequestBody FreezeSubscriptionRequest req) {
-        clientRepository.freezeSubscription(req);
+    public ResponseEntity<Map<String, String>> freezeSubscription(@RequestBody FreezeSubscriptionRequest request) {
+        clientRepository.freezeSubscription(request);
         return ResponseEntity.ok(Map.of("message", "Абонемент успішно заморожено."));
     }
 
     /**
      * Cl3: Unfreeze subscription
      */
-    @PutMapping("/subscriptions/{clientSubId}/unfreeze")
-    public ResponseEntity<Map<String, Object>> unfreezeSubscription(@PathVariable Integer clientSubId) {
-        clientRepository.unfreezeSubscription(clientSubId);
+    @PutMapping("/subscriptions/{clientSubscriptionId}/unfreeze")
+    public ResponseEntity<Map<String, Object>> unfreezeSubscription(@PathVariable Integer clientSubscriptionId) {
+        clientRepository.unfreezeSubscription(clientSubscriptionId);
         return ResponseEntity.ok(Map.of(
-                "clientSubId", clientSubId,
+                "clientSubscriptionId", clientSubscriptionId,
                 "message", "Заморозку успішно скасовано. Абонемент активовано."
         ));
     }
@@ -69,8 +69,8 @@ public class ClientController {
      * Cl4: Book a group class
      */
     @PostMapping("/bookings/group")
-    public ResponseEntity<Map<String, String>> bookGroupClass(@RequestBody GroupBookingRequest req) {
-        clientRepository.bookGroupClass(req);
+    public ResponseEntity<Map<String, String>> bookGroupClass(@RequestBody GroupBookingRequest request) {
+        clientRepository.bookGroupClass(request);
         return ResponseEntity.ok(Map.of("message", "Успішно записано на групове заняття."));
     }
 
@@ -78,8 +78,8 @@ public class ClientController {
      * Cl5: Book a personal training
      */
     @PostMapping("/bookings/personal")
-    public ResponseEntity<Map<String, String>> bookPersonalTraining(@RequestBody PersonalBookingRequest req) {
-        clientRepository.bookPersonalTraining(req);
+    public ResponseEntity<Map<String, String>> bookPersonalTraining(@RequestBody PersonalBookingRequest request) {
+        clientRepository.bookPersonalTraining(request);
         return ResponseEntity.ok(Map.of("message", "Успішно записано на персональне тренування."));
     }
 
@@ -87,8 +87,8 @@ public class ClientController {
      * Cl6: Cancel personal booking
      */
     @PostMapping("/bookings/personal/cancel")
-    public ResponseEntity<Map<String, String>> cancelPersonalBooking(@RequestBody CancelPersonalBookingRequest req) {
-        clientRepository.cancelPersonalBooking(req);
+    public ResponseEntity<Map<String, String>> cancelPersonalBooking(@RequestBody CancelPersonalBookingRequest request) {
+        clientRepository.cancelPersonalBooking(request);
         return ResponseEntity.ok(Map.of("message", "Персональне тренування успішно скасовано."));
     }
 
@@ -96,8 +96,8 @@ public class ClientController {
      * Cl6: Cancel group booking
      */
     @PostMapping("/bookings/group/cancel")
-    public ResponseEntity<Map<String, String>> cancelGroupBooking(@RequestBody CancelGroupBookingRequest req) {
-        clientRepository.cancelGroupBooking(req);
+    public ResponseEntity<Map<String, String>> cancelGroupBooking(@RequestBody CancelGroupBookingRequest request) {
+        clientRepository.cancelGroupBooking(request);
         return ResponseEntity.ok(Map.of("message", "Групове бронювання успішно скасовано."));
     }
 

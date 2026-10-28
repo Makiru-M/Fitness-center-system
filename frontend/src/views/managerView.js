@@ -54,8 +54,8 @@ export function initM3DateLimits() {
   const clientId = clientEl && clientEl.value ? parseInt(clientEl.value, 10) : null;
   const client = clientId ? (cachedClients || []).find(c => c.clientId === clientId) : null;
 
-  const activeSubStatus = client?.activeSubStatus || null;
-  const rawSubEndDate = client?.activeSubEndDate || null;
+  const activeSubStatus = client?.activeSubscriptionStatus || client?.activeSubStatus || null;
+  const rawSubEndDate = client?.activeSubscriptionEndDate || client?.activeSubEndDate || null;
   const isSubActiveOrFrozen = (activeSubStatus === 'Active' || activeSubStatus === 'Frozen');
 
   let activeSubEndDate = null;
@@ -291,7 +291,7 @@ export async function populateManagerDropdowns() {
       coaches.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.coachId;
-        opt.textContent = `${c.fullName} (${c.specName || 'Тренер'})`;
+        opt.textContent = `${c.fullName} (${c.specializationName || c.specName || 'Тренер'})`;
         m6Coach.appendChild(opt);
       });
       refreshCombobox(m6Coach);
@@ -342,12 +342,12 @@ export function previewM4ClientStatus(val) {
   const client = cachedClients.find(c => c.clientId === clientId);
   if (!client) return;
 
-  const status = client.activeSubStatus || 'None';
+  const status = client.activeSubscriptionStatus || client.activeSubStatus || 'None';
   const isSubActive = status.toLowerCase() === 'active';
   const isSubFrozen = status.toLowerCase() === 'frozen';
 
   if (subNameEl) {
-    subNameEl.textContent = client.activeSubName || 'Відсутній';
+    subNameEl.textContent = client.activeSubscriptionName || client.activeSubName || 'Відсутній';
   }
 
   if (subStatusEl) {
@@ -367,7 +367,7 @@ export function previewM4ClientStatus(val) {
   }
 
   if (subEndEl) {
-    subEndEl.textContent = client.activeSubEndDate || '—';
+    subEndEl.textContent = client.activeSubscriptionEndDate || client.activeSubEndDate || '—';
   }
 
   // Handle frozen warning & checkin submit button
@@ -412,7 +412,7 @@ export async function handleM4CheckIn(e) {
   }
 
   const client = cachedClients.find(c => c.clientId === clientId);
-  if (client && (client.activeSubStatus || '').toLowerCase() === 'frozen') {
+  if (client && (client.activeSubscriptionStatus || client.activeSubStatus || '').toLowerCase() === 'frozen') {
     showToast('Вхід заблоковано: абонемент клієнта заморожено. Для відвідування необхідно розморозити абонемент.', 'danger');
     return;
   }
@@ -531,18 +531,21 @@ export async function renderM2ClientsTable(searchTerm = '') {
     }
 
     cachedClients.forEach(c => {
-      const subStatus = (c.activeSubStatus || '').toLowerCase();
+      const subStatus = (c.activeSubscriptionStatus || c.activeSubStatus || '').toLowerCase();
       let badgeClass = 'badge-expired';
       if (subStatus === 'active') {
         badgeClass = 'badge-active';
       } else if (subStatus === 'frozen') {
         badgeClass = 'badge-frozen';
-      } else if (!c.activeSubStatus || subStatus === 'немає' || subStatus === 'none') {
+      } else if (!c.activeSubscriptionStatus && !c.activeSubStatus || subStatus === 'немає' || subStatus === 'none') {
         badgeClass = 'badge-neutral';
       }
 
       const hasMedNotes = c.medicalNotes && c.medicalNotes.trim() && !isTrivialMedNotes(c.medicalNotes);
       const row = document.createElement('tr');
+      const activeSubscriptionName = c.activeSubscriptionName || c.activeSubName;
+      const activeSubscriptionEndDate = c.activeSubscriptionEndDate || c.activeSubEndDate;
+      const activeSubscriptionStatus = c.activeSubscriptionStatus || c.activeSubStatus;
       row.innerHTML = `
         <td class="font-mono text-xs text-slate-400">#${c.clientId}</td>
         <td>
@@ -550,13 +553,13 @@ export async function renderM2ClientsTable(searchTerm = '') {
         </td>
         <td class="font-mono text-xs text-slate-300">${c.phone}</td>
         <td>
-          ${c.activeSubName ? `
-            <span class="font-semibold text-xs text-cyan-300 block">${c.activeSubName}</span>
-            <span class="block text-[10px] text-slate-400 font-mono">до ${c.activeSubEndDate || '—'}</span>
+          ${activeSubscriptionName ? `
+            <span class="font-semibold text-xs text-cyan-300 block">${activeSubscriptionName}</span>
+            <span class="block text-[10px] text-slate-400 font-mono">до ${activeSubscriptionEndDate || '—'}</span>
           ` : '<span class="text-xs text-slate-500 font-mono">Немає</span>'}
         </td>
         <td>
-          <span class="badge ${badgeClass}">${c.activeSubStatus || 'Немає'}</span>
+          <span class="badge ${badgeClass}">${activeSubscriptionStatus || 'Немає'}</span>
         </td>
         <td>
           ${hasMedNotes ? `
@@ -654,8 +657,8 @@ export async function handleM3Sale(e) {
   }
 
   const client = (cachedClients || []).find(c => c.clientId === clientId);
-  const activeSubStatus = client?.activeSubStatus || null;
-  const rawSubEndDate = client?.activeSubEndDate || null;
+  const activeSubStatus = client?.activeSubscriptionStatus || client?.activeSubStatus || null;
+  const rawSubEndDate = client?.activeSubscriptionEndDate || client?.activeSubEndDate || null;
   const isSubActiveOrFrozen = (activeSubStatus === 'Active' || activeSubStatus === 'Frozen');
 
   let activeSubEndDate = null;
@@ -776,12 +779,13 @@ export function updateM5ClientPreview(val) {
     return;
   }
 
-  const status = (client.activeSubStatus || 'None').toLowerCase();
+  const status = (client.activeSubscriptionStatus || client.activeSubStatus || 'None').toLowerCase();
+  const activeSubName = client.activeSubscriptionName || client.activeSubName || 'Абонемент';
   if (status === 'active') {
-    pill.textContent = `Active (${client.activeSubName || 'Абонемент'})`;
+    pill.textContent = `Active (${activeSubName})`;
     pill.className = 'badge badge-active text-xs font-mono';
   } else if (status === 'frozen') {
-    pill.textContent = `Frozen (${client.activeSubName || 'Абонемент'})`;
+    pill.textContent = `Frozen (${activeSubName})`;
     pill.className = 'badge badge-cyan text-xs font-mono';
   } else if (status === 'expired') {
     pill.textContent = 'Expired (Прострочено)';
@@ -1093,12 +1097,12 @@ export async function bookM5ClassForClient(instanceId) {
 
   const clientSubNameEl = document.getElementById('modal-m5-client-sub-name');
   if (clientSubNameEl) {
-    clientSubNameEl.textContent = client?.activeSubName || 'Без активного абонемента';
+    clientSubNameEl.textContent = client?.activeSubscriptionName || client?.activeSubName || 'Без активного абонемента';
   }
 
   const clientSubEl = document.getElementById('modal-m5-client-sub');
   if (clientSubEl) {
-    const status = (client?.activeSubStatus || '').toUpperCase();
+    const status = (client?.activeSubscriptionStatus || client?.activeSubStatus || '').toUpperCase();
     if (status === 'ACTIVE') {
       clientSubEl.textContent = 'ACTIVE';
       clientSubEl.className = 'badge badge-active text-xs font-mono shrink-0';
@@ -1313,7 +1317,7 @@ export function previewM7Freeze() {
 
 export async function handleM7Freeze(e) {
   e.preventDefault();
-  const clientSubId = parseInt(document.getElementById('m7-client')?.value || document.getElementById('m7-clientsub')?.value || document.getElementById('m7-sub')?.value || '1');
+  const clientSubscriptionId = parseInt(document.getElementById('m7-client')?.value || document.getElementById('m7-clientsub')?.value || document.getElementById('m7-sub')?.value || '1');
   const startDate = document.getElementById('m7-startdate')?.value || document.getElementById('m7-start')?.value;
   const endDate = document.getElementById('m7-enddate')?.value || document.getElementById('m7-end')?.value;
   const reason = document.getElementById('m7-reason').value.trim();
@@ -1335,7 +1339,7 @@ export async function handleM7Freeze(e) {
 
   try {
     await managerApi.freezeSubscription({
-      clientSubId,
+      clientSubscriptionId,
       startDate,
       endDate,
       reason

@@ -241,7 +241,8 @@ export function openEditCoachModal(coachId) {
       'Стретчинг': 7,
       'Дитячий фітнес': 8
     };
-    specEl.value = specMap[emp.specName] || 1;
+    const specName = emp.specializationName || emp.specName;
+    specEl.value = specMap[specName] || 1;
   }
 
   const bioEl = document.getElementById('edit-coach-bio');
@@ -264,7 +265,7 @@ export async function saveEditCoachModal() {
   const fullName = document.getElementById('edit-coach-fullname')?.value.trim();
   const phone = document.getElementById('edit-coach-phone')?.value.trim();
   const birthDate = document.getElementById('edit-coach-birthdate')?.value;
-  const specId = parseInt(document.getElementById('edit-coach-spec')?.value || '1');
+  const specializationId = parseInt(document.getElementById('edit-coach-spec')?.value || '1');
   const biography = document.getElementById('edit-coach-bio')?.value.trim() || '';
 
   if (!fullName || !phone) {
@@ -278,7 +279,7 @@ export async function saveEditCoachModal() {
       fullName,
       birthDate,
       phone,
-      specId,
+      specializationId,
       biography
     });
 

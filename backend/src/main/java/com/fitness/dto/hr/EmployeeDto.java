@@ -12,7 +12,7 @@ public record EmployeeDto(
         String dbUser,
         LocalDate hireDate,
         LocalDate fireDate,
-        String specName,
+        String specializationName,
         String biography,
         boolean isCoach,
         boolean isActive

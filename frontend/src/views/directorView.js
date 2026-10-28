@@ -146,7 +146,7 @@ export async function renderD3Coaches() {
     items.forEach((c, idx) => {
       const coachId = c.coachId ?? (idx + 1);
       const coachName = c.fullName || c.coachName || 'Тренер';
-      const specName = c.specName || c.specialization || 'Тренер';
+      const specName = c.specializationName || c.specName || c.specialization || 'Тренер';
       const personalCount = c.personalCount ?? c.individualClientsCount ?? 0;
       const groupCount = c.groupCount ?? c.groupClassesCount ?? 0;
       const totalClasses = c.totalClasses ?? ((c.personalCount || 0) + (c.groupCount || 0) || (Number(personalCount) + Number(groupCount)));
@@ -287,7 +287,7 @@ export async function populateDirectorDropdowns() {
       cachedDirectorCoaches.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.coachId;
-        opt.textContent = `${c.fullName} (${c.specName || 'Тренер'})`;
+        opt.textContent = `${c.fullName} (${c.specializationName || c.specName || 'Тренер'})`;
         d10Coach.appendChild(opt);
       });
     }
@@ -367,7 +367,7 @@ export async function populateDirectorDropdowns() {
       coaches.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.coachId;
-        opt.textContent = `${c.fullName} (${c.specName || 'Тренер'})`;
+        opt.textContent = `${c.fullName} (${c.specializationName || c.specName || 'Тренер'})`;
         d11Coach.appendChild(opt);
         if (d12Coach) d12Coach.appendChild(opt.cloneNode(true));
       });

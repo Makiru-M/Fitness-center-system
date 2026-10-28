@@ -23,22 +23,22 @@ public class HrController {
      * HR1: Hire coach (calls stored function sp_hire_coach)
      */
     @PostMapping("/coaches")
-    public ResponseEntity<Map<String, Object>> hireCoach(@RequestBody HireCoachRequest req) {
-        if (req.dbUser() == null || req.dbUser().isBlank()) {
+    public ResponseEntity<Map<String, Object>> hireCoach(@RequestBody HireCoachRequest request) {
+        if (request.dbUser() == null || request.dbUser().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of(
                     "status", 400,
                     "error", "Bad Request",
                     "message", "Логін облікового запису обов'язковий!"
             ));
         }
-        if (req.password() == null || req.password().isBlank()) {
+        if (request.password() == null || request.password().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of(
                     "status", 400,
                     "error", "Bad Request",
                     "message", "Пароль облікового запису обов'язковий!"
             ));
         }
-        Integer coachId = hrRepository.hireCoach(req);
+        Integer coachId = hrRepository.hireCoach(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "coachId", coachId,
                 "message", "Тренера успішно прийнято на роботу та створено обліковий запис у PostgreSQL."
@@ -49,8 +49,8 @@ public class HrController {
      * HR2: Update coach details
      */
     @PutMapping("/coaches")
-    public ResponseEntity<Map<String, String>> updateCoach(@RequestBody UpdateCoachRequest req) {
-        hrRepository.updateCoach(req);
+    public ResponseEntity<Map<String, String>> updateCoach(@RequestBody UpdateCoachRequest request) {
+        hrRepository.updateCoach(request);
         return ResponseEntity.ok(Map.of("message", "Дані тренера успішно оновлено."));
     }
 
@@ -58,8 +58,8 @@ public class HrController {
      * HR3 & HR6: Fire employee (calls stored function sp_fire_employee)
      */
     @PostMapping("/employees/fire")
-    public ResponseEntity<Map<String, String>> fireEmployee(@RequestBody FireEmployeeRequest req) {
-        hrRepository.fireEmployee(req);
+    public ResponseEntity<Map<String, String>> fireEmployee(@RequestBody FireEmployeeRequest request) {
+        hrRepository.fireEmployee(request);
         return ResponseEntity.ok(Map.of("message", "Працівника успішно звільнено та заблоковано вхід до системи."));
     }
 
@@ -67,22 +67,22 @@ public class HrController {
      * HR4: Hire manager (calls stored function sp_hire_manager)
      */
     @PostMapping("/managers")
-    public ResponseEntity<Map<String, Object>> hireManager(@RequestBody HireManagerRequest req) {
-        if (req.dbUser() == null || req.dbUser().isBlank()) {
+    public ResponseEntity<Map<String, Object>> hireManager(@RequestBody HireManagerRequest request) {
+        if (request.dbUser() == null || request.dbUser().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of(
                     "status", 400,
                     "error", "Bad Request",
                     "message", "Логін облікового запису обов'язковий!"
             ));
         }
-        if (req.password() == null || req.password().isBlank()) {
+        if (request.password() == null || request.password().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of(
                     "status", 400,
                     "error", "Bad Request",
                     "message", "Пароль облікового запису обов'язковий!"
             ));
         }
-        Integer staffId = hrRepository.hireManager(req);
+        Integer staffId = hrRepository.hireManager(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "staffId", staffId,
                 "message", "Менеджера успішно прийнято на роботу."
@@ -93,8 +93,8 @@ public class HrController {
      * HR5: Update manager details
      */
     @PutMapping("/managers")
-    public ResponseEntity<Map<String, String>> updateManager(@RequestBody UpdateManagerRequest req) {
-        hrRepository.updateManager(req);
+    public ResponseEntity<Map<String, String>> updateManager(@RequestBody UpdateManagerRequest request) {
+        hrRepository.updateManager(request);
         return ResponseEntity.ok(Map.of("message", "Дані менеджера успішно оновлено."));
     }
 

@@ -33,7 +33,7 @@ public class HrRepository {
                 req.fullName(),
                 req.birthDate(),
                 req.phone(),
-                req.specId(),
+                req.specializationId(),
                 req.dbUser(),
                 req.password(),
                 req.biography()
@@ -60,7 +60,7 @@ public class HrRepository {
             SET ID_Spec = ?, Biography = ?
             WHERE ID_Coach = ?
             """;
-        jdbc.update(updateCoach, req.specId(), req.biography(), req.coachId());
+        jdbc.update(updateCoach, req.specializationId(), req.biography(), req.coachId());
     }
 
     /**
