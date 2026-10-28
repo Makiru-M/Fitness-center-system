@@ -365,6 +365,10 @@ DECLARE
     v_end_date DATE;
     v_manager_id INT;
 BEGIN
+    IF p_phone !~ '^\+380\d{9}$' THEN
+        RAISE EXCEPTION 'Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.';
+    END IF;
+
     -- Перевірка унікальності DB_User у системі PostgreSQL
     IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = p_db_user) THEN
         RAISE EXCEPTION 'Користувач % вже зареєстрований у системі!', p_db_user;
@@ -468,6 +472,10 @@ DECLARE
     v_coach_id INT;
     v_pos_id INT;
 BEGIN
+    IF p_phone !~ '^\+380\d{9}$' THEN
+        RAISE EXCEPTION 'Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.';
+    END IF;
+
     IF p_db_user IS NULL OR length(trim(p_db_user)) = 0 THEN
         RAISE EXCEPTION 'Логін користувача БД обов''язковий!';
     END IF;
@@ -524,6 +532,10 @@ DECLARE
     v_staff_id INT;
     v_pos_id INT;
 BEGIN
+    IF p_phone !~ '^\+380\d{9}$' THEN
+        RAISE EXCEPTION 'Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.';
+    END IF;
+
     IF p_db_user IS NULL OR length(trim(p_db_user)) = 0 THEN
         RAISE EXCEPTION 'Логін користувача БД обов''язковий!';
     END IF;

@@ -53,6 +53,11 @@ public class ClientRepository {
      * Cl1: Update client own profile (FullName, Phone, Medical notes)
      */
     public void updateProfile(UpdateClientProfileRequest req) {
+        if (req.phone() != null && !req.phone().isBlank()) {
+            if (!req.phone().trim().matches("^\\+380\\d{9}$")) {
+                throw new BusinessLogicException("Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.");
+            }
+        }
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String updateClientSql = """
             UPDATE Clients

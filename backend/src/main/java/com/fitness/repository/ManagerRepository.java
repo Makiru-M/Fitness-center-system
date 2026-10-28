@@ -28,6 +28,11 @@ public class ManagerRepository {
      * M1: Register client as a new club member
      */
     public Integer createClient(CreateClientRequest req) {
+        if (req.phone() != null && !req.phone().isBlank()) {
+            if (!req.phone().trim().matches("^\\+380\\d{9}$")) {
+                throw new BusinessLogicException("Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.");
+            }
+        }
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
 
         if (req.dbUser() == null || req.dbUser().isBlank() || req.password() == null || req.password().isBlank()) {
@@ -88,6 +93,11 @@ public class ManagerRepository {
      * M2: Edit client details
      */
     public void updateClient(UpdateClientRequest req) {
+        if (req.phone() != null && !req.phone().isBlank()) {
+            if (!req.phone().trim().matches("^\\+380\\d{9}$")) {
+                throw new BusinessLogicException("Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.");
+            }
+        }
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
 
         String updateSql = """
