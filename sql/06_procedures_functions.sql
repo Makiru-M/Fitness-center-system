@@ -1008,22 +1008,6 @@ BEGIN
 END;
 $$;
 
--- Права на виклик збережених функцій
-GRANT EXECUTE ON FUNCTION fn_process_sale_with_promo(INT, VARCHAR, INT, VARCHAR, INT) TO client_role, manager_role, director_role;
-GRANT EXECUTE ON FUNCTION sp_purchase_subscription(INT, INT, VARCHAR, INT, DATE) TO client_role, manager_role, director_role;
-GRANT EXECUTE ON FUNCTION sp_book_personal_training(INT, INT, INT, TIMESTAMP, VARCHAR, INT, INT) TO client_role, manager_role, director_role;
-GRANT EXECUTE ON FUNCTION sp_register_client TO guest, manager_role, director_role;
-GRANT EXECUTE ON FUNCTION sp_create_client_user(VARCHAR, VARCHAR) TO manager_role, director_role;
-GRANT EXECUTE ON FUNCTION sp_hire_coach TO hr_role, director_role;
-GRANT EXECUTE ON FUNCTION sp_hire_manager TO hr_role, director_role;
-GRANT EXECUTE ON FUNCTION sp_fire_employee TO hr_role, director_role;
-GRANT EXECUTE ON PROCEDURE sp_freeze_client_subscription(INTEGER, DATE, DATE, VARCHAR) TO client_role;
-GRANT EXECUTE ON PROCEDURE sp_unfreeze_client_subscription(INTEGER) TO client_role;
-GRANT EXECUTE ON FUNCTION sp_register_visit(INT, INT) TO manager_role, director_role;
-GRANT EXECUTE ON PROCEDURE sp_book_group_class(INTEGER, INTEGER, INTEGER, VARCHAR) TO client_role, manager_role, director_role;
-GRANT EXECUTE ON PROCEDURE sp_cancel_group_booking(INTEGER) TO client_role, manager_role;
-GRANT EXECUTE ON PROCEDURE sp_generate_weekly_group_instances(INTEGER) TO director_role, manager_role, client_role, coach_role;
-
 -- 6.10. Оновлення та версіонування тарифу прайс-листа (D10, SECURITY DEFINER)
 CREATE OR REPLACE FUNCTION sp_update_price_tariff(
     p_item_id INT,
@@ -1173,11 +1157,6 @@ BEGIN
 END;
 $$;
 
--- Додаткові права на нові функції/процедури
-GRANT EXECUTE ON FUNCTION sp_update_price_tariff(INT, NUMERIC) TO director_role;
-GRANT EXECUTE ON FUNCTION sp_create_service_turnkey(VARCHAR, VARCHAR, NUMERIC, TEXT, INT, INT, INT, TIME, INT, INT, INT) TO director_role;
-GRANT EXECUTE ON FUNCTION sp_book_personal_training(INT, INT, INT, TIMESTAMP, VARCHAR, INT, INT) TO client_role, manager_role, director_role;
-
 -- 6.12. Деактивація / архівування послуги з прайсу (TICKET-062, Soft Delete, SECURITY DEFINER)
 CREATE OR REPLACE FUNCTION sp_deactivate_price_item(
     p_item_id INT
@@ -1222,5 +1201,33 @@ BEGIN
 END;
 $$;
 
+-- ==============================================================================
+-- 6.13. ПРАВА ДОСТУПУ НА ВИКОНАННЯ ЗБЕРЕЖЕНИХ ПРОЦЕДУР ТА ФУНКЦІЙ (GRANT EXECUTE)
+-- ==============================================================================
+
+-- Клієнтські та операційні операції (продажі, бронювання, заморозка, генерація)
+GRANT EXECUTE ON FUNCTION fn_process_sale_with_promo(INT, VARCHAR, INT, VARCHAR, INT) TO client_role, manager_role, director_role;
+GRANT EXECUTE ON FUNCTION sp_purchase_subscription(INT, INT, VARCHAR, INT, DATE) TO client_role, manager_role, director_role;
+GRANT EXECUTE ON FUNCTION sp_book_personal_training(INT, INT, INT, TIMESTAMP, VARCHAR, INT, INT) TO client_role, manager_role, director_role;
+GRANT EXECUTE ON PROCEDURE sp_book_group_class(INTEGER, INTEGER, INTEGER, VARCHAR) TO client_role, manager_role, director_role;
+GRANT EXECUTE ON PROCEDURE sp_cancel_group_booking(INTEGER) TO client_role, manager_role;
+GRANT EXECUTE ON PROCEDURE sp_freeze_client_subscription(INTEGER, DATE, DATE, VARCHAR) TO client_role;
+GRANT EXECUTE ON PROCEDURE sp_unfreeze_client_subscription(INTEGER) TO client_role;
+GRANT EXECUTE ON PROCEDURE sp_generate_weekly_group_instances(INTEGER) TO director_role, manager_role, client_role, coach_role;
+
+-- Реєстрація клієнтів та відвідувань (гості, менеджери)
+GRANT EXECUTE ON FUNCTION sp_register_client TO guest, manager_role, director_role;
+GRANT EXECUTE ON FUNCTION sp_create_client_user(VARCHAR, VARCHAR) TO manager_role, director_role;
+GRANT EXECUTE ON FUNCTION sp_register_visit(INT, INT) TO manager_role, director_role;
+
+-- Кадрові операції (HR, директор)
+GRANT EXECUTE ON FUNCTION sp_hire_coach TO hr_role, director_role;
+GRANT EXECUTE ON FUNCTION sp_hire_manager TO hr_role, director_role;
+GRANT EXECUTE ON FUNCTION sp_fire_employee TO hr_role, director_role;
+
+-- Керування послугами та прайс-листом (директор)
+GRANT EXECUTE ON FUNCTION sp_update_price_tariff(INT, NUMERIC) TO director_role;
+GRANT EXECUTE ON FUNCTION sp_create_service_turnkey(VARCHAR, VARCHAR, NUMERIC, TEXT, INT, INT, INT, TIME, INT, INT, INT) TO director_role;
 GRANT EXECUTE ON FUNCTION sp_deactivate_price_item(INT) TO director_role;
+
 
