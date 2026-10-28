@@ -3,6 +3,7 @@ package com.fitness.repository;
 import com.fitness.config.DynamicDataSourceService;
 import com.fitness.exception.BusinessLogicException;
 import com.fitness.dto.manager.*;
+import com.fitness.util.ValidationUtils;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -29,7 +30,7 @@ public class ManagerRepository {
      */
     public Integer createClient(CreateClientRequest req) {
         if (req.phone() != null && !req.phone().isBlank()) {
-            if (!req.phone().trim().matches("^\\+380\\d{9}$")) {
+            if (!ValidationUtils.isValidPhone(req.phone())) {
                 throw new BusinessLogicException("Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.");
             }
         }
@@ -94,7 +95,7 @@ public class ManagerRepository {
      */
     public void updateClient(UpdateClientRequest req) {
         if (req.phone() != null && !req.phone().isBlank()) {
-            if (!req.phone().trim().matches("^\\+380\\d{9}$")) {
+            if (!ValidationUtils.isValidPhone(req.phone())) {
                 throw new BusinessLogicException("Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.");
             }
         }
@@ -148,8 +149,9 @@ public class ManagerRepository {
             """);
 
         List<Object> params = new java.util.ArrayList<>();
-        if (search != null && !search.isBlank()) {
-            String pattern = "%" + search.trim() + "%";
+        String cleanedSearch = ValidationUtils.cleanToNull(search);
+        if (cleanedSearch != null) {
+            String pattern = "%" + cleanedSearch + "%";
             sql.append(" WHERE c.FullName ILIKE ? OR c.Phone ILIKE ? ");
             params.add(pattern);
             params.add(pattern);
@@ -240,7 +242,7 @@ public class ManagerRepository {
             throw new BusinessLogicException("Оформлення продажу дозволено виключно менеджерам по роботі з клієнтами!");
         }
 
-        String promo = (req.promoCode() != null && !req.promoCode().isBlank()) ? req.promoCode().trim() : null;
+        String promo = ValidationUtils.cleanToNull(req.promoCode());
 
         return jdbc.queryForObject(
                 "SELECT sale_id FROM sp_purchase_subscription(?, ?, ?, ?, ?)",
@@ -293,7 +295,7 @@ public class ManagerRepository {
      */
     public void bookGroupClass(Integer clientId, Integer instanceId, String promoCode) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String promo = (promoCode != null && !promoCode.isBlank()) ? promoCode.trim() : null;
+        String promo = ValidationUtils.cleanToNull(promoCode);
         jdbc.update("CALL sp_book_group_class(?, NULL, ?, ?)", instanceId, clientId, promo);
     }
 
@@ -307,7 +309,7 @@ public class ManagerRepository {
 
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         Integer managerId = getDefaultClientManagerId(jdbc);
-        String promo = (promoCode != null && !promoCode.isBlank()) ? promoCode.trim() : null;
+        String promo = ValidationUtils.cleanToNull(promoCode);
 
         return jdbc.queryForObject(
                 "SELECT personal_id FROM sp_book_personal_training(?, ?, ?, ?, ?, ?, ?)",

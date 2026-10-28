@@ -630,7 +630,6 @@ DECLARE
     v_remaining_days   INTEGER;
     v_old_end_date     DATE;
     v_current_status   VARCHAR(20);
-    v_sub_exists       BOOLEAN := FALSE;
 BEGIN
     IF p_freeze_start_date < CURRENT_DATE THEN
         RAISE EXCEPTION 'Дата початку заморозки не може бути в минулому.';
@@ -772,7 +771,7 @@ DECLARE
     v_hall_name   VARCHAR;
     v_hall_active BOOLEAN;
     v_has_active  BOOLEAN := FALSE;
-    v_has_frozen  BOOLEAN := FALSE;
+
     v_sale_id     INT;
     v_visit_id    INT;
     v_sub_status  VARCHAR(20);

@@ -3,6 +3,7 @@ package com.fitness.repository;
 import com.fitness.config.DynamicDataSourceService;
 import com.fitness.exception.BusinessLogicException;
 import com.fitness.dto.client.*;
+import com.fitness.util.ValidationUtils;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,7 +55,7 @@ public class ClientRepository {
      */
     public void updateProfile(UpdateClientProfileRequest req) {
         if (req.phone() != null && !req.phone().isBlank()) {
-            if (!req.phone().trim().matches("^\\+380\\d{9}$")) {
+            if (!ValidationUtils.isValidPhone(req.phone())) {
                 throw new BusinessLogicException("Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.");
             }
         }
@@ -87,6 +88,7 @@ public class ClientRepository {
     public ClientSubscriptionDto renewSubscription(RenewSubscriptionRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String sql = "SELECT * FROM sp_purchase_subscription(NULL, ?, ?, NULL, NULL)";
+        String promo = ValidationUtils.cleanToNull(req.promoCode());
 
         return jdbc.queryForObject(sql, (rs, rowNum) -> new ClientSubscriptionDto(
                 rs.getInt("sub_id"),
@@ -97,7 +99,7 @@ public class ClientRepository {
                 rs.getString("status"),
                 rs.getInt("remaining_freezing_days"),
                 rs.getBigDecimal("final_price")
-        ), req.itemId(), (req.promoCode() != null && !req.promoCode().isBlank()) ? req.promoCode().trim() : null);
+        ), req.itemId(), promo);
     }
 
     /**
@@ -132,7 +134,7 @@ public class ClientRepository {
         }
 
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String promo = (req.promoCode() != null && !req.promoCode().isBlank()) ? req.promoCode().trim() : null;
+        String promo = ValidationUtils.cleanToNull(req.promoCode());
         jdbc.update("CALL sp_book_group_class(?, NULL, NULL, ?)", req.instanceId(), promo);
     }
 
@@ -148,7 +150,7 @@ public class ClientRepository {
         }
 
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String promo = (req.promoCode() != null && !req.promoCode().isBlank()) ? req.promoCode().trim() : null;
+        String promo = ValidationUtils.cleanToNull(req.promoCode());
         jdbc.queryForObject(
                 "SELECT * FROM sp_book_personal_training(NULL, ?, ?, ?, ?, NULL, ?)",
                 (rs, rowNum) -> rs.getInt("personal_id"),
