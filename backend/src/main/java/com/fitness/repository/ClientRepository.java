@@ -2,7 +2,7 @@ package com.fitness.repository;
 
 import com.fitness.config.DynamicDataSourceService;
 import com.fitness.exception.BusinessLogicException;
-import com.fitness.model.ClientDto.*;
+import com.fitness.dto.client.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -291,8 +291,9 @@ public class ClientRepository {
             JOIN Clients c ON s.ID_Client = c.ID_Client
             WHERE c.DB_User = SESSION_USER
 
+            
             UNION ALL
-
+            
             SELECT 
                 pt.ID_Personal AS BookingId,
                 NULL::INTEGER AS InstanceId,

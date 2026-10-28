@@ -1,6 +1,6 @@
 package com.fitness.controller;
 
-import com.fitness.model.HrDto.*;
+import com.fitness.dto.hr.*;
 import com.fitness.repository.HrRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

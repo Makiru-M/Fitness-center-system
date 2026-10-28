@@ -1,8 +1,8 @@
 package com.fitness.controller;
 
-import com.fitness.model.AuthDto.CurrentUserResponse;
-import com.fitness.model.AuthDto.LoginRequest;
-import com.fitness.model.AuthDto.LoginResponse;
+import com.fitness.dto.auth.CurrentUserResponse;
+import com.fitness.dto.auth.LoginRequest;
+import com.fitness.dto.auth.LoginResponse;
 import com.fitness.repository.AuthRepository;
 import com.fitness.security.SecurityContextHolder;
 import com.fitness.security.SessionRegistry;

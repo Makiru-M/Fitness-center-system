@@ -1,8 +1,8 @@
 package com.fitness.controller;
 
-import com.fitness.model.DirectorDto.*;
-import com.fitness.model.GuestDto.HallDto;
-import com.fitness.model.GuestDto.PriceListItemDto;
+import com.fitness.dto.director.*;
+import com.fitness.dto.guest.HallDto;
+import com.fitness.dto.guest.PriceListItemDto;
 import com.fitness.repository.DirectorRepository;
 import com.fitness.repository.GuestRepository;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -176,6 +176,7 @@ public class DirectorController {
     public ResponseEntity<List<GroupIndividualShareItem>> getGroupIndividualShareView() {
         return ResponseEntity.ok(directorRepository.getGroupIndividualShareView());
     }
+
     /**
      * D10: Update price tariff (versioning)
      */

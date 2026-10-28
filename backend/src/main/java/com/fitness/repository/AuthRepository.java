@@ -2,8 +2,9 @@ package com.fitness.repository;
 
 import com.fitness.config.DynamicDataSourceService;
 import com.fitness.exception.AuthenticationRequiredException;
-import com.fitness.model.AuthDto.CurrentUserResponse;
-import com.fitness.model.AuthDto.LoginResponse;
+import com.fitness.dto.auth.CurrentUserResponse;
+import com.fitness.dto.auth.LoginResponse;
+import com.fitness.dto.auth.ProfileInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,9 +43,9 @@ public class AuthRepository {
                 token,
                 username,
                 role,
-                profile.fullName,
-                profile.entityId,
-                profile.description
+                profile.fullName(),
+                profile.entityId(),
+                profile.description()
         );
     }
 
@@ -62,10 +63,10 @@ public class AuthRepository {
         return new CurrentUserResponse(
                 username,
                 role,
-                profile.fullName,
-                profile.entityId,
-                profile.phone,
-                profile.birthDate,
+                profile.fullName(),
+                profile.entityId(),
+                profile.phone(),
+                profile.birthDate(),
                 permissions
         );
     }
@@ -181,21 +182,5 @@ public class AuthRepository {
             default -> list.add("GUEST_BROWSE");
         }
         return list;
-    }
-
-    private static class ProfileInfo {
-        final Integer entityId;
-        final String fullName;
-        final String phone;
-        final java.time.LocalDate birthDate;
-        final String description;
-
-        ProfileInfo(Integer entityId, String fullName, String phone, java.time.LocalDate birthDate, String description) {
-            this.entityId = entityId;
-            this.fullName = fullName;
-            this.phone = phone;
-            this.birthDate = birthDate;
-            this.description = description;
-        }
     }
 }

@@ -1,8 +1,8 @@
 package com.fitness.repository;
 
 import com.fitness.config.DynamicDataSourceService;
-import com.fitness.model.DirectorDto.*;
-import com.fitness.model.GuestDto.HallDto;
+import com.fitness.dto.director.*;
+import com.fitness.dto.guest.HallDto;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;

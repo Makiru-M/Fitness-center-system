@@ -1,7 +1,7 @@
 package com.fitness.controller;
 
-import com.fitness.model.ClientDto.AvailableGroupClassDto;
-import com.fitness.model.ManagerDto.*;
+import com.fitness.dto.client.AvailableGroupClassDto;
+import com.fitness.dto.manager.*;
 import com.fitness.repository.ClientRepository;
 import com.fitness.repository.ManagerRepository;
 import org.springframework.http.HttpStatus;

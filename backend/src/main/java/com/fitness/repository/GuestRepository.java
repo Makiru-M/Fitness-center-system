@@ -1,7 +1,7 @@
 package com.fitness.repository;
 
 import com.fitness.config.DynamicDataSourceService;
-import com.fitness.model.GuestDto.*;
+import com.fitness.dto.guest.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 

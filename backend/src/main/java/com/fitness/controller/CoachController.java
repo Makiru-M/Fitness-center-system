@@ -1,6 +1,6 @@
 package com.fitness.controller;
 
-import com.fitness.model.CoachDto.*;
+import com.fitness.dto.coach.*;
 import com.fitness.repository.CoachRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

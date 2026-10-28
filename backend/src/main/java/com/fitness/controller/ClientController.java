@@ -1,6 +1,6 @@
 package com.fitness.controller;
 
-import com.fitness.model.ClientDto.*;
+import com.fitness.dto.client.*;
 import com.fitness.repository.ClientRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

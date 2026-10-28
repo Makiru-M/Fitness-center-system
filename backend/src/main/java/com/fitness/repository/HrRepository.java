@@ -2,7 +2,7 @@ package com.fitness.repository;
 
 import com.fitness.config.DynamicDataSourceService;
 import com.fitness.exception.BusinessLogicException;
-import com.fitness.model.HrDto.*;
+import com.fitness.dto.hr.*;
 import com.fitness.security.SessionRegistry;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
