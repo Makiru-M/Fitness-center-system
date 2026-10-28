@@ -22,10 +22,6 @@ export const directorApi = {
     return apiFetch('/director/reports/coach-popularity');
   },
 
-  getHallOccupancy() {
-    return apiFetch('/director/reports/hall-occupancy');
-  },
-
   getIssues() {
     return apiFetch('/director/reports/issues');
   },

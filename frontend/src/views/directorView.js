@@ -225,10 +225,6 @@ export async function renderD3Coaches() {
   }
 }
 
-export async function renderD4Halls() {
-  // Deprecated: D4 merged into D2
-}
-
 export async function renderD5Problems() {
   const tbody = document.getElementById('d5-problems-tbody');
   if (!tbody) return;
@@ -481,7 +477,7 @@ export async function handleD8CreateHall(e) {
     await populateDirectorDropdowns();
     await populateManagerDropdowns();
     await renderGuestHalls();
-    await renderD4Halls();
+    await renderD2Attendance();
   } catch (err) {
     showToast(`Помилка введення залу: ${err.message}`, 'danger');
   }
@@ -507,7 +503,6 @@ export async function handleD8DecommissionHall(e) {
     await populateDirectorDropdowns();
     await populateManagerDropdowns();
     await renderGuestHalls();
-    await renderD4Halls();
     await renderD2Attendance();
   } catch (err) {
     showToast(`Помилка виведення залу з експлуатації: ${err.message}`, 'danger');
@@ -534,7 +529,6 @@ export async function handleD8RecommissionHall(e) {
     await populateDirectorDropdowns();
     await populateManagerDropdowns();
     await renderGuestHalls();
-    await renderD4Halls();
     await renderD2Attendance();
   } catch (err) {
     showToast(`Помилка повернення залу в експлуатацію: ${err.message}`, 'danger');

@@ -46,19 +46,11 @@ public class DirectorController {
     }
 
     /**
-     * D3: Coach popularity ranking (from Lab_4.sql)
+     * D3: Coach popularity ranking
      */
     @GetMapping("/reports/coach-popularity")
     public ResponseEntity<List<CoachPerformanceDto>> getCoachPopularity() {
         return ResponseEntity.ok(directorRepository.getCoachPopularity());
-    }
-
-    /**
-     * D4: Hall occupancy report
-     */
-    @GetMapping("/reports/hall-occupancy")
-    public ResponseEntity<List<HallOccupancyDto>> getHallOccupancy() {
-        return ResponseEntity.ok(directorRepository.getHallsOccupancy());
     }
 
     /**

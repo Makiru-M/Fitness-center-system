@@ -195,52 +195,6 @@ public class DirectorRepository {
     }
 
     /**
-     * D4: Hall occupancy report - single analytical query with CTEs, traffic share percentage and DENSE_RANK
-     */
-    public List<HallOccupancyDto> getHallsOccupancy() {
-        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = """
-            WITH HallVisits AS (
-                SELECT ID_Hall, COUNT(ID_Visit) AS VisitsCount
-                FROM Visits
-                GROUP BY ID_Hall
-            ),
-            HallGroups AS (
-                SELECT gst.ID_Hall, COUNT(gci.ID_Instance) AS GroupSlotsCount
-                FROM GroupScheduleTemplates gst
-                JOIN GroupClassInstances gci ON gst.ID_Template = gci.ID_Template
-                WHERE gci.ClassStatus <> 'Cancelled'
-                GROUP BY gst.ID_Hall
-            )
-            SELECT 
-                h.ID_Hall AS HallId,
-                h.HallName,
-                h.MaxCapacity,
-                COALESCE(hv.VisitsCount, 0) AS VisitsCount,
-                COALESCE(hg.GroupSlotsCount, 0) AS GroupSlotsCount,
-                ROUND(LEAST(100.0, (COALESCE(hv.VisitsCount, 0)::NUMERIC / NULLIF(h.MaxCapacity, 0)) * 100), 1) AS OccupancyPercent,
-                ROUND((COALESCE(hv.VisitsCount, 0)::NUMERIC / NULLIF(SUM(COALESCE(hv.VisitsCount, 0)) OVER (), 0)) * 100, 2) AS TrafficSharePercent,
-                DENSE_RANK() OVER (ORDER BY COALESCE(hv.VisitsCount, 0) DESC) AS RankByTraffic
-            FROM Halls h
-            LEFT JOIN HallVisits hv ON h.ID_Hall = hv.ID_Hall
-            LEFT JOIN HallGroups hg ON h.ID_Hall = hg.ID_Hall
-            WHERE (h.IsActive IS NULL OR h.IsActive = TRUE)
-            ORDER BY RankByTraffic ASC, h.ID_Hall ASC
-            """;
-
-        return jdbc.query(sql, (rs, rowNum) -> new HallOccupancyDto(
-                rs.getInt("HallId"),
-                rs.getString("HallName"),
-                rs.getInt("MaxCapacity"),
-                rs.getLong("VisitsCount"),
-                rs.getLong("GroupSlotsCount"),
-                rs.getDouble("OccupancyPercent"),
-                rs.getObject("TrafficSharePercent") != null ? rs.getDouble("TrafficSharePercent") : 0.0,
-                rs.getLong("RankByTraffic")
-        ));
-    }
-
-    /**
      * D5: Problematic areas and risk analysis - single analytical UNION ALL query
      */
     public List<ProblemAreaDto> getIssuesAnalysis() {
