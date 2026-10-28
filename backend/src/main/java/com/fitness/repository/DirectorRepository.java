@@ -160,29 +160,11 @@ public class DirectorRepository {
     }
 
     /**
-     * D2: Attendance report - single analytical query with MODE() WITHIN GROUP for peak hours
+     * D2: Attendance report - analytical view v_AttendanceReport
      */
     public List<AttendanceReportItem> getAttendanceReport() {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = """
-            SELECT 
-                h.HallName,
-                h.MaxCapacity,
-                COUNT(v.ID_Visit) AS TotalVisits,
-                COUNT(DISTINCT s.ID_Client) AS UniqueClients,
-                COALESCE(
-                    LPAD(MODE() WITHIN GROUP (ORDER BY EXTRACT(HOUR FROM v.CheckInTime)::INT)::TEXT, 2, '0') || ':00 - ' || 
-                    LPAD((MODE() WITHIN GROUP (ORDER BY EXTRACT(HOUR FROM v.CheckInTime)::INT) + 1)::TEXT, 2, '0') || ':00',
-                    '—'
-                ) AS PeakHours,
-                ROUND(LEAST(100.0, (COUNT(v.ID_Visit)::NUMERIC / NULLIF(h.MaxCapacity, 0)) * 100), 1) AS OccupancyPercent
-            FROM Halls h
-            LEFT JOIN Visits v ON h.ID_Hall = v.ID_Hall
-            LEFT JOIN Sales s ON v.ID_Sale = s.ID_Sale
-            WHERE (h.IsActive IS NULL OR h.IsActive = TRUE)
-            GROUP BY h.ID_Hall, h.HallName, h.MaxCapacity
-            ORDER BY TotalVisits DESC, h.HallName ASC
-            """;
+        String sql = "SELECT * FROM v_AttendanceReport";
 
         return jdbc.query(sql, (rs, rowNum) -> new AttendanceReportItem(
                 rs.getString("HallName"),
@@ -195,64 +177,11 @@ public class DirectorRepository {
     }
 
     /**
-     * D3: Coach popularity ranking - single analytical query with CTEs and multi-criteria DENSE_RANK window functions (Lab_4.sql)
+     * D3: Coach popularity ranking - analytical view v_CoachPerformance
      */
     public List<CoachPerformanceDto> getCoachPopularity() {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = """
-            WITH GroupStats AS (
-                SELECT 
-                    gst.ID_Coach,
-                    COUNT(gci.ID_Instance) AS GroupClassesCount,
-                    ROUND(COALESCE(AVG(gci.ActualAttendance), 0), 2) AS AvgGroupSize
-                FROM GroupScheduleTemplates gst
-                JOIN GroupClassInstances gci ON gst.ID_Template = gci.ID_Template
-                WHERE gci.ClassStatus IN ('Completed', 'Attended')
-                GROUP BY gst.ID_Coach
-            ),
-            PersonalStats AS (
-                SELECT 
-                    pt.ID_Coach,
-                    COUNT(DISTINCT sl.ID_Client) AS IndividualClientsCount,
-                    COUNT(pt.ID_Personal) AS CompletedPersonalClassesCount
-                FROM PersonalTrainings pt
-                JOIN Sales sl ON pt.ID_Sale = sl.ID_Sale
-                WHERE pt.TrainingStatus IN ('Completed', 'Attended')
-                GROUP BY pt.ID_Coach
-            ),
-            CoachStats AS (
-                SELECT 
-                    c.ID_Coach AS CoachId,
-                    s.FullName,
-                    sp.SpecName,
-                    COALESCE(gs.GroupClassesCount, 0) AS GroupClassesCount,
-                    COALESCE(gs.AvgGroupSize, 0) AS AvgGroupSize,
-                    COALESCE(ps.IndividualClientsCount, 0) AS IndividualClientsCount,
-                    COALESCE(ps.CompletedPersonalClassesCount, 0) AS PersonalCount
-                FROM Coaches c
-                JOIN Staff s ON c.ID_Staff = s.ID_Staff
-                JOIN Specializations sp ON c.ID_Spec = sp.ID_Spec
-                LEFT JOIN GroupStats gs ON c.ID_Coach = gs.ID_Coach
-                LEFT JOIN PersonalStats ps ON c.ID_Coach = ps.ID_Coach
-                WHERE s.FireDate IS NULL
-            )
-            SELECT 
-                CoachId,
-                FullName,
-                SpecName,
-                PersonalCount,
-                IndividualClientsCount,
-                GroupClassesCount AS GroupCount,
-                (PersonalCount + GroupClassesCount) AS TotalClasses,
-                AvgGroupSize,
-                DENSE_RANK() OVER (ORDER BY GroupClassesCount DESC) AS RankByGroupClasses,
-                DENSE_RANK() OVER (ORDER BY AvgGroupSize DESC) AS RankByAvgGroupSize,
-                DENSE_RANK() OVER (ORDER BY IndividualClientsCount DESC) AS RankByIndividualClients,
-                DENSE_RANK() OVER (ORDER BY (PersonalCount * 1.5 + GroupClassesCount * AvgGroupSize) DESC) AS KpiRank,
-                ROUND((PersonalCount * 1.5 + GroupClassesCount * AvgGroupSize)::NUMERIC, 1) AS Kpi
-            FROM CoachStats
-            ORDER BY KpiRank ASC, TotalClasses DESC
-            """;
+        String sql = "SELECT * FROM v_CoachPerformance";
 
         return jdbc.query(sql, (rs, rowNum) -> new CoachPerformanceDto(
                 rs.getInt("CoachId"),
@@ -272,52 +201,11 @@ public class DirectorRepository {
     }
 
     /**
-     * D5: Problematic areas and risk analysis - single analytical UNION ALL query
+     * D5: Problematic areas and risk analysis - analytical view v_ProblemSituations
      */
     public List<ProblemAreaDto> getIssuesAnalysis() {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = """
-            SELECT 
-                c.FullName AS ClientName,
-                COALESCE(c.Phone, '—') AS Phone,
-                'Прострочений абонемент' AS ProblemType,
-                'Закінчився ' || cs.EndDate::TEXT || ' (' || (CURRENT_DATE - cs.EndDate)::TEXT || ' дн. тому)' AS Details
-            FROM ClientSubscriptions cs
-            JOIN Sales s ON cs.ID_Sale = s.ID_Sale
-            JOIN Clients c ON s.ID_Client = c.ID_Client
-            WHERE cs.EndDate < CURRENT_DATE AND cs.CurrentStatus <> 'Expired'
-
-            UNION ALL
-
-            SELECT 
-                c.FullName AS ClientName,
-                COALESCE(c.Phone, '—') AS Phone,
-                'Часті неявки (No-show)' AS ProblemType,
-                'Кількість неявок: ' || COUNT(pt.ID_Personal)::TEXT AS Details
-            FROM Clients c
-            JOIN Sales s ON c.ID_Client = s.ID_Client
-            JOIN PersonalTrainings pt ON s.ID_Sale = pt.ID_Sale
-            WHERE pt.TrainingStatus = 'No-show'
-            GROUP BY c.ID_Client, c.FullName, c.Phone
-            HAVING COUNT(pt.ID_Personal) >= 1
-
-            UNION ALL
-
-            SELECT 
-                cl.FullName AS ClientName,
-                COALESCE(cl.Phone, '—') AS Phone,
-                'Скасоване тренування' AS ProblemType,
-                'Тренер: ' || st.FullName || ', причина: ' || COALESCE(pcl.Reason, 'Не вказано') AS Details
-            FROM PersonalTrainings pt
-            JOIN Coaches co ON pt.ID_Coach = co.ID_Coach
-            JOIN Staff st ON co.ID_Staff = st.ID_Staff
-            JOIN Sales sl ON pt.ID_Sale = sl.ID_Sale
-            JOIN Clients cl ON sl.ID_Client = cl.ID_Client
-            LEFT JOIN PT_Changelog pcl ON pt.ID_Personal = pcl.ID_Personal
-            WHERE pt.TrainingStatus = 'Cancelled'
-
-            ORDER BY ProblemType, ClientName
-            """;
+        String sql = "SELECT * FROM v_ProblemSituations";
 
         return jdbc.query(sql, (rs, rowNum) -> new ProblemAreaDto(
                 rs.getString("ClientName"),
@@ -328,28 +216,11 @@ public class DirectorRepository {
     }
 
     /**
-     * D6: Change log audit - single analytical query joining PT_Changelog and PT_TimeChangeDetails with ROW_NUMBER and LAG
+     * D6: Change log audit - analytical view v_PersonalTrainingsAudit
      */
     public List<PersonalTrainingAuditLogDto> getAuditLog() {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = """
-            SELECT 
-                cl.ChangeTimestamp,
-                cl.ID_Personal AS PersonalId,
-                cl.RequestType,
-                cl.ChangeInitiator,
-                cl.Reason,
-                CASE 
-                    WHEN cl.RequestType = 'Cancel' THEN 'Скасовано'
-                    WHEN tcd.NewDateTime IS NOT NULL THEN TO_CHAR(tcd.NewDateTime, 'YYYY-MM-DD HH24:MI')
-                    ELSE 'Не вказано'
-                END AS NewTime,
-                ROW_NUMBER() OVER (PARTITION BY cl.ID_Personal ORDER BY cl.ChangeTimestamp ASC) AS ChangeSeqNum,
-                LAG(cl.ChangeTimestamp) OVER (PARTITION BY cl.ID_Personal ORDER BY cl.ChangeTimestamp ASC) AS PreviousChangeTime
-            FROM PT_Changelog cl
-            LEFT JOIN PT_TimeChangeDetails tcd ON cl.ID_PTLog = tcd.ID_PTLog
-            ORDER BY cl.ChangeTimestamp DESC
-            """;
+        String sql = "SELECT * FROM v_PersonalTrainingsAudit";
 
         return jdbc.query(sql, (rs, rowNum) -> new PersonalTrainingAuditLogDto(
                 rs.getTimestamp("ChangeTimestamp").toLocalDateTime(),
