@@ -15,6 +15,32 @@ BEGIN
 END;
 $$;
 
+-- Допоміжна процедура створення системного облікового запису користувача PostgreSQL
+CREATE OR REPLACE PROCEDURE sp_create_db_user(
+    p_username VARCHAR,
+    p_password VARCHAR,
+    p_role_name VARCHAR
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF p_username IS NULL OR length(trim(p_username)) = 0 THEN
+        RAISE EXCEPTION 'Логін користувача БД обов''язковий!';
+    END IF;
+    IF p_password IS NULL OR length(trim(p_password)) = 0 THEN
+        RAISE EXCEPTION 'Пароль користувача обов''язковий!';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = trim(p_username)) THEN
+        RAISE EXCEPTION 'Користувач % вже зареєстрований у системі!', trim(p_username);
+    END IF;
+
+    EXECUTE format('CREATE USER %I WITH PASSWORD %L IN ROLE %I', trim(p_username), p_password, p_role_name);
+END;
+$$;
+
 -- 6.0. Допоміжна функція оформлення чека продажу з промокодом (DRY / Database-First)
 CREATE OR REPLACE FUNCTION fn_process_sale_with_promo(
     p_client_id INT,
@@ -376,13 +402,8 @@ DECLARE
 BEGIN
     PERFORM fn_validate_phone(p_phone);
 
-    -- Перевірка унікальності DB_User у системі PostgreSQL
-    IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = p_db_user) THEN
-        RAISE EXCEPTION 'Користувач % вже зареєстрований у системі!', p_db_user;
-    END IF;
-
-    -- Створення користувача PostgreSQL з роллю client_role
-    EXECUTE format('CREATE USER %I WITH PASSWORD %L IN ROLE client_role', p_db_user, p_password);
+    -- Створення користувача PostgreSQL з роллю client_role через єдину процедуру
+    CALL sp_create_db_user(p_db_user, p_password, 'client_role');
 
     -- Додавання профілю клієнта
     INSERT INTO Clients (FullName, BirthDate, Phone, Gender, DB_User)
@@ -444,19 +465,8 @@ DECLARE
 BEGIN
     PERFORM fn_validate_phone(p_phone);
 
-    IF p_db_user IS NULL OR length(trim(p_db_user)) = 0 THEN
-        RAISE EXCEPTION 'Логін користувача БД обов''язковий!';
-    END IF;
-    IF p_password IS NULL OR length(trim(p_password)) = 0 THEN
-        RAISE EXCEPTION 'Пароль користувача обов''язковий!';
-    END IF;
-
-    IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = p_db_user) THEN
-        RAISE EXCEPTION 'Користувач % вже існує!', p_db_user;
-    END IF;
-
-    -- Створення акаунту тренера
-    EXECUTE format('CREATE USER %I WITH PASSWORD %L IN ROLE coach_role', p_db_user, p_password);
+    -- Створення акаунту тренера через єдину процедуру
+    CALL sp_create_db_user(p_db_user, p_password, 'coach_role');
 
     -- Посада тренера
     SELECT ID_Position INTO v_pos_id FROM Positions WHERE PositionName ILIKE '%тренер%' ORDER BY ID_Position LIMIT 1;
@@ -502,19 +512,8 @@ DECLARE
 BEGIN
     PERFORM fn_validate_phone(p_phone);
 
-    IF p_db_user IS NULL OR length(trim(p_db_user)) = 0 THEN
-        RAISE EXCEPTION 'Логін користувача БД обов''язковий!';
-    END IF;
-    IF p_password IS NULL OR length(trim(p_password)) = 0 THEN
-        RAISE EXCEPTION 'Пароль користувача обов''язковий!';
-    END IF;
-
-    IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = p_db_user) THEN
-        RAISE EXCEPTION 'Користувач % вже існує!', p_db_user;
-    END IF;
-
-    -- Створення акаунту менеджера
-    EXECUTE format('CREATE USER %I WITH PASSWORD %L IN ROLE manager_role', p_db_user, p_password);
+    -- Створення акаунту менеджера через єдину процедуру
+    CALL sp_create_db_user(p_db_user, p_password, 'manager_role');
 
     SELECT ID_Position INTO v_pos_id FROM Positions WHERE PositionName ILIKE '%' || p_position_name || '%' LIMIT 1;
     IF v_pos_id IS NULL THEN
@@ -572,11 +571,7 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = p_db_user) THEN
-        RAISE EXCEPTION 'Користувач з логіном "%" вже існує в системі.', p_db_user;
-    END IF;
-
-    EXECUTE format('CREATE USER %I WITH PASSWORD %L IN ROLE client_role', p_db_user, p_password);
+    CALL sp_create_db_user(p_db_user, p_password, 'client_role');
 END;
 $$;
 
