@@ -1,7 +1,7 @@
 package com.fitness.controller;
 
 import com.fitness.dto.coach.*;
-import com.fitness.repository.CoachRepository;
+import com.fitness.service.CoachService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,10 +12,10 @@ import java.util.Map;
 @RequestMapping("/api/coach")
 public class CoachController {
 
-    private final CoachRepository coachRepository;
+    private final CoachService coachService;
 
-    public CoachController(CoachRepository coachRepository) {
-        this.coachRepository = coachRepository;
+    public CoachController(CoachService coachService) {
+        this.coachService = coachService;
     }
 
     /**
@@ -23,7 +23,7 @@ public class CoachController {
      */
     @GetMapping("/schedule")
     public ResponseEntity<List<CoachScheduleItem>> getMySchedule() {
-        return ResponseEntity.ok(coachRepository.getMySchedule());
+        return ResponseEntity.ok(coachService.getMySchedule());
     }
 
     /**
@@ -31,7 +31,7 @@ public class CoachController {
      */
     @GetMapping("/classes/{instanceId}/participants")
     public ResponseEntity<List<ClassParticipantDto>> getGroupClassParticipants(@PathVariable("instanceId") Integer instanceId) {
-        return ResponseEntity.ok(coachRepository.getGroupClassParticipants(instanceId));
+        return ResponseEntity.ok(coachService.getGroupClassParticipants(instanceId));
     }
 
     /**
@@ -39,7 +39,7 @@ public class CoachController {
      */
     @GetMapping("/personal/{personalId}/client")
     public ResponseEntity<List<ClassParticipantDto>> getPersonalTrainingClient(@PathVariable("personalId") Integer personalId) {
-        return ResponseEntity.ok(coachRepository.getPersonalTrainingClient(personalId));
+        return ResponseEntity.ok(coachService.getPersonalTrainingClient(personalId));
     }
 
     /**
@@ -50,7 +50,7 @@ public class CoachController {
             @PathVariable("personalId") Integer personalId,
             @RequestBody UpdatePersonalTrainingStatusRequest request
     ) {
-        coachRepository.updatePersonalTrainingStatus(personalId, request);
+        coachService.updatePersonalTrainingStatus(personalId, request);
         return ResponseEntity.ok(Map.of("message", "Статус персонального тренування оновлено."));
     }
 
@@ -62,7 +62,7 @@ public class CoachController {
             @PathVariable("instanceId") Integer instanceId,
             @RequestBody UpdateGroupAttendanceRequest request
     ) {
-        coachRepository.updateGroupAttendance(instanceId, request);
+        coachService.updateGroupAttendance(instanceId, request);
         return ResponseEntity.ok(Map.of("message", "Відвідуваність групового заняття збережено."));
     }
 
@@ -71,7 +71,7 @@ public class CoachController {
      */
     @PostMapping("/requests/reschedule")
     public ResponseEntity<Map<String, String>> submitChangeRequest(@RequestBody CoachChangeRequest request) {
-        coachRepository.submitChangeRequest(request);
+        coachService.submitChangeRequest(request);
         return ResponseEntity.ok(Map.of("message", "Запит на зміну тренування успішно надіслано менеджеру."));
     }
 }

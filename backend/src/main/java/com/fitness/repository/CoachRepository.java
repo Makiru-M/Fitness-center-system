@@ -1,17 +1,16 @@
 package com.fitness.repository;
 
 import com.fitness.config.DynamicDataSourceService;
-import com.fitness.exception.BusinessLogicException;
 import com.fitness.dto.coach.*;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
-@Transactional
 public class CoachRepository {
 
     private final DynamicDataSourceService dataSourceService;
@@ -83,7 +82,7 @@ public class CoachRepository {
     }
 
     /**
-     * C2: Get participant clients for a group class or personal training
+     * C2: Get participant clients for a group class
      */
     public List<ClassParticipantDto> getGroupClassParticipants(Integer instanceId) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -105,6 +104,9 @@ public class CoachRepository {
         ), instanceId);
     }
 
+    /**
+     * C2: Get client details for a personal training
+     */
     public List<ClassParticipantDto> getPersonalTrainingClient(Integer personalId) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String sql = """
@@ -126,13 +128,11 @@ public class CoachRepository {
     }
 
     /**
-     * C3: Mark personal training status (Completed / No-show / Cancelled)
+     * C3: Update personal training status.
+     * Returns number of updated rows.
      */
-    public void updatePersonalTrainingStatus(Integer personalId, UpdatePersonalTrainingStatusRequest req) {
+    public int updatePersonalTraining(Integer personalId, String status, boolean isCompletion) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String status = req.status();
-        boolean isCompletion = "Completed".equalsIgnoreCase(status) || "No-show".equalsIgnoreCase(status);
-
         String sql = """
             UPDATE PersonalTrainings
             SET TrainingStatus = ?::activity_status
@@ -140,29 +140,29 @@ public class CoachRepository {
               AND (? = false OR (TrainingDateTime + INTERVAL '60 minutes') <= CURRENT_TIMESTAMP)
             """;
 
-        int rows = jdbc.update(sql, status, personalId, isCompletion);
-        if (rows == 0) {
-            var items = jdbc.query(
-                    "SELECT TrainingDateTime, (TrainingDateTime + INTERVAL '60 minutes') AS EndDateTime FROM PersonalTrainings WHERE ID_Personal = ?",
-                    (rs, rowNum) -> rs.getTimestamp("EndDateTime").toLocalDateTime(),
-                    personalId
-            );
-            LocalDateTime endTime = items.stream()
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("Персональне тренування з ID " + personalId + " не знайдено."));
-            throw new IllegalArgumentException("Неможливо відмітити тренування як проведене: заняття ще не завершилося (час закінчення: " + endTime + ").");
+        return jdbc.update(sql, status, personalId, isCompletion);
+    }
+
+    /**
+     * Find personal training end time.
+     */
+    public Optional<LocalDateTime> findPersonalTrainingEndTime(Integer personalId) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = "SELECT (TrainingDateTime + INTERVAL '60 minutes') AS EndDateTime FROM PersonalTrainings WHERE ID_Personal = ?";
+        try {
+            LocalDateTime endTime = jdbc.queryForObject(sql, LocalDateTime.class, personalId);
+            return Optional.ofNullable(endTime);
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
         }
     }
 
     /**
-     * C4: Mark group class status and actual attendance
+     * C4: Update group class status and attendance.
+     * Returns number of updated rows.
      */
-    public void updateGroupAttendance(Integer instanceId, UpdateGroupAttendanceRequest req) {
+    public int updateGroupClass(Integer instanceId, String status, int attendance, boolean isCompletion) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String status = req.status();
-        int attendance = (req.actualAttendance() != null && req.actualAttendance() >= 0) ? req.actualAttendance() : 0;
-        boolean isCompletion = "Completed".equalsIgnoreCase(status) || "No-show".equalsIgnoreCase(status);
-
         String sql = """
             UPDATE GroupClassInstances gci
             SET ClassStatus = ?::activity_status, ActualAttendance = ?
@@ -172,51 +172,63 @@ public class CoachRepository {
               AND (? = false OR (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute')) <= CURRENT_TIMESTAMP)
             """;
 
-        int rows = jdbc.update(sql, status, attendance, instanceId, isCompletion);
-        if (rows == 0) {
-            var items = jdbc.query("""
-                SELECT (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute')) AS EndDateTime
-                FROM GroupClassInstances gci
-                JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
-                WHERE gci.ID_Instance = ?
-                """,
-                    (rs, rowNum) -> rs.getTimestamp("EndDateTime").toLocalDateTime(),
-                    instanceId
-            );
-            LocalDateTime endTime = items.stream()
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("Групове заняття з ID " + instanceId + " не знайдено."));
-            throw new IllegalArgumentException("Неможливо відмітити групове заняття як проведене: воно ще не завершилося (час закінчення: " + endTime + ").");
+        return jdbc.update(sql, status, attendance, instanceId, isCompletion);
+    }
+
+    /**
+     * Find group class end time.
+     */
+    public Optional<LocalDateTime> findGroupClassEndTime(Integer instanceId) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = """
+            SELECT (gci.ClassDate + COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute')) AS EndDateTime
+            FROM GroupClassInstances gci
+            JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
+            WHERE gci.ID_Instance = ?
+            """;
+        try {
+            LocalDateTime endTime = jdbc.queryForObject(sql, LocalDateTime.class, instanceId);
+            return Optional.ofNullable(endTime);
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
         }
     }
 
     /**
-     * C5: Submit request for reschedule or cancellation
+     * C5: Insert record into PT_Changelog.
      */
-    public void submitChangeRequest(CoachChangeRequest req) {
-        if ("Reschedule".equalsIgnoreCase(req.requestType())) {
-            if (req.newDateTime() == null || req.newDateTime().isBefore(LocalDateTime.now())) {
-                throw new BusinessLogicException("Запропонований час перенесення не може бути в минулому.");
-            }
-        }
-
+    public Integer insertChangeLog(Integer personalId, String requestType, String reason) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-
-        Integer logId = jdbc.queryForObject(
+        return jdbc.queryForObject(
                 "INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp, Status) VALUES (?, ?, ?, 'Coach', CURRENT_TIMESTAMP, 'Pending') RETURNING ID_PTLog",
-                Integer.class, req.personalId(), req.requestType(), req.reason()
+                Integer.class, personalId, requestType, reason
         );
+    }
 
-        if ("Reschedule".equalsIgnoreCase(req.requestType()) && req.newDateTime() != null) {
-            LocalDateTime oldTime = jdbc.queryForObject(
+    /**
+     * Get personal training scheduled start time.
+     */
+    public Optional<LocalDateTime> findPersonalTrainingStartTime(Integer personalId) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        try {
+            LocalDateTime startTime = jdbc.queryForObject(
                     "SELECT TrainingDateTime FROM PersonalTrainings WHERE ID_Personal = ?",
-                    LocalDateTime.class, req.personalId()
+                    LocalDateTime.class, personalId
             );
-
-            jdbc.update(
-                    "INSERT INTO PT_TimeChangeDetails (ID_PTLog, OldDateTime, NewDateTime) VALUES (?, ?, ?)",
-                    logId, oldTime, req.newDateTime()
-            );
+            return Optional.ofNullable(startTime);
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
         }
+    }
+
+    /**
+     * Insert details into PT_TimeChangeDetails.
+     */
+    public void insertTimeChangeDetails(Integer logId, LocalDateTime oldDateTime, LocalDateTime newDateTime) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        jdbc.update(
+                "INSERT INTO PT_TimeChangeDetails (ID_PTLog, OldDateTime, NewDateTime) VALUES (?, ?, ?)",
+                logId, oldDateTime, newDateTime
+        );
     }
 }
