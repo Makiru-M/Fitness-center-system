@@ -2,150 +2,145 @@
 -- 8. ПРЕДСТАВЛЕННЯ (VIEWS) ДЛЯ ЗВІТІВ ТА АНАЛІТИКИ
 -- ------------------------------------------------------------------------------
 
--- 8.1. Статистика тренерів та їхньої активності (Lab_4 / Analytical)
-CREATE OR REPLACE VIEW v_CoachStats AS
+-- 8.1. Звіт відвідуваності та завантаженості залів (D2: getAttendanceReport)
+CREATE OR REPLACE VIEW v_AttendanceReport AS
 SELECT 
-    c.ID_Coach,
-    s.FullName AS CoachName,
-    (
-        SELECT COUNT(gci.ID_Instance)
-        FROM GroupScheduleTemplates gst
-        JOIN GroupClassInstances gci ON gst.ID_Template = gci.ID_Template
-        WHERE gst.ID_Coach = c.ID_Coach 
-          AND gci.ClassStatus IN ('Completed', 'Attended')
-    ) AS GroupClassesCount,
-    (
-        SELECT ROUND(COALESCE(AVG(gci.ActualAttendance), 0), 2)
-        FROM GroupScheduleTemplates gst
-        JOIN GroupClassInstances gci ON gst.ID_Template = gci.ID_Template
-        WHERE gst.ID_Coach = c.ID_Coach 
-          AND gci.ClassStatus IN ('Completed', 'Attended')
-    ) AS AvgGroupSize,
-    (
-        SELECT COUNT(DISTINCT sl.ID_Client)
-        FROM PersonalTrainings pt
-        JOIN Sales sl ON pt.ID_Sale = sl.ID_Sale
-        WHERE pt.ID_Coach = c.ID_Coach 
-          AND pt.TrainingStatus IN ('Completed', 'Attended')
-    ) AS IndividualClientsCount
-FROM Coaches c
-JOIN Staff s ON c.ID_Staff = s.ID_Staff;
-
--- 8.2. Статистика завантаження залів клубу (Lab_3 / Analytical)
-CREATE OR REPLACE VIEW v_HallLoadStats AS
-SELECT 
-    h.ID_Hall,
     h.HallName,
     h.MaxCapacity,
-    h.IsActive,
-    COALESCE(COUNT(v.ID_Visit), 0) AS TotalVisitsCount,
-    (
-        SELECT COUNT(pt.ID_Personal)
-        FROM PersonalTrainings pt
-        WHERE pt.ID_Hall = h.ID_Hall
-    ) AS PersonalTrainingsCount,
-    (
-        SELECT COUNT(gci.ID_Instance)
-        FROM GroupScheduleTemplates gst
-        JOIN GroupClassInstances gci ON gst.ID_Template = gci.ID_Template
-        WHERE gst.ID_Hall = h.ID_Hall
-    ) AS GroupClassesCount
+    COUNT(v.ID_Visit) AS TotalVisits,
+    COUNT(DISTINCT s.ID_Client) AS UniqueClients,
+    COALESCE(
+        LPAD(MODE() WITHIN GROUP (ORDER BY EXTRACT(HOUR FROM v.CheckInTime)::INT)::TEXT, 2, '0') || ':00 - ' || 
+        LPAD((MODE() WITHIN GROUP (ORDER BY EXTRACT(HOUR FROM v.CheckInTime)::INT) + 1)::TEXT, 2, '0') || ':00',
+        '—'
+    ) AS PeakHours,
+    ROUND(LEAST(100.0, (COUNT(v.ID_Visit)::NUMERIC / NULLIF(h.MaxCapacity, 0)) * 100), 1) AS OccupancyPercent
 FROM Halls h
 LEFT JOIN Visits v ON h.ID_Hall = v.ID_Hall
-GROUP BY h.ID_Hall, h.HallName, h.MaxCapacity, h.IsActive;
+LEFT JOIN Sales s ON v.ID_Sale = s.ID_Sale
+WHERE (h.IsActive IS NULL OR h.IsActive = TRUE)
+GROUP BY h.ID_Hall, h.HallName, h.MaxCapacity
+ORDER BY TotalVisits DESC, h.HallName ASC;
 
--- 8.3. Популярність послуг та тарифів (Analytical Query 2)
-CREATE OR REPLACE VIEW v_PopularServices AS
-SELECT 
-    pl.ID_Item,
-    pl.ItemName,
-    pl.Category,
-    pl.Price,
-    COUNT(s.ID_Sale) AS SalesCount,
-    COALESCE(SUM(s.SalePrice), 0.00) AS TotalRevenue,
-    COALESCE(SUM(CASE WHEN s.ID_Sale IS NOT NULL THEN pl.Price - s.SalePrice ELSE 0 END), 0.00) AS TotalDiscountGiven,
-    COUNT(ap.ID_Promo) AS PromoUsagesCount
-FROM PriceList pl
-LEFT JOIN Sales s ON pl.ID_Item = s.ID_Item
-LEFT JOIN AppliedPromo ap ON s.ID_Sale = ap.ID_Sale
-GROUP BY pl.ID_Item, pl.ItemName, pl.Category, pl.Price;
-
--- 8.4. Фінансовий помісячний звіт / виручка (Lab_4 / Analytical)
-CREATE OR REPLACE VIEW v_FinancialSummary AS
-WITH ExtractedSalesDates AS (
+-- 8.2. Рейтинг ефективності та популярності тренерів (D3: getCoachPopularity)
+CREATE OR REPLACE VIEW v_CoachPerformance AS
+WITH GroupStats AS (
     SELECT 
-        EXTRACT(YEAR FROM SaleDate)::INT AS SalesYear,
-        EXTRACT(MONTH FROM SaleDate)::INT AS SalesMonth,
-        SalePrice
-    FROM Sales
-),
-Years AS (
-    SELECT DISTINCT SalesYear 
-    FROM ExtractedSalesDates
-),
-AllMonths AS (
-    SELECT 
-        y.SalesYear,
-        m.SalesMonth
-    FROM Years y
-    CROSS JOIN generate_series(1, 12) AS m(SalesMonth)
-),
-MonthlyRevenue AS (
-    SELECT 
-        am.SalesYear,
-        am.SalesMonth,
-        COALESCE(SUM(esd.SalePrice), 0.00) AS TotalRevenue
-    FROM AllMonths am
-    LEFT JOIN ExtractedSalesDates esd 
-        ON am.SalesYear = esd.SalesYear AND am.SalesMonth = esd.SalesMonth
-    GROUP BY am.SalesYear, am.SalesMonth
-)
-SELECT 
-    SalesYear,
-    SalesMonth,
-    TotalRevenue,
-    COALESCE(TotalRevenue - LAG(TotalRevenue) OVER (ORDER BY SalesYear, SalesMonth), 0.00) AS MonthOverMonthDiff
-FROM MonthlyRevenue
-ORDER BY SalesYear, SalesMonth;
-
--- 8.5. Частка групових клієнтів, які також беруть індивідуальні тренування (з Lab_4.sql)
-CREATE OR REPLACE VIEW v_GroupIndividualClientsShare AS
-WITH GroupClients AS (
-    SELECT DISTINCT
-        gst.ID_Template,
-        ct.TypeName,
-        gst.DayOfWeek,
-        gst.StartTime,
-        sl.ID_Client
+        gst.ID_Coach,
+        COUNT(gci.ID_Instance) AS GroupClassesCount,
+        ROUND(COALESCE(AVG(gci.ActualAttendance), 0), 2) AS AvgGroupSize
     FROM GroupScheduleTemplates gst
-    JOIN ClassTypes ct ON gst.ID_ClassType = ct.ID_ClassType
     JOIN GroupClassInstances gci ON gst.ID_Template = gci.ID_Template
-    JOIN GroupClassBookings gcb ON gci.ID_Instance = gcb.ID_Instance
-    JOIN Sales sl ON gcb.ID_Sale = sl.ID_Sale
+    WHERE gci.ClassStatus IN ('Completed', 'Attended')
+    GROUP BY gst.ID_Coach
 ),
-PersonalClients AS (
-    SELECT DISTINCT sl.ID_Client
+PersonalStats AS (
+    SELECT 
+        pt.ID_Coach,
+        COUNT(DISTINCT sl.ID_Client) AS IndividualClientsCount,
+        COUNT(pt.ID_Personal) AS CompletedPersonalClassesCount
     FROM PersonalTrainings pt
     JOIN Sales sl ON pt.ID_Sale = sl.ID_Sale
+    WHERE pt.TrainingStatus IN ('Completed', 'Attended')
+    GROUP BY pt.ID_Coach
+),
+CoachStats AS (
+    SELECT 
+        c.ID_Coach AS CoachId,
+        s.FullName,
+        sp.SpecName,
+        COALESCE(gs.GroupClassesCount, 0) AS GroupClassesCount,
+        COALESCE(gs.AvgGroupSize, 0) AS AvgGroupSize,
+        COALESCE(ps.IndividualClientsCount, 0) AS IndividualClientsCount,
+        COALESCE(ps.CompletedPersonalClassesCount, 0) AS PersonalCount
+    FROM Coaches c
+    JOIN Staff s ON c.ID_Staff = s.ID_Staff
+    JOIN Specializations sp ON c.ID_Spec = sp.ID_Spec
+    LEFT JOIN GroupStats gs ON c.ID_Coach = gs.ID_Coach
+    LEFT JOIN PersonalStats ps ON c.ID_Coach = ps.ID_Coach
+    WHERE s.FireDate IS NULL
 )
 SELECT 
-    gc.ID_Template,
-    gc.TypeName AS GroupType,
-    gc.DayOfWeek,
-    gc.StartTime,
-    COUNT(gc.ID_Client) AS TotalGroupClients,
-    COUNT(pc.ID_Client) AS ClientsWithPersonalTrainings,
-    CASE 
-        WHEN COUNT(gc.ID_Client) = 0 THEN 0
-        ELSE ROUND((COUNT(pc.ID_Client)::NUMERIC / COUNT(gc.ID_Client)) * 100, 2)
-    END AS PersonalTrainingSharePercent
-FROM GroupClients gc
-LEFT JOIN PersonalClients pc ON gc.ID_Client = pc.ID_Client
-GROUP BY gc.ID_Template, gc.TypeName, gc.DayOfWeek, gc.StartTime;
+    CoachId,
+    FullName,
+    SpecName,
+    PersonalCount,
+    IndividualClientsCount,
+    GroupClassesCount AS GroupCount,
+    (PersonalCount + GroupClassesCount) AS TotalClasses,
+    AvgGroupSize,
+    DENSE_RANK() OVER (ORDER BY GroupClassesCount DESC) AS RankByGroupClasses,
+    DENSE_RANK() OVER (ORDER BY AvgGroupSize DESC) AS RankByAvgGroupSize,
+    DENSE_RANK() OVER (ORDER BY IndividualClientsCount DESC) AS RankByIndividualClients,
+    DENSE_RANK() OVER (ORDER BY (PersonalCount * 1.5 + GroupClassesCount * AvgGroupSize) DESC) AS KpiRank,
+    ROUND((PersonalCount * 1.5 + GroupClassesCount * AvgGroupSize)::NUMERIC, 1) AS Kpi
+FROM CoachStats
+ORDER BY KpiRank ASC, TotalClasses DESC;
 
--- Права доступу до аналітичних представлень
-GRANT SELECT ON v_CoachStats TO director_role, manager_role;
-GRANT SELECT ON v_HallLoadStats TO director_role, manager_role;
-GRANT SELECT ON v_PopularServices TO director_role, manager_role;
-GRANT SELECT ON v_FinancialSummary TO director_role, manager_role;
-GRANT SELECT ON v_GroupIndividualClientsShare TO director_role, manager_role;
+-- 8.3. Аналіз проблемних ситуацій та операційних ризиків (D5: getIssuesAnalysis)
+CREATE OR REPLACE VIEW v_ProblemSituations AS
+SELECT 
+    c.FullName AS ClientName,
+    COALESCE(c.Phone, '—') AS Phone,
+    'Прострочений абонемент' AS ProblemType,
+    'Закінчився ' || cs.EndDate::TEXT || ' (' || (CURRENT_DATE - cs.EndDate)::TEXT || ' дн. тому)' AS Details
+FROM ClientSubscriptions cs
+JOIN Sales s ON cs.ID_Sale = s.ID_Sale
+JOIN Clients c ON s.ID_Client = c.ID_Client
+WHERE cs.EndDate < CURRENT_DATE AND cs.CurrentStatus <> 'Expired'
+
+UNION ALL
+
+SELECT 
+    c.FullName AS ClientName,
+    COALESCE(c.Phone, '—') AS Phone,
+    'Часті неявки (No-show)' AS ProblemType,
+    'Кількість неявок: ' || COUNT(pt.ID_Personal)::TEXT AS Details
+FROM Clients c
+JOIN Sales s ON c.ID_Client = s.ID_Client
+JOIN PersonalTrainings pt ON s.ID_Sale = pt.ID_Sale
+WHERE pt.TrainingStatus = 'No-show'
+GROUP BY c.ID_Client, c.FullName, c.Phone
+HAVING COUNT(pt.ID_Personal) >= 1
+
+UNION ALL
+
+SELECT 
+    cl.FullName AS ClientName,
+    COALESCE(cl.Phone, '—') AS Phone,
+    'Скасоване тренування' AS ProblemType,
+    'Тренер: ' || st.FullName || ', причина: ' || COALESCE(pcl.Reason, 'Не вказано') AS Details
+FROM PersonalTrainings pt
+JOIN Coaches co ON pt.ID_Coach = co.ID_Coach
+JOIN Staff st ON co.ID_Staff = st.ID_Staff
+JOIN Sales sl ON pt.ID_Sale = sl.ID_Sale
+JOIN Clients cl ON sl.ID_Client = cl.ID_Client
+LEFT JOIN PT_Changelog pcl ON pt.ID_Personal = pcl.ID_Personal
+WHERE pt.TrainingStatus = 'Cancelled'
+
+ORDER BY ProblemType, ClientName;
+
+-- 8.4. Журнал аудиту персональних тренувань та змін розкладу (D6: getAuditLog)
+CREATE OR REPLACE VIEW v_PersonalTrainingsAudit AS
+SELECT 
+    cl.ChangeTimestamp,
+    cl.ID_Personal AS PersonalId,
+    cl.RequestType,
+    cl.ChangeInitiator,
+    cl.Reason,
+    CASE 
+        WHEN cl.RequestType = 'Cancel' THEN 'Скасовано'
+        WHEN tcd.NewDateTime IS NOT NULL THEN TO_CHAR(tcd.NewDateTime, 'YYYY-MM-DD HH24:MI')
+        ELSE 'Не вказано'
+    END AS NewTime,
+    ROW_NUMBER() OVER (PARTITION BY cl.ID_Personal ORDER BY cl.ChangeTimestamp ASC) AS ChangeSeqNum,
+    LAG(cl.ChangeTimestamp) OVER (PARTITION BY cl.ID_Personal ORDER BY cl.ChangeTimestamp ASC) AS PreviousChangeTime
+FROM PT_Changelog cl
+LEFT JOIN PT_TimeChangeDetails tcd ON cl.ID_PTLog = tcd.ID_PTLog
+ORDER BY cl.ChangeTimestamp DESC;
+
+-- Права доступу до аналітичних представлень для директора
+GRANT SELECT ON v_AttendanceReport TO director_role;
+GRANT SELECT ON v_CoachPerformance TO director_role;
+GRANT SELECT ON v_ProblemSituations TO director_role;
+GRANT SELECT ON v_PersonalTrainingsAudit TO director_role;
