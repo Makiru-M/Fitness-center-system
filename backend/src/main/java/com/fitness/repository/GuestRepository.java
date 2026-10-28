@@ -171,27 +171,4 @@ public class GuestRepository {
                 rs.getInt("MaxCapacity")
         ));
     }
-    /**
-     * Get all class types with current tariff prices
-     */
-    public List<ClassTypePublicDto> getClassTypes() {
-        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = """
-            SELECT 
-                ct.ID_ClassType,
-                ct.TypeName,
-                ct.ID_Item,
-                pl.Price
-            FROM ClassTypes ct
-            LEFT JOIN PriceList pl ON ct.ID_Item = pl.ID_Item
-            ORDER BY ct.ID_ClassType ASC
-            """;
-
-        return jdbc.query(sql, (rs, rowNum) -> new ClassTypePublicDto(
-                rs.getInt("ID_ClassType"),
-                rs.getString("TypeName"),
-                (Integer) rs.getObject("ID_Item"),
-                rs.getBigDecimal("Price")
-        ));
-    }
 }

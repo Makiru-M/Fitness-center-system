@@ -406,7 +406,7 @@ export async function populateDirectorDropdowns() {
         console.warn('Error fetching archived halls:', err);
         return [];
       }),
-      guestApi.getClassTypes().catch(err => {
+      directorApi.getClassTypes().catch(err => {
         console.warn('Error fetching class types:', err);
         return [];
       })

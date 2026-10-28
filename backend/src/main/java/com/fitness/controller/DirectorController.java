@@ -1,6 +1,7 @@
 package com.fitness.controller;
 
 import com.fitness.dto.director.*;
+import com.fitness.dto.guest.ClassTypePublicDto;
 import com.fitness.dto.guest.HallDto;
 import com.fitness.dto.guest.PriceListItemDto;
 import com.fitness.repository.DirectorRepository;
@@ -213,5 +214,13 @@ public class DirectorController {
                 "status", result.getOrDefault("status", "Archived"),
                 "message", result.getOrDefault("message", "Послугу успішно вилучено з активного прайсу.")
         ));
+    }
+
+    /**
+     * D11: Get all class types
+     */
+    @GetMapping("/class-types")
+    public ResponseEntity<List<ClassTypePublicDto>> getClassTypes() {
+        return ResponseEntity.ok(directorService.getClassTypes());
     }
 }

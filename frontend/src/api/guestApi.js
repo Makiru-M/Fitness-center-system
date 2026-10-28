@@ -10,10 +10,6 @@ export const guestApi = {
     return apiFetch('/guest/price-list');
   },
 
-  getClassTypes() {
-    return apiFetch('/guest/class-types');
-  },
-
   getHalls() {
     return apiFetch('/guest/halls');
   },

@@ -2,6 +2,7 @@ package com.fitness.repository;
 
 import com.fitness.config.DynamicDataSourceService;
 import com.fitness.dto.director.*;
+import com.fitness.dto.guest.ClassTypePublicDto;
 import com.fitness.dto.guest.HallDto;
 import com.fitness.mapper.PeriodCategoryRevenueRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -499,5 +500,29 @@ public class DirectorRepository {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String sql = "SELECT * FROM sp_deactivate_price_item(?)";
         return jdbc.queryForMap(sql, itemId);
+    }
+
+    /**
+     * Get all class types with current tariff prices
+     */
+    public List<ClassTypePublicDto> getClassTypes() {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = """
+            SELECT 
+                ct.ID_ClassType,
+                ct.TypeName,
+                ct.ID_Item,
+                pl.Price
+            FROM ClassTypes ct
+            LEFT JOIN PriceList pl ON ct.ID_Item = pl.ID_Item
+            ORDER BY ct.TypeName ASC
+            """;
+
+        return jdbc.query(sql, (rs, rowNum) -> new ClassTypePublicDto(
+                rs.getInt("ID_ClassType"),
+                rs.getString("TypeName"),
+                (Integer) rs.getObject("ID_Item"),
+                rs.getBigDecimal("Price")
+        ));
     }
 }

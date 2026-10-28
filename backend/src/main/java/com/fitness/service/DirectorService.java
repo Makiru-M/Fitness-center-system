@@ -3,6 +3,7 @@ package com.fitness.service;
 import com.fitness.dto.director.PeriodCategoryRevenueRecord;
 import com.fitness.dto.director.RevenuePeriodReport;
 import com.fitness.dto.director.RevenueReportItem;
+import com.fitness.dto.guest.ClassTypePublicDto;
 import com.fitness.exception.BusinessLogicException;
 import com.fitness.repository.DirectorRepository;
 import org.springframework.stereotype.Service;
@@ -64,6 +65,13 @@ public class DirectorService {
         }
 
         return reports;
+    }
+
+    /**
+     * D11: Get all class types
+     */
+    public List<ClassTypePublicDto> getClassTypes() {
+        return directorRepository.getClassTypes();
     }
 
     private static class PeriodData {

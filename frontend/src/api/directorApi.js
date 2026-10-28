@@ -66,6 +66,10 @@ export const directorApi = {
     });
   },
 
+  getClassTypes() {
+    return apiFetch('/director/class-types');
+  },
+
   createScheduleTemplate(data) {
     return apiFetch('/director/schedule/templates', {
       method: 'POST',
