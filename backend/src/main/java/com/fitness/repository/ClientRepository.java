@@ -1,20 +1,16 @@
 package com.fitness.repository;
 
 import com.fitness.config.DynamicDataSourceService;
-import com.fitness.exception.BusinessLogicException;
 import com.fitness.dto.client.*;
-import com.fitness.util.ValidationUtils;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
-@Transactional
 public class ClientRepository {
 
     private final DynamicDataSourceService dataSourceService;
@@ -26,7 +22,7 @@ public class ClientRepository {
     /**
      * Get current client profile (enforced by RLS)
      */
-    public ClientProfileDto getProfile() {
+    public Optional<ClientProfileDto> getProfile() {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String sql = """
             SELECT c.ID_Client, c.FullName, c.BirthDate, c.Phone, c.Gender, c.DB_User, mn.NotesText
@@ -45,20 +41,13 @@ public class ClientRepository {
                 rs.getString("NotesText")
         ));
 
-        return list.stream()
-                .findFirst()
-                .orElseThrow(() -> new BusinessLogicException("Профіль клієнта не знайдено для поточного користувача."));
+        return list.stream().findFirst();
     }
 
     /**
-     * Cl1: Update client own profile (FullName, Phone, Medical notes)
+     * Update client basic information (FullName, Phone)
      */
-    public void updateProfile(UpdateClientProfileRequest req) {
-        if (req.phone() != null && !req.phone().isBlank()) {
-            if (!ValidationUtils.isValidPhone(req.phone())) {
-                throw new BusinessLogicException("Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.");
-            }
-        }
+    public int updateClientBasicInfo(String fullName, String phone) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String updateClientSql = """
             UPDATE Clients
@@ -66,29 +55,36 @@ public class ClientRepository {
                 Phone    = COALESCE(NULLIF(TRIM(?), ''), Phone)
             WHERE DB_User = SESSION_USER
             """;
-        jdbc.update(updateClientSql, req.fullName(), req.phone());
+        return jdbc.update(updateClientSql, fullName, phone);
+    }
 
-        if (req.medicalNotes() != null) {
-            if (req.medicalNotes().isBlank()) {
-                jdbc.update("DELETE FROM MedicalNotes WHERE ID_Client = (SELECT ID_Client FROM Clients WHERE DB_User = SESSION_USER)");
-            } else {
-                String upsertNotes = """
-                    INSERT INTO MedicalNotes (ID_Client, NotesText)
-                    VALUES ((SELECT ID_Client FROM Clients WHERE DB_User = SESSION_USER), ?)
-                    ON CONFLICT (ID_Client) DO UPDATE SET NotesText = EXCLUDED.NotesText
-                    """;
-                jdbc.update(upsertNotes, req.medicalNotes().trim());
-            }
-        }
+    /**
+     * Delete medical notes for current user's client profile
+     */
+    public int deleteMedicalNotes() {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        return jdbc.update("DELETE FROM MedicalNotes WHERE ID_Client = (SELECT ID_Client FROM Clients WHERE DB_User = SESSION_USER)");
+    }
+
+    /**
+     * Insert or update medical notes for current user's client profile
+     */
+    public int upsertMedicalNotes(String notesText) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String upsertNotes = """
+            INSERT INTO MedicalNotes (ID_Client, NotesText)
+            VALUES ((SELECT ID_Client FROM Clients WHERE DB_User = SESSION_USER), ?)
+            ON CONFLICT (ID_Client) DO UPDATE SET NotesText = EXCLUDED.NotesText
+            """;
+        return jdbc.update(upsertNotes, notesText != null ? notesText.trim() : null);
     }
 
     /**
      * Cl2: Renew / buy subscription
      */
-    public ClientSubscriptionDto renewSubscription(RenewSubscriptionRequest req) {
+    public ClientSubscriptionDto renewSubscription(Integer itemId, String promoCode) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String sql = "SELECT * FROM sp_purchase_subscription(NULL, ?, ?, NULL, NULL)";
-        String promo = ValidationUtils.cleanToNull(req.promoCode());
 
         return jdbc.queryForObject(sql, (rs, rowNum) -> new ClientSubscriptionDto(
                 rs.getInt("sub_id"),
@@ -99,22 +95,16 @@ public class ClientRepository {
                 rs.getString("status"),
                 rs.getInt("remaining_freezing_days"),
                 rs.getBigDecimal("final_price")
-        ), req.itemId(), promo);
+        ), itemId, promoCode);
     }
 
     /**
      * Cl3: Freeze subscription
      */
-    public void freezeSubscription(FreezeSubscriptionRequest req) {
+    public void freezeSubscription(Integer clientSubscriptionId, LocalDate startDate, LocalDate endDate, String reason) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-
-        long freezeDays = ChronoUnit.DAYS.between(req.startDate(), req.endDate());
-        if (freezeDays <= 0) {
-            throw new BusinessLogicException("Дата закінчення заморозки повинна бути пізнішою за дату початку.");
-        }
-
         jdbc.update("CALL sp_freeze_client_subscription(?, ?, ?, ?)",
-                req.clientSubscriptionId(), req.startDate(), req.endDate(), req.reason());
+                clientSubscriptionId, startDate, endDate, reason);
     }
 
     /**
@@ -128,67 +118,55 @@ public class ClientRepository {
     /**
      * Cl4: Book group class
      */
-    public void bookGroupClass(GroupBookingRequest req) {
-        if (req.instanceId() == null) {
-            throw new BusinessLogicException("Не вказано ідентифікатор заняття.");
-        }
-
+    public void bookGroupClass(Integer instanceId, String promoCode) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String promo = ValidationUtils.cleanToNull(req.promoCode());
-        jdbc.update("CALL sp_book_group_class(?, NULL, NULL, ?)", req.instanceId(), promo);
+        jdbc.update("CALL sp_book_group_class(?, NULL, NULL, ?)", instanceId, promoCode);
     }
 
     /**
      * Cl5: Book personal training
      */
-    public void bookPersonalTraining(PersonalBookingRequest req) {
-        if (req.coachId() == null || req.hallId() == null || req.trainingDateTime() == null) {
-            throw new BusinessLogicException("Заповніть усі обов'язкові поля для запису на тренування.");
-        }
-        if (req.trainingDateTime().isBefore(java.time.LocalDateTime.now())) {
-            throw new BusinessLogicException("Дата та час персонального тренування не можуть бути в минулому.");
-        }
-
+    public Integer bookPersonalTraining(Integer coachId, Integer hallId, LocalDateTime trainingDateTime, String promoCode, Integer itemId) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String promo = ValidationUtils.cleanToNull(req.promoCode());
-        jdbc.queryForObject(
+        return jdbc.queryForObject(
                 "SELECT * FROM sp_book_personal_training(NULL, ?, ?, ?, ?, NULL, ?)",
                 (rs, rowNum) -> rs.getInt("personal_id"),
-                req.coachId(),
-                req.hallId(),
-                req.trainingDateTime(),
-                promo,
-                req.itemId()
+                coachId,
+                hallId,
+                trainingDateTime,
+                promoCode,
+                itemId
         );
     }
 
     /**
-     * Cl6: Cancel personal booking
+     * Cl6: Cancel personal training status (Scheduled -> Cancelled)
      */
-    public void cancelPersonalBooking(CancelPersonalBookingRequest req) {
+    public int cancelPersonalTraining(Integer bookingId) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-
-        int updated = jdbc.update(
+        return jdbc.update(
                 "UPDATE PersonalTrainings SET TrainingStatus = 'Cancelled' WHERE ID_Personal = ? AND TrainingStatus = 'Scheduled'",
-                req.bookingId()
+                bookingId
         );
-        if (updated == 0) {
-            throw new BusinessLogicException("Запис на тренування не знайдено або він вже не є запланованим.");
-        }
+    }
 
-        // Log cancellation
-        jdbc.update(
+    /**
+     * Cl6: Insert personal training cancellation audit log
+     */
+    public int insertPersonalTrainingCancelLog(Integer bookingId, String reason) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        return jdbc.update(
                 "INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp, Status) VALUES (?, 'Cancel', ?, 'Client', CURRENT_TIMESTAMP, 'Approved')",
-                req.bookingId(), req.reason()
+                bookingId, reason
         );
     }
 
     /**
      * Cl6: Cancel group booking
      */
-    public void cancelGroupBooking(CancelGroupBookingRequest req) {
+    public void cancelGroupBooking(Integer bookingId) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        jdbc.update("CALL sp_cancel_group_booking(?)", req.bookingId());
+        jdbc.update("CALL sp_cancel_group_booking(?)", bookingId);
     }
 
     /**
@@ -301,7 +279,6 @@ public class ClientRepository {
             JOIN Sales s ON gcb.ID_Sale = s.ID_Sale
             JOIN Clients c ON s.ID_Client = c.ID_Client
             WHERE c.DB_User = SESSION_USER
-
             
             UNION ALL
             
