@@ -5,6 +5,7 @@ import com.fitness.dto.guest.HallDto;
 import com.fitness.dto.guest.PriceListItemDto;
 import com.fitness.repository.DirectorRepository;
 import com.fitness.repository.GuestRepository;
+import com.fitness.service.DirectorService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,10 +21,12 @@ public class DirectorController {
 
     private final DirectorRepository directorRepository;
     private final GuestRepository guestRepository;
+    private final DirectorService directorService;
 
-    public DirectorController(DirectorRepository directorRepository, GuestRepository guestRepository) {
+    public DirectorController(DirectorRepository directorRepository, GuestRepository guestRepository, DirectorService directorService) {
         this.directorRepository = directorRepository;
         this.guestRepository = guestRepository;
+        this.directorService = directorService;
     }
 
     /**
@@ -35,7 +38,7 @@ public class DirectorController {
             @RequestParam(value = "toDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(value = "groupBy", defaultValue = "TOTAL") String groupBy
     ) {
-        return ResponseEntity.ok(directorRepository.getRevenueReport(fromDate, toDate, groupBy));
+        return ResponseEntity.ok(directorService.getRevenueReport(fromDate, toDate, groupBy));
     }
 
     /**
