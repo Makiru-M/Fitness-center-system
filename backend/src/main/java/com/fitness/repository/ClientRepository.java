@@ -54,13 +54,13 @@ public class ClientRepository {
      */
     public void updateProfile(UpdateClientProfileRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        if (req.fullName() != null && !req.fullName().isBlank() && req.phone() != null && !req.phone().isBlank()) {
-            jdbc.update("UPDATE Clients SET FullName = ?, Phone = ? WHERE DB_User = SESSION_USER", req.fullName().trim(), req.phone().trim());
-        } else if (req.fullName() != null && !req.fullName().isBlank()) {
-            jdbc.update("UPDATE Clients SET FullName = ? WHERE DB_User = SESSION_USER", req.fullName().trim());
-        } else if (req.phone() != null && !req.phone().isBlank()) {
-            jdbc.update("UPDATE Clients SET Phone = ? WHERE DB_User = SESSION_USER", req.phone().trim());
-        }
+        String updateClientSql = """
+            UPDATE Clients
+            SET FullName = COALESCE(NULLIF(TRIM(?), ''), FullName),
+                Phone    = COALESCE(NULLIF(TRIM(?), ''), Phone)
+            WHERE DB_User = SESSION_USER
+            """;
+        jdbc.update(updateClientSql, req.fullName(), req.phone());
 
         if (req.medicalNotes() != null) {
             String upsertNotes = """
