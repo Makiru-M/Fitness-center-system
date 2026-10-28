@@ -27,7 +27,7 @@ public class DirectorRepository {
      */
     public List<RevenueReportItem> getRevenueReport(LocalDate fromDate, LocalDate toDate) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        StringBuilder sql = new StringBuilder("""
+        String sql = """
             WITH Categories AS (
                 SELECT unnest(ARRAY['Membership', 'Personal training', 'Group training', 'Extra']) AS Category
             ),
@@ -43,16 +43,8 @@ public class DirectorRepository {
                 LEFT JOIN (
                     Sales s 
                     JOIN PriceList pl ON s.ID_Item = pl.ID_Item
-            """);
-
-        List<Object> params = new java.util.ArrayList<>();
-        if (fromDate != null && toDate != null) {
-            sql.append(" AND s.SaleDate >= ?::TIMESTAMP AND s.SaleDate < (?::DATE + INTERVAL '1 day') ");
-            params.add(fromDate);
-            params.add(toDate);
-        }
-
-        sql.append("""
+                    AND (?::DATE IS NULL OR s.SaleDate >= ?::TIMESTAMP)
+                    AND (?::DATE IS NULL OR s.SaleDate < (?::DATE + INTERVAL '1 day'))
                 ) ON c.Category = pl.Category
                 LEFT JOIN AppliedPromo ap ON s.ID_Sale = ap.ID_Sale
                 GROUP BY c.Category
@@ -68,9 +60,9 @@ public class DirectorRepository {
                 SUM(Actual_Revenue) OVER (ORDER BY Actual_Revenue DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumulativeRevenue
             FROM CategorySales
             ORDER BY Actual_Revenue DESC
-            """);
+            """;
 
-        return jdbc.query(sql.toString(), (rs, rowNum) -> new RevenueReportItem(
+        return jdbc.query(sql, (rs, rowNum) -> new RevenueReportItem(
                 rs.getString("Category"),
                 rs.getLong("Sales_Count"),
                 rs.getBigDecimal("Full_Price_Total"),
@@ -79,7 +71,7 @@ public class DirectorRepository {
                 rs.getLong("Promo_Code_Usage"),
                 rs.getObject("RevenueSharePercent") != null ? rs.getDouble("RevenueSharePercent") : 0.0,
                 rs.getBigDecimal("CumulativeRevenue")
-        ), params.toArray());
+        ), fromDate, fromDate, toDate, toDate);
     }
 
     /**
