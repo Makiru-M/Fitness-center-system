@@ -117,7 +117,7 @@ public class DirectorRepository {
                     SELECT 
                         date_trunc('week', d)::DATE AS PeriodStart,
                         (date_trunc('week', d) + INTERVAL '6 days')::DATE AS PeriodEnd,
-                        'Тиждень ' || TO_CHAR(d, 'IYYY-IW') AS PeriodLabel
+                        TO_CHAR(date_trunc('week', d)::DATE, 'DD.MM.YYYY') || ' – ' || TO_CHAR((date_trunc('week', d) + INTERVAL '6 days')::DATE, 'DD.MM.YYYY') || ' (Тиждень ' || TO_CHAR(d, 'IW') || ')' AS PeriodLabel
                     FROM Bounds b,
                          generate_series(date_trunc('week', b.StartDate::TIMESTAMP), date_trunc('week', b.EndDate::TIMESTAMP), INTERVAL '1 week') d
                 ),
