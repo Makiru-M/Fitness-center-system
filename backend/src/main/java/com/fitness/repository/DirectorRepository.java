@@ -65,13 +65,12 @@ public class DirectorRepository {
                         COUNT(ap.ID_Promo) AS Promo_Code_Usage
                     FROM PeriodCategories pc
                     LEFT JOIN (
-                        Sales s 
-                        JOIN PriceList pl ON s.ID_Item = pl.ID_Item
-                        AND s.SaleDate >= pc.PeriodStart::TIMESTAMP
-                        AND s.SaleDate < (pc.PeriodEnd + INTERVAL '1 day')
-                        AND (?::DATE IS NULL OR s.SaleDate >= ?::TIMESTAMP)
-                        AND (?::DATE IS NULL OR s.SaleDate < (?::DATE + INTERVAL '1 day'))
+                        Sales s JOIN PriceList pl ON s.ID_Item = pl.ID_Item
                     ) ON pc.Category = pl.Category
+                     AND s.SaleDate >= pc.PeriodStart::TIMESTAMP
+                     AND s.SaleDate < (pc.PeriodEnd + INTERVAL '1 day')
+                     AND (?::DATE IS NULL OR s.SaleDate >= ?::TIMESTAMP)
+                     AND (?::DATE IS NULL OR s.SaleDate < (?::DATE + INTERVAL '1 day'))
                     LEFT JOIN AppliedPromo ap ON s.ID_Sale = ap.ID_Sale
                     GROUP BY pc.PeriodLabel, pc.PeriodStart, pc.PeriodEnd, pc.Category
                 ),
@@ -143,13 +142,12 @@ public class DirectorRepository {
                         COUNT(ap.ID_Promo) AS Promo_Code_Usage
                     FROM PeriodCategories pc
                     LEFT JOIN (
-                        Sales s 
-                        JOIN PriceList pl ON s.ID_Item = pl.ID_Item
-                        AND s.SaleDate >= pc.PeriodStart::TIMESTAMP
-                        AND s.SaleDate < (pc.PeriodEnd + INTERVAL '1 day')
-                        AND (?::DATE IS NULL OR s.SaleDate >= ?::TIMESTAMP)
-                        AND (?::DATE IS NULL OR s.SaleDate < (?::DATE + INTERVAL '1 day'))
+                        Sales s JOIN PriceList pl ON s.ID_Item = pl.ID_Item
                     ) ON pc.Category = pl.Category
+                     AND s.SaleDate >= pc.PeriodStart::TIMESTAMP
+                     AND s.SaleDate < (pc.PeriodEnd + INTERVAL '1 day')
+                     AND (?::DATE IS NULL OR s.SaleDate >= ?::TIMESTAMP)
+                     AND (?::DATE IS NULL OR s.SaleDate < (?::DATE + INTERVAL '1 day'))
                     LEFT JOIN AppliedPromo ap ON s.ID_Sale = ap.ID_Sale
                     GROUP BY pc.PeriodLabel, pc.PeriodStart, pc.PeriodEnd, pc.Category
                 ),
