@@ -2,6 +2,19 @@
 -- 6. ЗБЕРЕЖЕНІ ПРОЦЕДУРИ ТА ФУНКЦІЇ (SECURITY DEFINER)
 -- ------------------------------------------------------------------------------
 
+-- Допоміжна функція валідації формату українського номера телефону (+380XXXXXXXXX)
+CREATE OR REPLACE FUNCTION fn_validate_phone(p_phone VARCHAR)
+RETURNS VOID
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+BEGIN
+    IF p_phone IS NULL OR p_phone !~ '^\+380\d{9}$' THEN
+        RAISE EXCEPTION 'Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.';
+    END IF;
+END;
+$$;
+
 -- 6.0. Допоміжна функція оформлення чека продажу з промокодом (DRY / Database-First)
 CREATE OR REPLACE FUNCTION fn_process_sale_with_promo(
     p_client_id INT,
@@ -361,9 +374,7 @@ DECLARE
     v_max_freeze INT;
     v_end_date DATE;
 BEGIN
-    IF p_phone !~ '^\+380\d{9}$' THEN
-        RAISE EXCEPTION 'Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.';
-    END IF;
+    PERFORM fn_validate_phone(p_phone);
 
     -- Перевірка унікальності DB_User у системі PostgreSQL
     IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = p_db_user) THEN
@@ -384,7 +395,7 @@ BEGIN
         VALUES (v_client_id, p_medical_notes);
     END IF;
 
-    -- Оформлення продажу та застосування промокоду через єдину функцію
+    -- Оформлення продажу та застосування промокоду
     SELECT out_sale_id, out_final_price
     INTO v_sale_id, v_final_price
     FROM fn_process_sale_with_promo(v_client_id, NULL, p_item_id, p_promo_code, NULL);
@@ -431,9 +442,7 @@ DECLARE
     v_coach_id INT;
     v_pos_id INT;
 BEGIN
-    IF p_phone !~ '^\+380\d{9}$' THEN
-        RAISE EXCEPTION 'Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.';
-    END IF;
+    PERFORM fn_validate_phone(p_phone);
 
     IF p_db_user IS NULL OR length(trim(p_db_user)) = 0 THEN
         RAISE EXCEPTION 'Логін користувача БД обов''язковий!';
@@ -491,9 +500,7 @@ DECLARE
     v_staff_id INT;
     v_pos_id INT;
 BEGIN
-    IF p_phone !~ '^\+380\d{9}$' THEN
-        RAISE EXCEPTION 'Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.';
-    END IF;
+    PERFORM fn_validate_phone(p_phone);
 
     IF p_db_user IS NULL OR length(trim(p_db_user)) = 0 THEN
         RAISE EXCEPTION 'Логін користувача БД обов''язковий!';
