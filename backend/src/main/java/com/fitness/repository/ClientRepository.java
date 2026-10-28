@@ -163,31 +163,32 @@ public class ClientRepository {
     }
 
     /**
-     * Cl6: Cancel booking (personal or group)
+     * Cl6: Cancel personal booking
      */
-    public void cancelBooking(CancelBookingRequest req) {
+    public void cancelPersonalBooking(CancelPersonalBookingRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
 
-        if ("Personal".equalsIgnoreCase(req.bookingType())) {
-            // Update personal training status
-            int updated = jdbc.update(
-                    "UPDATE PersonalTrainings SET TrainingStatus = 'Cancelled' WHERE ID_Personal = ? AND TrainingStatus = 'Scheduled'",
-                    req.bookingId()
-            );
-            if (updated == 0) {
-                throw new BusinessLogicException("Запис на тренування не знайдено або він вже не є запланованим.");
-            }
-
-            // Log cancellation
-            jdbc.update(
-                    "INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp, Status) VALUES (?, 'Cancel', ?, 'Client', CURRENT_TIMESTAMP, 'Approved')",
-                    req.bookingId(), req.reason()
-            );
-        } else if ("Group".equalsIgnoreCase(req.bookingType())) {
-            jdbc.update("CALL sp_cancel_group_booking(?)", req.bookingId());
-        } else {
-            throw new BusinessLogicException("Невідомий тип бронювання: " + req.bookingType());
+        int updated = jdbc.update(
+                "UPDATE PersonalTrainings SET TrainingStatus = 'Cancelled' WHERE ID_Personal = ? AND TrainingStatus = 'Scheduled'",
+                req.bookingId()
+        );
+        if (updated == 0) {
+            throw new BusinessLogicException("Запис на тренування не знайдено або він вже не є запланованим.");
         }
+
+        // Log cancellation
+        jdbc.update(
+                "INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp, Status) VALUES (?, 'Cancel', ?, 'Client', CURRENT_TIMESTAMP, 'Approved')",
+                req.bookingId(), req.reason()
+        );
+    }
+
+    /**
+     * Cl6: Cancel group booking
+     */
+    public void cancelGroupBooking(CancelGroupBookingRequest req) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        jdbc.update("CALL sp_cancel_group_booking(?)", req.bookingId());
     }
 
     /**

@@ -59,8 +59,15 @@ export const clientApi = {
     });
   },
 
-  cancelBooking(data) {
-    return apiFetch('/client/bookings/cancel', {
+  cancelPersonalBooking(data) {
+    return apiFetch('/client/bookings/personal/cancel', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  cancelGroupBooking(data) {
+    return apiFetch('/client/bookings/group/cancel', {
       method: 'POST',
       body: JSON.stringify(data)
     });

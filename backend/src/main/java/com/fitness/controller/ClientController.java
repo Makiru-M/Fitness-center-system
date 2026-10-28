@@ -84,12 +84,21 @@ public class ClientController {
     }
 
     /**
-     * Cl6: Cancel booking (personal or group)
+     * Cl6: Cancel personal booking
      */
-    @PostMapping("/bookings/cancel")
-    public ResponseEntity<Map<String, String>> cancelBooking(@RequestBody CancelBookingRequest req) {
-        clientRepository.cancelBooking(req);
-        return ResponseEntity.ok(Map.of("message", "Бронювання успішно скасовано."));
+    @PostMapping("/bookings/personal/cancel")
+    public ResponseEntity<Map<String, String>> cancelPersonalBooking(@RequestBody CancelPersonalBookingRequest req) {
+        clientRepository.cancelPersonalBooking(req);
+        return ResponseEntity.ok(Map.of("message", "Персональне тренування успішно скасовано."));
+    }
+
+    /**
+     * Cl6: Cancel group booking
+     */
+    @PostMapping("/bookings/group/cancel")
+    public ResponseEntity<Map<String, String>> cancelGroupBooking(@RequestBody CancelGroupBookingRequest req) {
+        clientRepository.cancelGroupBooking(req);
+        return ResponseEntity.ok(Map.of("message", "Групове бронювання успішно скасовано."));
     }
 
     /**

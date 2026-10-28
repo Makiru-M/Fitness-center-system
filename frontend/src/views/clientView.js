@@ -1461,11 +1461,16 @@ export async function handleCl6Cancel(e) {
   }
 
   try {
-    await clientApi.cancelBooking({
-      bookingType,
-      bookingId,
-      reason
-    });
+    if (bookingType === 'Personal') {
+      await clientApi.cancelPersonalBooking({
+        bookingId,
+        reason
+      });
+    } else {
+      await clientApi.cancelGroupBooking({
+        bookingId
+      });
+    }
     bookedCoachSlots.clear();
     showToast('Бронювання успішно скасовано! (Cl6)', 'success');
     await renderClientDashboard();
