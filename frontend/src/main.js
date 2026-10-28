@@ -174,6 +174,9 @@ import {
 import {
   switchDirectorTab,
   renderD1Revenue,
+  renderDirectorRevenue,
+  loadRevenueReport,
+  initRevenueFilterEvents,
   renderD2Attendance,
   renderD3Coaches,
   renderD4Halls,
@@ -431,6 +434,9 @@ Object.assign(window, {
   // Director View
   switchDirectorTab,
   renderD1Revenue,
+  renderDirectorRevenue,
+  loadRevenueReport,
+  initRevenueFilterEvents,
   renderD2Attendance,
   renderD3Coaches,
   renderD4Halls,
@@ -464,8 +470,10 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     initApp();
     initFlatpickr();
+    initRevenueFilterEvents();
   });
 } else {
   initApp();
   initFlatpickr();
+  initRevenueFilterEvents();
 }

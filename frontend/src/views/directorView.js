@@ -15,6 +15,7 @@ import { refreshCombobox } from '../components/combobox.js';
 let cachedPriceListD10 = [];
 let cachedDirectorHalls = [];
 let cachedDirectorCoaches = [];
+let revenueFilterBound = false;
 
 export function switchDirectorTab(tabId) {
   document.querySelectorAll('.director-pane').forEach(el => el.classList.add('hidden'));
@@ -25,7 +26,12 @@ export function switchDirectorTab(tabId) {
   if (pane) pane.classList.remove('hidden');
   if (btn) btn.classList.add('active');
 
-  if (tabId === 'd1') renderD1Revenue();
+  if (tabId === 'd1') {
+    initRevenueFilterEvents();
+    const fromInput = document.getElementById('revenue-from-date');
+    const toInput = document.getElementById('revenue-to-date');
+    loadRevenueReport(fromInput?.value || null, toInput?.value || null);
+  }
   else if (tabId === 'd2') renderD2Attendance();
   else if (tabId === 'd3') renderD3Coaches();
   else if (tabId === 'd5') renderD5Problems();
@@ -33,7 +39,52 @@ export function switchDirectorTab(tabId) {
   else if (tabId === 'd10') renderD10PriceList();
 }
 
-export async function renderD1Revenue() {
+/**
+ * FIT-82: Initialise event handlers for director revenue filter controls
+ */
+export function initRevenueFilterEvents() {
+  if (revenueFilterBound) return;
+
+  const btnApply = document.getElementById('btn-apply-revenue-filter');
+  const btnReset = document.getElementById('btn-reset-revenue-filter');
+  const fromInput = document.getElementById('revenue-from-date');
+  const toInput = document.getElementById('revenue-to-date');
+
+  if (!btnApply || !btnReset) return;
+
+  btnApply.addEventListener('click', () => {
+    const from = fromInput?.value ? fromInput.value.trim() : null;
+    const to = toInput?.value ? toInput.value.trim() : null;
+
+    if (from && to && from > to) {
+      showToast('Дата "З" не може бути більшою за дату "По"', 'warning');
+      return;
+    }
+
+    loadRevenueReport(from, to);
+  });
+
+  btnReset.addEventListener('click', () => {
+    if (fromInput) {
+      fromInput.value = '';
+      if (fromInput._flatpickr) fromInput._flatpickr.clear();
+    }
+    if (toInput) {
+      toInput.value = '';
+      if (toInput._flatpickr) toInput._flatpickr.clear();
+    }
+    loadRevenueReport(null, null);
+  });
+
+  revenueFilterBound = true;
+}
+
+/**
+ * FIT-82: Load director revenue report with optional date bounds
+ * @param {string|null} fromDate
+ * @param {string|null} toDate
+ */
+export async function loadRevenueReport(fromDate = null, toDate = null) {
   let totalRevenue = 0;
   let totalFullPrice = 0;
   let totalDiscounts = 0;
@@ -41,29 +92,31 @@ export async function renderD1Revenue() {
   let rowsHtml = '';
 
   try {
-    const items = await directorApi.getRevenue();
-    items.forEach(d => {
-      const actual = parseFloat(d.actualRevenue || 0);
-      const full = parseFloat(d.fullPriceTotal || 0);
-      const disc = parseFloat(d.totalDiscounts || 0);
-      const count = parseInt(d.salesCount || 0);
+    const items = await directorApi.getRevenue(fromDate, toDate);
+    if (Array.isArray(items)) {
+      items.forEach(d => {
+        const actual = parseFloat(d.actualRevenue || 0);
+        const full = parseFloat(d.fullPriceTotal || 0);
+        const disc = parseFloat(d.totalDiscounts || 0);
+        const count = parseInt(d.salesCount || 0);
 
-      totalRevenue += actual;
-      totalFullPrice += full;
-      totalDiscounts += disc;
-      totalCount += count;
+        totalRevenue += actual;
+        totalFullPrice += full;
+        totalDiscounts += disc;
+        totalCount += count;
 
-      rowsHtml += `
-        <tr>
-          <td class="font-bold text-white font-heading">${d.category}</td>
-          <td class="font-mono text-slate-300">${count}</td>
-          <td class="font-mono">${full.toFixed(2)} грн</td>
-          <td class="font-bold text-cyan-400 font-mono">${actual.toFixed(2)} грн</td>
-          <td class="text-blue-400 font-mono">${disc.toFixed(2)} грн</td>
-          <td class="font-mono">${d.promoCodeUsage || 0}</td>
-        </tr>
-      `;
-    });
+        rowsHtml += `
+          <tr>
+            <td class="font-bold text-white font-heading">${d.category}</td>
+            <td class="font-mono text-slate-300">${count}</td>
+            <td class="font-mono">${full.toFixed(2)} грн</td>
+            <td class="font-bold text-cyan-400 font-mono">${actual.toFixed(2)} грн</td>
+            <td class="text-blue-400 font-mono">${disc.toFixed(2)} грн</td>
+            <td class="font-mono">${d.promoCodeUsage || 0}</td>
+          </tr>
+        `;
+      });
+    }
 
     const revEl = document.getElementById('d1-total-revenue');
     if (revEl) revEl.textContent = `${totalRevenue.toFixed(2)} грн`;
@@ -75,8 +128,12 @@ export async function renderD1Revenue() {
     if (tbody) tbody.innerHTML = rowsHtml || '<tr><td colspan="6" class="text-center text-xs text-slate-400 py-4">Немає фінансових операцій</td></tr>';
   } catch (err) {
     console.warn('API D1 error:', err);
+    showToast('Помилка завантаження звіту про виручку', 'error');
   }
 }
+
+export const renderD1Revenue = loadRevenueReport;
+export const renderDirectorRevenue = loadRevenueReport;
 
 export async function renderD2Attendance() {
   const tbody = document.getElementById('d2-attendance-tbody');

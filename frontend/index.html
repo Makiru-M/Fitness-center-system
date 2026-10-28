@@ -2029,6 +2029,25 @@
 
           <!-- D1: Revenue Report -->
           <div id="subtab-d1" class="director-pane space-y-4">
+            <!-- Revenue Date Range Filter -->
+            <div class="card p-4 border-subtle flex flex-wrap items-end gap-3 sm:gap-4">
+              <div class="flex-1 min-w-[140px]">
+                <label for="revenue-from-date" class="form-label block text-xs mb-1.5 text-slate-300">Дата з:</label>
+                <input type="date" id="revenue-from-date" class="form-input text-xs font-mono w-full">
+              </div>
+              <div class="flex-1 min-w-[140px]">
+                <label for="revenue-to-date" class="form-label block text-xs mb-1.5 text-slate-300">Дата по:</label>
+                <input type="date" id="revenue-to-date" class="form-input text-xs font-mono w-full">
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button type="button" id="btn-apply-revenue-filter" class="btn btn-primary btn-sm flex items-center gap-1.5">
+                  <i class="fa-solid fa-filter text-xs"></i> Застосувати
+                </button>
+                <button type="button" id="btn-reset-revenue-filter" class="btn btn-secondary btn-sm flex items-center gap-1.5">
+                  <i class="fa-solid fa-rotate-left text-xs"></i> Скинути
+                </button>
+              </div>
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div class="metric-box">
                 <span class="metric-label">Загальна виручка</span>
