@@ -279,8 +279,7 @@ public class DirectorRepository {
                 c.FullName AS ClientName,
                 COALESCE(c.Phone, '—') AS Phone,
                 'Прострочений абонемент' AS ProblemType,
-                'Закінчився ' || cs.EndDate::TEXT || ' (' || (CURRENT_DATE - cs.EndDate)::TEXT || ' дн. тому)' AS Details,
-                'Запропонувати продовження абонемента' AS RecommendedAction
+                'Закінчився ' || cs.EndDate::TEXT || ' (' || (CURRENT_DATE - cs.EndDate)::TEXT || ' дн. тому)' AS Details
             FROM ClientSubscriptions cs
             JOIN Sales s ON cs.ID_Sale = s.ID_Sale
             JOIN Clients c ON s.ID_Client = c.ID_Client
@@ -292,8 +291,7 @@ public class DirectorRepository {
                 c.FullName AS ClientName,
                 COALESCE(c.Phone, '—') AS Phone,
                 'Часті неявки (No-show)' AS ProblemType,
-                'Кількість неявок: ' || COUNT(pt.ID_Personal)::TEXT AS Details,
-                'З''ясувати причину пропусків' AS RecommendedAction
+                'Кількість неявок: ' || COUNT(pt.ID_Personal)::TEXT AS Details
             FROM Clients c
             JOIN Sales s ON c.ID_Client = s.ID_Client
             JOIN PersonalTrainings pt ON s.ID_Sale = pt.ID_Sale
@@ -307,8 +305,7 @@ public class DirectorRepository {
                 cl.FullName AS ClientName,
                 COALESCE(cl.Phone, '—') AS Phone,
                 'Скасоване тренування' AS ProblemType,
-                'Тренер: ' || st.FullName || ', причина: ' || COALESCE(pcl.Reason, 'Не вказано') AS Details,
-                'Підібрати інший час заняття' AS RecommendedAction
+                'Тренер: ' || st.FullName || ', причина: ' || COALESCE(pcl.Reason, 'Не вказано') AS Details
             FROM PersonalTrainings pt
             JOIN Coaches co ON pt.ID_Coach = co.ID_Coach
             JOIN Staff st ON co.ID_Staff = st.ID_Staff
@@ -324,8 +321,7 @@ public class DirectorRepository {
                 rs.getString("ClientName"),
                 rs.getString("Phone"),
                 rs.getString("ProblemType"),
-                rs.getString("Details"),
-                rs.getString("RecommendedAction")
+                rs.getString("Details")
         ));
     }
 

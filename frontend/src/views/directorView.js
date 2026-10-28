@@ -330,7 +330,7 @@ export async function renderD5Problems() {
     tbody.innerHTML = '';
 
     if (!items || !items.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-xs text-emerald-400 py-6"><i class="fa-solid fa-check-circle mr-1"></i> Проблемних абонементів та критичних показників не виявлено</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" class="text-center text-xs text-emerald-400 py-6"><i class="fa-solid fa-check-circle mr-1"></i> Проблемних абонементів та критичних показників не виявлено</td></tr>';
       return;
     }
 
@@ -339,7 +339,6 @@ export async function renderD5Problems() {
       const phone = item.phone || item.clientPhone || '—';
       const problemType = item.problemType || item.issueCategory || item.issueType || '—';
       const details = item.details || '—';
-      const recommendedAction = item.recommendedAction || 'Звʼязатися з клієнтом';
 
       const row = document.createElement('tr');
       row.innerHTML = `
@@ -347,7 +346,6 @@ export async function renderD5Problems() {
         <td class="font-mono text-xs text-slate-300">${phone}</td>
         <td><span class="badge badge-danger">${problemType}</span></td>
         <td class="text-xs text-slate-300">${details}</td>
-        <td><span class="badge badge-scheduled">${recommendedAction}</span></td>
       `;
       tbody.appendChild(row);
     });
