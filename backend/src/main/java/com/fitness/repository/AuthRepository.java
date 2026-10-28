@@ -7,6 +7,7 @@ import com.fitness.dto.auth.LoginResponse;
 import com.fitness.dto.auth.ProfileInfo;
 import com.fitness.dto.auth.SessionResponse;
 import com.fitness.dto.auth.UserProfileResponse;
+import com.fitness.security.Permission;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -154,38 +155,37 @@ public class AuthRepository {
     }
 
     private List<String> resolvePermissions(String role) {
-        List<String> list = new ArrayList<>();
-        switch (role) {
-            case "director_role" -> {
-                list.add("REPORTS_VIEW");
-                list.add("AUDIT_VIEW");
-                list.add("CATALOG_MANAGE");
-                list.add("SCHEDULE_MANAGE");
-                list.add("ALL_PRIVILEGES");
-            }
-            case "manager_role" -> {
-                list.add("CLIENTS_MANAGE");
-                list.add("SALES_MANAGE");
-                list.add("CHECKIN_MANAGE");
-                list.add("BOOKING_MANAGE");
-            }
-            case "hr_role" -> {
-                list.add("STAFF_HIRE");
-                list.add("STAFF_EDIT");
-                list.add("STAFF_FIRE");
-            }
-            case "coach_role" -> {
-                list.add("SCHEDULE_VIEW");
-                list.add("CLASS_MARK");
-                list.add("CHANGE_REQUEST");
-            }
-            case "client_role" -> {
-                list.add("PROFILE_EDIT");
-                list.add("BOOKING_CREATE");
-                list.add("SUBSCRIPTION_MANAGE");
-            }
-            default -> list.add("GUEST_BROWSE");
-        }
-        return list;
+        List<Permission> list = switch (role) {
+            case "director_role" -> List.of(
+                    Permission.REPORTS_VIEW,
+                    Permission.AUDIT_VIEW,
+                    Permission.CATALOG_MANAGE,
+                    Permission.SCHEDULE_MANAGE,
+                    Permission.ALL_PRIVILEGES
+            );
+            case "manager_role" -> List.of(
+                    Permission.CLIENTS_MANAGE,
+                    Permission.SALES_MANAGE,
+                    Permission.CHECKIN_MANAGE,
+                    Permission.BOOKING_MANAGE
+            );
+            case "hr_role" -> List.of(
+                    Permission.STAFF_HIRE,
+                    Permission.STAFF_EDIT,
+                    Permission.STAFF_FIRE
+            );
+            case "coach_role" -> List.of(
+                    Permission.SCHEDULE_VIEW,
+                    Permission.CLASS_MARK,
+                    Permission.CHANGE_REQUEST
+            );
+            case "client_role" -> List.of(
+                    Permission.PROFILE_EDIT,
+                    Permission.BOOKING_CREATE,
+                    Permission.SUBSCRIPTION_MANAGE
+            );
+            default -> List.of(Permission.GUEST_BROWSE);
+        };
+        return list.stream().map(Enum::name).toList();
     }
 }
