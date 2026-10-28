@@ -231,3 +231,64 @@ WHERE gci.ClassStatus = 'Scheduled'
   AND gci.ClassDate >= CURRENT_DATE;
 
 GRANT SELECT ON v_AvailableGroupClasses TO guest, client_role, manager_role, coach_role, director_role;
+
+-- 8.8. Повний консолідований розклад тренерів (групові та індивідуальні заняття)
+CREATE OR REPLACE VIEW v_CoachWeeklySchedule AS
+SELECT
+    c.ID_Coach,
+    st.FullName AS CoachName,
+    gci.ClassDate AS training_date,
+    CASE EXTRACT(ISODOW FROM gci.ClassDate)
+        WHEN 1 THEN 'Понеділок'
+        WHEN 2 THEN 'Вівторок'
+        WHEN 3 THEN 'Середа'
+        WHEN 4 THEN 'Четвер'
+        WHEN 5 THEN 'П''ятниця'
+        WHEN 6 THEN 'Субота'
+        WHEN 7 THEN 'Неділя'
+    END AS day_of_week,
+    COALESCE(gci.ClassStartTime, gst.StartTime) AS start_time,
+    (COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute'))::TIME AS end_time,
+    'Групове заняття'::TEXT AS training_type,
+    ct.TypeName::TEXT AS activity_name,
+    h.HallName AS hall_name,
+    FORMAT('Фактична відвідуваність: %s ос.', gci.ActualAttendance)::TEXT AS client_or_details,
+    gci.ClassStatus::VARCHAR AS training_status
+FROM GroupClassInstances gci
+JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
+JOIN Coaches c ON gst.ID_Coach = c.ID_Coach
+JOIN Staff st ON c.ID_Staff = st.ID_Staff
+JOIN ClassTypes ct ON gst.ID_ClassType = ct.ID_ClassType
+JOIN Halls h ON gst.ID_Hall = h.ID_Hall
+
+UNION ALL
+
+SELECT
+    c.ID_Coach,
+    st.FullName AS CoachName,
+    pt.TrainingDateTime::DATE AS training_date,
+    CASE EXTRACT(ISODOW FROM pt.TrainingDateTime)
+        WHEN 1 THEN 'Понеділок'
+        WHEN 2 THEN 'Вівторок'
+        WHEN 3 THEN 'Середа'
+        WHEN 4 THEN 'Четвер'
+        WHEN 5 THEN 'П''ятниця'
+        WHEN 6 THEN 'Субота'
+        WHEN 7 THEN 'Неділя'
+    END AS day_of_week,
+    pt.TrainingDateTime::TIME AS start_time,
+    (pt.TrainingDateTime + INTERVAL '60 minutes')::TIME AS end_time,
+    'Індивідуальне тренування'::TEXT AS training_type,
+    'Персональне заняття'::TEXT AS activity_name,
+    h.HallName AS hall_name,
+    FORMAT('Клієнт: %s (тел: %s)', cl.FullName, cl.Phone)::TEXT AS client_or_details,
+    pt.TrainingStatus::VARCHAR AS training_status
+FROM PersonalTrainings pt
+JOIN Coaches c ON pt.ID_Coach = c.ID_Coach
+JOIN Staff st ON c.ID_Staff = st.ID_Staff
+JOIN Halls h ON pt.ID_Hall = h.ID_Hall
+JOIN Sales s ON pt.ID_Sale = s.ID_Sale
+JOIN Clients cl ON s.ID_Client = cl.ID_Client;
+
+GRANT SELECT ON v_CoachWeeklySchedule TO director_role, manager_role, coach_role;
+

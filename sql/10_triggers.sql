@@ -275,9 +275,9 @@ EXECUTE FUNCTION check_client_schedule_conflict();
 
 GRANT EXECUTE ON FUNCTION check_client_schedule_conflict() TO PUBLIC;
 
--- 10.1-B. Тригер заборони Check-in у зал для заморожених або недійсних абонементів (TICKET-020)
-CREATE OR REPLACE FUNCTION check_visit_active_sub()
-RETURNS TRIGGER
+-- 10.1-B. Допоміжна функція валідації активного абонемента за чеком (DRY / Database-First)
+CREATE OR REPLACE FUNCTION fn_assert_active_subscription_by_sale(p_sale_id INT)
+RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
@@ -286,13 +286,17 @@ DECLARE
     v_current_status VARCHAR(20);
     v_end_date       DATE;
 BEGIN
+    IF p_sale_id IS NULL THEN
+        RAISE EXCEPTION 'Неможливо перевірити абонемент: не вказано дійсний чек продажу.';
+    END IF;
+
     SELECT cs.CurrentStatus, cs.EndDate
     INTO v_current_status, v_end_date
     FROM ClientSubscriptions cs
-    WHERE cs.ID_Sale = NEW.ID_Sale;
+    WHERE cs.ID_Sale = p_sale_id;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Абонемент за чеком % не знайдено або операція не пов''язана з абонементом.', NEW.ID_Sale;
+        RAISE EXCEPTION 'Абонемент за чеком % не знайдено або операція не пов''язана з абонементом.', p_sale_id;
     END IF;
 
     IF v_current_status = 'Frozen' THEN
@@ -302,7 +306,20 @@ BEGIN
     IF v_current_status <> 'Active' OR v_end_date < CURRENT_DATE THEN
         RAISE EXCEPTION 'У клієнта немає активного дійсного абонемента для входу в зал!';
     END IF;
+END;
+$$;
 
+GRANT EXECUTE ON FUNCTION fn_assert_active_subscription_by_sale(INT) TO PUBLIC;
+
+-- 10.1-C. Тригер заборони Check-in у зал для заморожених або недійсних абонементів (TICKET-020)
+CREATE OR REPLACE FUNCTION check_visit_active_sub()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    PERFORM fn_assert_active_subscription_by_sale(NEW.ID_Sale);
     RETURN NEW;
 END;
 $$;
@@ -315,46 +332,30 @@ EXECUTE FUNCTION check_visit_active_sub();
 
 GRANT EXECUTE ON FUNCTION check_visit_active_sub() TO PUBLIC;
 
--- 10.1-C. Тригер перевірки статусу абонемента клієнта при бронюванні тренувань (TICKET-021, Database-First / DRY)
+-- 10.1-D. Тригер перевірки статусу абонемента клієнта при бронюванні тренувань (TICKET-021, Database-First / DRY)
 CREATE OR REPLACE FUNCTION fn_check_booking_client_subscription()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
-DECLARE
-    v_client_id        INTEGER;
-    v_latest_status    VARCHAR(20);
-    v_sub_end_date     DATE;
 BEGIN
-    -- Визначаємо ID_Client за NEW.ID_Sale
-    IF NEW.ID_Sale IS NOT NULL THEN
-        SELECT ID_Client INTO v_client_id
-        FROM Sales
-        WHERE ID_Sale = NEW.ID_Sale;
-    END IF;
-
-    IF v_client_id IS NULL THEN
+    IF NEW.ID_Sale IS NULL THEN
         RAISE EXCEPTION 'Неможливо перевірити абонемент: не вказано дійсний чек продажу або клієнта.';
     END IF;
 
-    -- Знаходимо найактуальніший абонемент клієнта
-    SELECT cs.CurrentStatus, cs.EndDate
-    INTO v_latest_status, v_sub_end_date
-    FROM ClientSubscriptions cs
-    JOIN Sales s ON cs.ID_Sale = s.ID_Sale
-    WHERE s.ID_Client = v_client_id
-      AND cs.EndDate >= CURRENT_DATE
-    ORDER BY cs.EndDate DESC, cs.ID_ClientSub DESC
-    LIMIT 1;
-
-    IF v_latest_status = 'Frozen' THEN
-        RAISE EXCEPTION 'Запис неможливий: ваш абонемент заморожено. Будь ласка, розморозьте абонемент перед записом на тренування.';
-    END IF;
-
-    IF v_latest_status IS NULL OR v_latest_status <> 'Active' THEN
-        RAISE EXCEPTION 'Запис неможливий: відсутній активний абонемент.';
-    END IF;
+    BEGIN
+        PERFORM fn_assert_active_subscription_by_sale(NEW.ID_Sale);
+    EXCEPTION
+        WHEN OTHERS THEN
+            IF SQLERRM LIKE '%заморожено%' THEN
+                RAISE EXCEPTION 'Запис неможливий: ваш абонемент заморожено. Будь ласка, розморозьте абонемент перед записом на тренування.';
+            ELSIF SQLERRM LIKE '%немає активного дійсного абонемента%' OR SQLERRM LIKE '%не знайдено%' THEN
+                RAISE EXCEPTION 'Запис неможливий: відсутній активний абонемент.';
+            ELSE
+                RAISE;
+            END IF;
+    END;
 
     RETURN NEW;
 END;
@@ -376,166 +377,35 @@ EXECUTE FUNCTION fn_check_booking_client_subscription();
 
 GRANT EXECUTE ON FUNCTION fn_check_booking_client_subscription() TO PUBLIC;
 
--- 10.2. Збережена функція для отримання тижневого розкладу тренера
-CREATE OR REPLACE FUNCTION get_coach_weekly_schedule(
-    p_coach_name       VARCHAR,
-    p_week_start_date  DATE
-)
-RETURNS TABLE (
-    training_date      DATE,
-    day_of_week        TEXT,
-    start_time         TIME,
-    end_time           TIME,
-    training_type      TEXT,
-    activity_name      TEXT,
-    hall_name          VARCHAR,
-    client_or_details  TEXT,
-    training_status    VARCHAR
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-DECLARE
-    v_coach_id INTEGER;
-BEGIN
-    SELECT c.ID_Coach INTO v_coach_id
-    FROM Coaches c
-    JOIN Staff s ON c.ID_Staff = s.ID_Staff
-    WHERE LOWER(TRIM(s.FullName)) = LOWER(TRIM(p_coach_name));
-
-    IF v_coach_id IS NULL THEN
-        RAISE EXCEPTION 'Тренера з ПІБ "%" не знайдено в базі даних.', p_coach_name;
-    END IF;
-
-    RETURN QUERY
-    WITH CombinedSchedule AS (
-        SELECT
-            gci.ClassDate AS training_date,
-            CASE EXTRACT(ISODOW FROM gci.ClassDate)
-                WHEN 1 THEN 'Понеділок'
-                WHEN 2 THEN 'Вівторок'
-                WHEN 3 THEN 'Середа'
-                WHEN 4 THEN 'Четвер'
-                WHEN 5 THEN 'П''ятниця'
-                WHEN 6 THEN 'Субота'
-                WHEN 7 THEN 'Неділя'
-            END AS day_of_week,
-            COALESCE(gci.ClassStartTime, gst.StartTime) AS start_time,
-            (COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute'))::TIME AS end_time,
-            'Групове заняття'::TEXT AS training_type,
-            ct.TypeName::TEXT AS activity_name,
-            h.HallName AS hall_name,
-            FORMAT('Фактична відвідуваність: %s ос.', gci.ActualAttendance)::TEXT AS client_or_details,
-            gci.ClassStatus::VARCHAR AS training_status
-        FROM GroupClassInstances gci
-        JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
-        JOIN ClassTypes ct ON gst.ID_ClassType = ct.ID_ClassType
-        JOIN Halls h ON gst.ID_Hall = h.ID_Hall
-        WHERE gst.ID_Coach = v_coach_id
-          AND gci.ClassDate >= p_week_start_date
-          AND gci.ClassDate < (p_week_start_date + INTERVAL '7 days')::DATE
-
-        UNION ALL
-
-        SELECT
-            pt.TrainingDateTime::DATE AS training_date,
-            CASE EXTRACT(ISODOW FROM pt.TrainingDateTime)
-                WHEN 1 THEN 'Понеділок'
-                WHEN 2 THEN 'Вівторок'
-                WHEN 3 THEN 'Середа'
-                WHEN 4 THEN 'Четвер'
-                WHEN 5 THEN 'П''ятниця'
-                WHEN 6 THEN 'Субота'
-                WHEN 7 THEN 'Неділя'
-            END AS day_of_week,
-            pt.TrainingDateTime::TIME AS start_time,
-            (pt.TrainingDateTime + INTERVAL '60 minutes')::TIME AS end_time,
-            'Індивідуальне тренування'::TEXT AS training_type,
-            'Персональне заняття'::TEXT AS activity_name,
-            h.HallName AS hall_name,
-            FORMAT('Клієнт: %s (тел: %s)', cl.FullName, cl.Phone)::TEXT AS client_or_details,
-            pt.TrainingStatus::VARCHAR AS training_status
-        FROM PersonalTrainings pt
-        JOIN Halls h ON pt.ID_Hall = h.ID_Hall
-        JOIN Sales s ON pt.ID_Sale = s.ID_Sale
-        JOIN Clients cl ON s.ID_Client = cl.ID_Client
-        WHERE pt.ID_Coach = v_coach_id
-          AND pt.TrainingDateTime::DATE >= p_week_start_date
-          AND pt.TrainingDateTime::DATE < (p_week_start_date + INTERVAL '7 days')::DATE
-    )
-    SELECT * 
-    FROM CombinedSchedule
-    ORDER BY training_date ASC, start_time ASC;
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION get_coach_weekly_schedule(VARCHAR, DATE) TO PUBLIC;
-
--- 10.3. Користувацька агрегатна функція середньої тривалості/завантаженості тренера
-CREATE OR REPLACE FUNCTION coach_workload_accum(
-    p_state    NUMERIC[],
-    p_coach_id INTEGER,
-    p_duration NUMERIC
-)
-RETURNS NUMERIC[]
-LANGUAGE plpgsql
-IMMUTABLE
-AS $$
-BEGIN
-    IF p_coach_id IS NOT NULL AND p_duration IS NOT NULL AND p_duration > 0 THEN
-        p_state[1] := p_state[1] + p_duration;
-        p_state[2] := p_state[2] + 1;
-    END IF;
-
-    RETURN p_state;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION coach_workload_final(
-    p_state NUMERIC[]
-)
-RETURNS NUMERIC
-LANGUAGE plpgsql
-IMMUTABLE
-AS $$
-BEGIN
-    IF p_state IS NULL OR p_state[2] = 0 THEN
-        RETURN 0.00;
-    END IF;
-
-    RETURN ROUND(p_state[1] / p_state[2], 2);
-END;
-$$;
-
-DROP AGGREGATE IF EXISTS avg_coach_workload(INTEGER, NUMERIC);
-
-CREATE AGGREGATE avg_coach_workload(INTEGER, NUMERIC) (
-    SFUNC     = coach_workload_accum,
-    STYPE     = NUMERIC[],
-    FINALFUNC = coach_workload_final,
-    INITCOND  = '{0, 0}'
-);
-
-GRANT EXECUTE ON FUNCTION coach_workload_accum(NUMERIC[], INTEGER, NUMERIC) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION coach_workload_final(NUMERIC[]) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION avg_coach_workload(INTEGER, NUMERIC) TO PUBLIC;
-
 -- ============================================================================
--- 10.1-F. Тригери заборони перенесення занять у минуле (TICKET-035)
+-- 10.1-E. Уніфікований тригер заборони призначення або перенесення занять у минуле (TICKET-035, TICKET-116)
 -- ============================================================================
 
--- 1. Перевірка для деталей запиту на зміну розкладу (PT_TimeChangeDetails)
-CREATE OR REPLACE FUNCTION fn_check_pt_timechange_past()
+CREATE OR REPLACE FUNCTION fn_check_not_past_timestamp()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+DECLARE
+    v_target_time TIMESTAMP;
 BEGIN
-    IF NEW.NewDateTime <= CURRENT_TIMESTAMP THEN
-        RAISE EXCEPTION 'Новий час тренування не може бути в минулому.';
+    IF LOWER(TG_TABLE_NAME) = 'pt_timechangedetails' THEN
+        v_target_time := NEW.NewDateTime;
+        IF v_target_time <= CURRENT_TIMESTAMP THEN
+            RAISE EXCEPTION 'Новий час тренування не може бути в минулому.';
+        END IF;
+    ELSIF LOWER(TG_TABLE_NAME) = 'personaltrainings' THEN
+        v_target_time := NEW.TrainingDateTime;
+        IF NEW.TrainingStatus = 'Scheduled' AND v_target_time < CURRENT_TIMESTAMP THEN
+            IF TG_OP = 'INSERT' THEN
+                RAISE EXCEPTION 'Неможливо запланувати тренування на час у минулому.';
+            ELSE
+                RAISE EXCEPTION 'Неможливо перенести тренування на час у минулому.';
+            END IF;
+        END IF;
     END IF;
+
     RETURN NEW;
 END;
 $$;
@@ -545,38 +415,20 @@ CREATE TRIGGER trg_check_pt_timechange_past
 BEFORE INSERT OR UPDATE OF NewDateTime
 ON PT_TimeChangeDetails
 FOR EACH ROW
-EXECUTE FUNCTION fn_check_pt_timechange_past();
-
-GRANT EXECUTE ON FUNCTION fn_check_pt_timechange_past() TO PUBLIC;
-
--- 2. Перевірка для створення та оновлення часу тренування (PersonalTrainings)
-CREATE OR REPLACE FUNCTION fn_check_pt_reschedule_past()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-BEGIN
-    IF NEW.TrainingStatus = 'Scheduled' AND NEW.TrainingDateTime < CURRENT_TIMESTAMP THEN
-        IF TG_OP = 'INSERT' THEN
-            RAISE EXCEPTION 'Неможливо запланувати тренування на час у минулому.';
-        ELSE
-            RAISE EXCEPTION 'Неможливо перенести тренування на час у минулому.';
-        END IF;
-    END IF;
-    RETURN NEW;
-END;
-$$;
+EXECUTE FUNCTION fn_check_not_past_timestamp();
 
 DROP TRIGGER IF EXISTS trg_check_pt_reschedule_past ON PersonalTrainings;
 CREATE TRIGGER trg_check_pt_reschedule_past
 BEFORE INSERT OR UPDATE OF TrainingDateTime
 ON PersonalTrainings
 FOR EACH ROW
-EXECUTE FUNCTION fn_check_pt_reschedule_past();
+EXECUTE FUNCTION fn_check_not_past_timestamp();
 
-GRANT EXECUTE ON FUNCTION fn_check_pt_reschedule_past() TO PUBLIC;
+GRANT EXECUTE ON FUNCTION fn_check_not_past_timestamp() TO PUBLIC;
 
+-- Забезпечення видалення старих функцій
+DROP FUNCTION IF EXISTS fn_check_pt_timechange_past();
+DROP FUNCTION IF EXISTS fn_check_pt_reschedule_past();
 -- ============================================================================
 -- 10.1-G. Тригер заборони заморозки абонемента в минулому (TICKET-036)
 -- ============================================================================
