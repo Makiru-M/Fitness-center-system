@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS MedicalNotes (
 CREATE TABLE IF NOT EXISTS PriceList (
     ID_Item SERIAL PRIMARY KEY,
     ItemName VARCHAR(100) NOT NULL,
-    Category VARCHAR(30) NOT NULL CHECK (Category IN ('Membership', 'Personal training', 'Group training', 'Extra')),
+    Category service_category NOT NULL,
     Price DECIMAL(10, 2) NOT NULL CHECK (Price >= 0),
     PriceStartDate DATE NOT NULL DEFAULT CURRENT_DATE,
     PriceEndDate DATE DEFAULT NULL,

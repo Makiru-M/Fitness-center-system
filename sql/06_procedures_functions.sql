@@ -1106,13 +1106,9 @@ BEGIN
         RAISE EXCEPTION 'Назва послуги не може бути порожньою!';
     END IF;
 
-    IF p_category NOT IN ('Membership', 'Personal training', 'Group training', 'Extra') THEN
-        RAISE EXCEPTION 'Некоректна категорія послуги: %!', p_category;
-    END IF;
-
-    -- Створюємо запис у PriceList
+    -- Створюємо запис у PriceList (валідація через каст до service_category)
     INSERT INTO PriceList (ItemName, Category, Price, PriceStartDate, PriceEndDate, Description)
-    VALUES (trim(p_item_name), p_category, p_price, CURRENT_DATE, NULL, p_description)
+    VALUES (trim(p_item_name), p_category::service_category, p_price, CURRENT_DATE, NULL, p_description)
     RETURNING ID_Item INTO v_item_id;
 
     IF p_category = 'Membership' THEN
