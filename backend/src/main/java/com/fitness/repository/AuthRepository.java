@@ -28,37 +28,11 @@ public class AuthRepository {
      * Authenticates the user credentials against PostgreSQL, inspects the role, and resolves profile details.
      */
     public LoginResponse authenticate(String username, String password) {
-        // 0. Check if employee is fired before attempting connection
-        try {
-            JdbcTemplate adminJdbc = dataSourceService.getAdminJdbcTemplate();
-            List<LocalDate> fireDates = adminJdbc.query(
-                "SELECT FireDate FROM Staff WHERE DB_User = ?",
-                (rs, rowNum) -> rs.getDate("FireDate") != null ? rs.getDate("FireDate").toLocalDate() : null,
-                username
-            );
-            if (!fireDates.isEmpty() && fireDates.get(0) != null) {
-                throw new AuthenticationRequiredException("Обліковий запис співробітника деактивовано (звільнено). Доступ заблоковано.");
-            }
-        } catch (AuthenticationRequiredException are) {
-            throw are;
-        } catch (Exception ignored) {
-            // Fallback if adminJdbc fails
-        }
-
         // 1. Verify credentials by attempting a connection
         dataSourceService.testConnection(username, password);
 
         // 2. Query system catalogs to determine user role and profile details
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplateForUser(username, password);
-
-        List<LocalDate> fireDates = jdbc.query(
-            "SELECT FireDate FROM Staff WHERE DB_User = ?",
-            (rs, rowNum) -> rs.getDate("FireDate") != null ? rs.getDate("FireDate").toLocalDate() : null,
-            username
-        );
-        if (!fireDates.isEmpty() && fireDates.get(0) != null) {
-            throw new AuthenticationRequiredException("Обліковий запис співробітника деактивовано (звільнено). Доступ заблоковано.");
-        }
 
         String role = determineRole(jdbc, username);
         ProfileInfo profile = resolveProfile(jdbc, username, role);
@@ -97,21 +71,17 @@ public class AuthRepository {
     }
 
     private String determineRole(JdbcTemplate jdbc, String username) {
+        // Fallback: check if username matches guest
+        if (username.equalsIgnoreCase("guest_user")) {
+            return "guest";
+        }
+
         // Check role membership via pg_has_role
         String sql = """
             SELECT r.rolname 
             FROM pg_roles r 
             WHERE pg_has_role(CURRENT_USER, r.rolname, 'member') 
               AND r.rolname IN ('director_role', 'hr_role', 'manager_role', 'coach_role', 'client_role', 'guest')
-            ORDER BY 
-              CASE r.rolname 
-                WHEN 'director_role' THEN 1
-                WHEN 'hr_role' THEN 2
-                WHEN 'manager_role' THEN 3
-                WHEN 'coach_role' THEN 4
-                WHEN 'client_role' THEN 5
-                ELSE 6
-              END
             LIMIT 1
             """;
         List<String> roles = jdbc.query(sql, (rs, rowNum) -> rs.getString("rolname"));
@@ -119,12 +89,7 @@ public class AuthRepository {
             return roles.get(0);
         }
 
-        // Fallback: check if username matches guest
-        if (username.equalsIgnoreCase("guest_user")) {
-            return "guest";
-        }
-
-        return "client_role";
+        throw new AuthenticationRequiredException("Роль користувача не визначена або відсутні необхідні привілеї в системі.");
     }
 
     private ProfileInfo resolveProfile(JdbcTemplate jdbc, String username, String role) {
