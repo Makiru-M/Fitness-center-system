@@ -1,5 +1,6 @@
 package com.fitness.service;
 
+import com.fitness.dto.director.CreateTurnkeyServiceRequest;
 import com.fitness.dto.director.PeriodCategoryRevenueRecord;
 import com.fitness.dto.director.RevenuePeriodReport;
 import com.fitness.dto.director.RevenueReportItem;
@@ -72,6 +73,49 @@ public class DirectorService {
      */
     public List<ClassTypePublicDto> getClassTypes() {
         return directorRepository.getClassTypes();
+    }
+
+    /**
+     * D10: Create turnkey service routed to specialized procedures
+     */
+    public Map<String, Object> createTurnkeyService(CreateTurnkeyServiceRequest req) {
+        String category = req.category();
+        if ("Membership".equalsIgnoreCase(category) || "Subscription".equalsIgnoreCase(category)) {
+            Integer itemId = directorRepository.createMembershipService(
+                    req.itemName(),
+                    req.price(),
+                    req.durationDays(),
+                    req.maxFreezingDays(),
+                    req.description()
+            );
+            return Map.of(
+                    "item_id", itemId,
+                    "message", "Послугу абонемента успішно створено"
+            );
+        } else if ("Group training".equalsIgnoreCase(category)) {
+            return directorRepository.createGroupClassService(
+                    req.itemName(),
+                    req.price(),
+                    req.hallId(),
+                    req.coachId(),
+                    req.dayOfWeek(),
+                    req.startTime(),
+                    req.durationMinutes(),
+                    req.description()
+            );
+        } else {
+            String cat = (category != null && !category.isBlank()) ? category : "Extra";
+            Integer itemId = directorRepository.createPriceItem(
+                    req.itemName(),
+                    cat,
+                    req.price(),
+                    req.description()
+            );
+            return Map.of(
+                    "item_id", itemId,
+                    "message", "Послугу успішно створено"
+            );
+        }
     }
 
     private static class PeriodData {

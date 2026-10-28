@@ -186,7 +186,7 @@ public class DirectorController {
      */
     @PostMapping("/services/turnkey")
     public ResponseEntity<Map<String, Object>> createTurnkeyService(@RequestBody CreateTurnkeyServiceRequest request) {
-        Map<String, Object> result = directorRepository.createTurnkeyService(request);
+        Map<String, Object> result = directorService.createTurnkeyService(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "message", "Послугу успішно налаштовано та введено в дію під ключ.",
                 "details", result

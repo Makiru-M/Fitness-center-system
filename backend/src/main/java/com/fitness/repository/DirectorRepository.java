@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -473,24 +474,30 @@ public class DirectorRepository {
     }
 
     /**
-     * D10: Create turnkey service (via sp_create_service_turnkey)
+     * D10: Create membership service in price list (via sp_create_membership_service)
      */
-    public Map<String, Object> createTurnkeyService(CreateTurnkeyServiceRequest req) {
+    public Integer createMembershipService(String itemName, BigDecimal price, Integer durationDays, Integer maxFreezingDays, String description) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = "SELECT * FROM sp_create_service_turnkey(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        return jdbc.queryForMap(sql,
-                req.itemName(),
-                req.category(),
-                req.price(),
-                req.description(),
-                req.durationDays(),
-                req.maxFreezingDays(),
-                req.dayOfWeek(),
-                req.startTime(),
-                req.durationMinutes(),
-                req.hallId(),
-                req.coachId()
-        );
+        String sql = "SELECT sp_create_membership_service(?, ?, ?, ?, ?)";
+        return jdbc.queryForObject(sql, Integer.class, itemName, price, durationDays, maxFreezingDays, description);
+    }
+
+    /**
+     * D10: Create group class service in price list (via sp_create_group_class_service)
+     */
+    public Map<String, Object> createGroupClassService(String itemName, BigDecimal price, Integer hallId, Integer coachId, Integer dayOfWeek, LocalTime startTime, Integer durationMinutes, String description) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = "SELECT * FROM sp_create_group_class_service(?, ?, ?, ?, ?, ?, ?, ?)";
+        return jdbc.queryForMap(sql, itemName, price, hallId, coachId, dayOfWeek, startTime, durationMinutes, description);
+    }
+
+    /**
+     * D10: Create price item in price list (via sp_create_price_item)
+     */
+    public Integer createPriceItem(String itemName, String category, BigDecimal price, String description) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = "SELECT sp_create_price_item(?, ?::service_category, ?, ?)";
+        return jdbc.queryForObject(sql, Integer.class, itemName, category, price, description);
     }
 
     /**
