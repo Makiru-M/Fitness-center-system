@@ -15,6 +15,53 @@ BEGIN
 END;
 $$;
 
+-- Допоміжна функція перевірки та отримання імені клієнта
+CREATE OR REPLACE FUNCTION fn_get_client_name(p_client_id INT)
+RETURNS VARCHAR
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_name VARCHAR;
+BEGIN
+    SELECT FullName INTO v_name FROM Clients WHERE ID_Client = p_client_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Клієнта з ID % не знайдено.', p_client_id;
+    END IF;
+    RETURN v_name;
+END;
+$$;
+
+-- Допоміжна функція перевірки доступності та активності залу
+CREATE OR REPLACE FUNCTION fn_assert_hall_available(p_hall_id INT)
+RETURNS VARCHAR
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_hall_name VARCHAR;
+    v_is_active BOOLEAN;
+BEGIN
+    SELECT HallName, IsActive INTO v_hall_name, v_is_active
+    FROM Halls
+    WHERE ID_Hall = p_hall_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Зал з ID % не знайдено.', p_hall_id;
+    END IF;
+
+    IF NOT v_is_active THEN
+        RAISE EXCEPTION 'Зал "%" закритий на обслуговування або неактивний.', v_hall_name;
+    END IF;
+
+    RETURN v_hall_name;
+END;
+$$;
+
 -- Допоміжна процедура створення системного облікового запису користувача PostgreSQL
 CREATE OR REPLACE PROCEDURE sp_create_db_user(
     p_username VARCHAR,
@@ -193,9 +240,7 @@ BEGIN
             RAISE EXCEPTION 'Не вказано ID клієнта для оформлення абонемента.';
         END IF;
 
-        IF NOT EXISTS (SELECT 1 FROM Clients WHERE ID_Client = v_client_id) THEN
-            RAISE EXCEPTION 'Клієнта з ID % не знайдено.', v_client_id;
-        END IF;
+        PERFORM fn_get_client_name(v_client_id);
     END IF;
 
     -- Перевірка чи є позиція абонементом
@@ -308,9 +353,7 @@ BEGIN
             RAISE EXCEPTION 'Не вказано ID клієнта для запису на персональне тренування.';
         END IF;
 
-        IF NOT EXISTS (SELECT 1 FROM Clients WHERE ID_Client = v_client_id) THEN
-            RAISE EXCEPTION 'Клієнта з ID % не знайдено.', v_client_id;
-        END IF;
+        PERFORM fn_get_client_name(v_client_id);
     END IF;
 
     -- Валідація дати та часу тренування
@@ -319,11 +362,7 @@ BEGIN
     END IF;
 
     -- Валідація зали (наявність та активний статус)
-    IF NOT EXISTS (
-        SELECT 1 FROM Halls WHERE ID_Hall = p_hall_id AND IsActive = TRUE
-    ) THEN
-        RAISE EXCEPTION 'Обраний зал не існує або закритий на обслуговування.';
-    END IF;
+    PERFORM fn_assert_hall_available(p_hall_id);
 
     -- Валідація тренера
     IF NOT EXISTS (
@@ -730,34 +769,15 @@ AS $$
 DECLARE
     v_client_name VARCHAR;
     v_hall_name   VARCHAR;
-    v_hall_active BOOLEAN;
-    v_has_active  BOOLEAN := FALSE;
-
     v_sale_id     INT;
     v_visit_id    INT;
     v_sub_status  VARCHAR(20);
 BEGIN
     -- 1. Валідація зали
-    SELECT HallName, IsActive INTO v_hall_name, v_hall_active
-    FROM Halls
-    WHERE ID_Hall = p_hall_id;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Зал з ID % не знайдено.', p_hall_id;
-    END IF;
-
-    IF NOT v_hall_active THEN
-        RAISE EXCEPTION 'Зал "%" закритий на обслуговування або неактивний.', v_hall_name;
-    END IF;
+    v_hall_name := fn_assert_hall_available(p_hall_id);
 
     -- 2. Валідація клієнта
-    SELECT FullName INTO v_client_name
-    FROM Clients
-    WHERE ID_Client = p_client_id;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Клієнта з ID % не знайдено.', p_client_id;
-    END IF;
+    v_client_name := fn_get_client_name(p_client_id);
 
     -- 3. Перевірка наявності діючого активного абонемента
     SELECT cs.ID_Sale, cs.CurrentStatus
@@ -770,9 +790,7 @@ BEGIN
     ORDER BY cs.EndDate DESC
     LIMIT 1;
 
-    IF FOUND THEN
-        v_has_active := TRUE;
-    ELSE
+    IF NOT FOUND THEN
         -- Перевіряємо, чи є заморожений діючий абонемент
         IF EXISTS (
             SELECT 1
@@ -835,6 +853,8 @@ BEGIN
         IF v_client_id IS NULL THEN
             RAISE EXCEPTION 'Не вказано клієнта для запису на групове заняття.';
         END IF;
+
+        PERFORM fn_get_client_name(v_client_id);
     END IF;
 
     -- Перевірка дублікату запису на той самий екземпляр
