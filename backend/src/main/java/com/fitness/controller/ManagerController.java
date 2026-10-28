@@ -2,8 +2,7 @@ package com.fitness.controller;
 
 import com.fitness.dto.client.AvailableGroupClassDto;
 import com.fitness.dto.manager.*;
-import com.fitness.repository.ClientRepository;
-import com.fitness.repository.ManagerRepository;
+import com.fitness.service.ManagerService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,12 +15,10 @@ import java.util.Map;
 @RequestMapping("/api/manager")
 public class ManagerController {
 
-    private final ManagerRepository managerRepository;
-    private final ClientRepository clientRepository;
+    private final ManagerService managerService;
 
-    public ManagerController(ManagerRepository managerRepository, ClientRepository clientRepository) {
-        this.managerRepository = managerRepository;
-        this.clientRepository = clientRepository;
+    public ManagerController(ManagerService managerService) {
+        this.managerService = managerService;
     }
 
     /**
@@ -29,7 +26,7 @@ public class ManagerController {
      */
     @PostMapping("/clients")
     public ResponseEntity<Map<String, Object>> createClient(@RequestBody CreateClientRequest request) {
-        Integer clientId = managerRepository.createClient(request);
+        Integer clientId = managerService.createClient(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "clientId", clientId,
                 "message", "Клієнта успішно зареєстровано."
@@ -41,7 +38,7 @@ public class ManagerController {
      */
     @PutMapping("/clients")
     public ResponseEntity<Map<String, String>> updateClient(@RequestBody UpdateClientRequest request) {
-        managerRepository.updateClient(request);
+        managerService.updateClient(request);
         return ResponseEntity.ok(Map.of("message", "Дані клієнта успішно оновлено."));
     }
 
@@ -50,7 +47,7 @@ public class ManagerController {
      */
     @GetMapping("/clients")
     public ResponseEntity<List<ClientSummaryDto>> getClients(@RequestParam(value = "search", required = false) String search) {
-        List<ClientSummaryDto> clients = managerRepository.searchClients(search);
+        List<ClientSummaryDto> clients = managerService.searchClients(search);
         return ResponseEntity.ok(clients);
     }
 
@@ -59,7 +56,7 @@ public class ManagerController {
      */
     @PostMapping("/sales/subscription")
     public ResponseEntity<Map<String, Object>> sellSubscription(@RequestBody SellSubscriptionRequest request) {
-        Integer saleId = managerRepository.sellSubscription(request);
+        Integer saleId = managerService.sellSubscription(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "saleId", saleId,
                 "message", "Абонемент успішно оформлено та активовано."
@@ -71,7 +68,7 @@ public class ManagerController {
      */
     @PostMapping("/visits/check-in")
     public ResponseEntity<CheckInResult> checkIn(@RequestBody CheckInRequest request) {
-        CheckInResult result = managerRepository.checkInVisit(request);
+        CheckInResult result = managerService.checkInVisit(request);
         return ResponseEntity.ok(result);
     }
 
@@ -84,7 +81,7 @@ public class ManagerController {
             @RequestParam("instanceId") Integer instanceId,
             @RequestParam(value = "promoCode", required = false) String promoCode
     ) {
-        managerRepository.bookGroupClass(clientId, instanceId, promoCode);
+        managerService.bookGroupClass(clientId, instanceId, promoCode);
         return ResponseEntity.ok(Map.of("message", "Клієнта успішно записано на групове заняття."));
     }
 
@@ -99,7 +96,7 @@ public class ManagerController {
             @RequestParam("dateTime") LocalDateTime dateTime,
             @RequestParam(value = "promoCode", required = false) String promoCode
     ) {
-        Integer personalTrainingId = managerRepository.bookPersonalTraining(clientId, coachId, hallId, dateTime, promoCode);
+        Integer personalTrainingId = managerService.bookPersonalTraining(clientId, coachId, hallId, dateTime, promoCode);
         return ResponseEntity.ok(Map.of(
                 "personalId", personalTrainingId,
                 "message", "Персональне тренування успішно призначено."
@@ -111,7 +108,7 @@ public class ManagerController {
      */
     @PostMapping("/subscriptions/freeze")
     public ResponseEntity<Map<String, String>> freezeSubscription(@RequestBody FreezeRequest request) {
-        managerRepository.freezeSubscription(request);
+        managerService.freezeSubscription(request);
         return ResponseEntity.ok(Map.of("message", "Абонемент успішно заморожено."));
     }
 
@@ -120,7 +117,7 @@ public class ManagerController {
      */
     @PostMapping("/bookings/change")
     public ResponseEntity<Map<String, String>> changeBooking(@RequestBody BookingChangeRequest request) {
-        managerRepository.changeBooking(request);
+        managerService.changeBooking(request);
         return ResponseEntity.ok(Map.of("message", "Статус бронювання успішно змінено."));
     }
 
@@ -133,7 +130,7 @@ public class ManagerController {
             @RequestParam("classDate") java.time.LocalDate classDate,
             @RequestParam(value = "startTime", required = false) java.time.LocalTime startTime
     ) {
-        Integer instanceId = managerRepository.createGroupClassInstance(templateId, classDate, startTime);
+        Integer instanceId = managerService.createGroupClassInstance(templateId, classDate, startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "instanceId", instanceId,
                 "message", "Групове заняття успішно додано до розкладу."
@@ -145,7 +142,7 @@ public class ManagerController {
      */
     @GetMapping("/schedule-requests")
     public ResponseEntity<List<ScheduleChangeRequestDto>> getScheduleRequests() {
-        return ResponseEntity.ok(managerRepository.getScheduleRequests());
+        return ResponseEntity.ok(managerService.getScheduleRequests());
     }
 
     /**
@@ -153,7 +150,7 @@ public class ManagerController {
      */
     @PostMapping("/schedule-requests/{logId}/approve")
     public ResponseEntity<Map<String, String>> approveScheduleRequest(@PathVariable("logId") Integer logId) {
-        managerRepository.approveScheduleRequest(logId);
+        managerService.approveScheduleRequest(logId);
         return ResponseEntity.ok(Map.of("message", "Запит успішно схвалено та зміни застосовано до розкладу."));
     }
 
@@ -162,7 +159,7 @@ public class ManagerController {
      */
     @GetMapping("/group-classes/available")
     public ResponseEntity<List<AvailableGroupClassDto>> getAvailableGroupClasses() {
-        return ResponseEntity.ok(clientRepository.getAvailableGroupClasses());
+        return ResponseEntity.ok(managerService.getAvailableGroupClasses());
     }
 
     /**
@@ -170,7 +167,7 @@ public class ManagerController {
      */
     @PostMapping("/schedule-requests/{logId}/reject")
     public ResponseEntity<Map<String, String>> rejectScheduleRequest(@PathVariable("logId") Integer logId) {
-        managerRepository.rejectScheduleRequest(logId);
+        managerService.rejectScheduleRequest(logId);
         return ResponseEntity.ok(Map.of("message", "Запит успішно відхилено."));
     }
 }
