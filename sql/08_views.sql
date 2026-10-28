@@ -235,9 +235,19 @@ GRANT SELECT ON v_AvailableGroupClasses TO guest, client_role, manager_role, coa
 -- 8.8. Повний консолідований розклад тренерів (групові та індивідуальні заняття)
 CREATE OR REPLACE VIEW v_CoachWeeklySchedule AS
 SELECT
-    c.ID_Coach,
-    st.FullName AS CoachName,
-    gci.ClassDate AS training_date,
+    gci.ID_Instance AS activity_id,
+    'Group'::TEXT AS activity_type,
+    ct.TypeName::TEXT AS title,
+    h.HallName AS hall_name,
+    gci.ClassDate AS schedule_date,
+    gci.ClassStartTime AS start_time,
+    (gci.ClassDate + gci.ClassStartTime)::TIMESTAMP AS start_date_time,
+    gst.DurationMinutes AS duration_minutes,
+    gci.ClassStatus::TEXT AS status,
+    gci.ActualAttendance AS attendance_or_capacity,
+    c.ID_Coach AS id_coach,
+    st.FullName AS coach_name,
+    st.DB_User AS db_user,
     CASE EXTRACT(ISODOW FROM gci.ClassDate)
         WHEN 1 THEN 'Понеділок'
         WHEN 2 THEN 'Вівторок'
@@ -247,13 +257,9 @@ SELECT
         WHEN 6 THEN 'Субота'
         WHEN 7 THEN 'Неділя'
     END AS day_of_week,
-    COALESCE(gci.ClassStartTime, gst.StartTime) AS start_time,
     (COALESCE(gci.ClassStartTime, gst.StartTime) + (gst.DurationMinutes * INTERVAL '1 minute'))::TIME AS end_time,
     'Групове заняття'::TEXT AS training_type,
-    ct.TypeName::TEXT AS activity_name,
-    h.HallName AS hall_name,
-    FORMAT('Фактична відвідуваність: %s ос.', gci.ActualAttendance)::TEXT AS client_or_details,
-    gci.ClassStatus::VARCHAR AS training_status
+    FORMAT('Фактична відвідуваність: %s ос.', gci.ActualAttendance)::TEXT AS client_or_details
 FROM GroupClassInstances gci
 JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
 JOIN Coaches c ON gst.ID_Coach = c.ID_Coach
@@ -264,9 +270,19 @@ JOIN Halls h ON gst.ID_Hall = h.ID_Hall
 UNION ALL
 
 SELECT
-    c.ID_Coach,
-    st.FullName AS CoachName,
-    pt.TrainingDateTime::DATE AS training_date,
+    pt.ID_Personal AS activity_id,
+    'Personal'::TEXT AS activity_type,
+    ('Персональне: ' || cl.FullName)::TEXT AS title,
+    h.HallName AS hall_name,
+    pt.TrainingDateTime::DATE AS schedule_date,
+    pt.TrainingDateTime::TIME AS start_time,
+    pt.TrainingDateTime AS start_date_time,
+    60 AS duration_minutes,
+    pt.TrainingStatus::TEXT AS status,
+    1 AS attendance_or_capacity,
+    c.ID_Coach AS id_coach,
+    st.FullName AS coach_name,
+    st.DB_User AS db_user,
     CASE EXTRACT(ISODOW FROM pt.TrainingDateTime)
         WHEN 1 THEN 'Понеділок'
         WHEN 2 THEN 'Вівторок'
@@ -276,13 +292,9 @@ SELECT
         WHEN 6 THEN 'Субота'
         WHEN 7 THEN 'Неділя'
     END AS day_of_week,
-    pt.TrainingDateTime::TIME AS start_time,
     (pt.TrainingDateTime + INTERVAL '60 minutes')::TIME AS end_time,
     'Індивідуальне тренування'::TEXT AS training_type,
-    'Персональне заняття'::TEXT AS activity_name,
-    h.HallName AS hall_name,
-    FORMAT('Клієнт: %s (тел: %s)', cl.FullName, cl.Phone)::TEXT AS client_or_details,
-    pt.TrainingStatus::VARCHAR AS training_status
+    FORMAT('Клієнт: %s (тел: %s)', cl.FullName, cl.Phone)::TEXT AS client_or_details
 FROM PersonalTrainings pt
 JOIN Coaches c ON pt.ID_Coach = c.ID_Coach
 JOIN Staff st ON c.ID_Staff = st.ID_Staff

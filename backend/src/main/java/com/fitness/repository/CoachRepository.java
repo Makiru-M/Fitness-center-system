@@ -26,45 +26,19 @@ public class CoachRepository {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String sql = """
             SELECT 
-                gci.ID_Instance AS ActivityId,
-                'Group' AS ActivityType,
-                ct.TypeName AS Title,
-                h.HallName,
-                gci.ClassDate AS ScheduleDate,
-                gci.ClassStartTime AS StartTime,
-                (gci.ClassDate + gci.ClassStartTime)::TIMESTAMP AS StartDateTime,
-                gst.DurationMinutes,
-                gci.ClassStatus::TEXT AS Status,
-                gci.ActualAttendance AS AttendanceOrCapacity
-            FROM GroupClassInstances gci
-            JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
-            JOIN ClassTypes ct ON gst.ID_ClassType = ct.ID_ClassType
-            JOIN Halls h ON gst.ID_Hall = h.ID_Hall
-            JOIN Coaches c ON gst.ID_Coach = c.ID_Coach
-            JOIN Staff s ON c.ID_Staff = s.ID_Staff
-            WHERE s.DB_User = SESSION_USER
-
-            UNION ALL
-
-            SELECT 
-                pt.ID_Personal AS ActivityId,
-                'Personal' AS ActivityType,
-                'Персональне: ' || cl.FullName AS Title,
-                h.HallName,
-                pt.TrainingDateTime::DATE AS ScheduleDate,
-                pt.TrainingDateTime::TIME AS StartTime,
-                pt.TrainingDateTime AS StartDateTime,
-                60 AS DurationMinutes,
-                pt.TrainingStatus::TEXT AS Status,
-                1 AS AttendanceOrCapacity
-            FROM PersonalTrainings pt
-            JOIN Halls h ON pt.ID_Hall = h.ID_Hall
-            JOIN Coaches c ON pt.ID_Coach = c.ID_Coach
-            JOIN Staff s ON c.ID_Staff = s.ID_Staff
-            JOIN Sales sl ON pt.ID_Sale = sl.ID_Sale
-            JOIN Clients cl ON sl.ID_Client = cl.ID_Client
-            WHERE s.DB_User = SESSION_USER
-            ORDER BY StartDateTime
+                activity_id AS ActivityId,
+                activity_type AS ActivityType,
+                title AS Title,
+                hall_name AS HallName,
+                schedule_date AS ScheduleDate,
+                start_time AS StartTime,
+                start_date_time AS StartDateTime,
+                duration_minutes AS DurationMinutes,
+                status AS Status,
+                attendance_or_capacity AS AttendanceOrCapacity
+            FROM v_CoachWeeklySchedule
+            WHERE db_user = SESSION_USER
+            ORDER BY start_date_time ASC
             """;
 
         return jdbc.query(sql, (rs, rowNum) -> new CoachScheduleItem(
