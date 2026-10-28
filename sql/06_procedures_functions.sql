@@ -974,7 +974,7 @@ DECLARE
     v_monday DATE;
     v_target_date DATE;
     v_weeks INTEGER := COALESCE(p_weeks_ahead, 1);
-    gst RECORD;
+    rec RECORD;
 BEGIN
     IF v_weeks < 0 THEN
         v_weeks := 0;
@@ -985,7 +985,7 @@ BEGIN
 
     -- Для зміщення тижнів w IN 0..v_weeks
     FOR w IN 0..v_weeks LOOP
-        FOR gst IN 
+        FOR rec IN 
             SELECT gst.ID_Template, gst.DayOfWeek, gst.StartTime 
             FROM GroupScheduleTemplates gst
             JOIN ClassTypes ct ON gst.ID_ClassType = ct.ID_ClassType
@@ -993,14 +993,14 @@ BEGIN
             WHERE pl.PriceEndDate IS NULL OR pl.ID_Item IS NULL
             ORDER BY gst.ID_Template 
         LOOP
-            v_target_date := v_monday + (w * 7) + (gst.DayOfWeek - 1);
+            v_target_date := v_monday + (w * 7) + (rec.DayOfWeek - 1);
             IF v_target_date >= CURRENT_DATE THEN
                 IF NOT EXISTS (
                     SELECT 1 FROM GroupClassInstances 
-                    WHERE ID_Template = gst.ID_Template AND ClassDate = v_target_date
+                    WHERE ID_Template = rec.ID_Template AND ClassDate = v_target_date
                 ) THEN
                     INSERT INTO GroupClassInstances (ID_Template, ClassDate, ClassStartTime, ClassStatus, ActualAttendance)
-                    VALUES (gst.ID_Template, v_target_date, gst.StartTime, 'Scheduled', 0);
+                    VALUES (rec.ID_Template, v_target_date, rec.StartTime, 'Scheduled', 0);
                 END IF;
             END IF;
         END LOOP;
