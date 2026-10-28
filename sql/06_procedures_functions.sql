@@ -1066,27 +1066,95 @@ BEGIN
 END;
 $$;
 
--- 6.11. Створення послуги під ключ з автоматичним налаштуванням зв'язків (D10, SECURITY DEFINER)
-CREATE OR REPLACE FUNCTION sp_create_service_turnkey(
+-- 6.11. Спеціалізовані функції створення послуг (SRP, FIT-109, SECURITY DEFINER)
+
+-- 6.11-A. Створення базової послуги в прайс-листі
+CREATE OR REPLACE FUNCTION sp_create_price_item(
     p_item_name VARCHAR,
-    p_category VARCHAR,
+    p_category service_category,
     p_price NUMERIC,
-    p_description TEXT,
-    -- Поля для Membership
-    p_duration_days INT DEFAULT NULL,
-    p_max_freezing_days INT DEFAULT NULL,
-    -- Поля для Group training
+    p_description TEXT DEFAULT NULL
+)
+RETURNS INT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_item_id INT;
+BEGIN
+    IF p_price IS NULL OR p_price < 0 THEN
+        RAISE EXCEPTION 'Ціна послуги повинна бути невід''ємною!';
+    END IF;
+
+    IF p_item_name IS NULL OR length(trim(p_item_name)) = 0 THEN
+        RAISE EXCEPTION 'Назва послуги не може бути порожньою!';
+    END IF;
+
+    INSERT INTO PriceList (ItemName, Category, Price, PriceStartDate, PriceEndDate, Description)
+    VALUES (trim(p_item_name), p_category, p_price, CURRENT_DATE, NULL, p_description)
+    RETURNING ID_Item INTO v_item_id;
+
+    RETURN v_item_id;
+END;
+$$;
+
+-- 6.11-B. Створення абонемента та його специфікації тривалості/заморозки
+CREATE OR REPLACE FUNCTION sp_create_membership_service(
+    p_item_name VARCHAR,
+    p_price NUMERIC,
+    p_duration_days INT,
+    p_max_freezing_days INT DEFAULT 0,
+    p_description TEXT DEFAULT NULL
+)
+RETURNS INT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_item_id INT;
+    v_freezing_days INT := COALESCE(p_max_freezing_days, 0);
+BEGIN
+    IF p_duration_days IS NULL OR p_duration_days <= 0 THEN
+        RAISE EXCEPTION 'Для абонемента тривалість (duration_days) є обов''язковою і повинна бути більшою за 0!';
+    END IF;
+
+    IF v_freezing_days < 0 THEN
+        RAISE EXCEPTION 'Кількість днів заморозки не може бути від''ємною!';
+    END IF;
+
+    -- Створення базової позиції прайсу з категорією Membership
+    v_item_id := sp_create_price_item(
+        p_item_name    => p_item_name,
+        p_category     => 'Membership'::service_category,
+        p_price        => p_price,
+        p_description  => p_description
+    );
+
+    -- Вставка специфікації абонемента
+    INSERT INTO PriceListSubs (ID_Item, DurationDays, MaxFreezingDays)
+    VALUES (v_item_id, p_duration_days, v_freezing_days);
+
+    RETURN v_item_id;
+END;
+$$;
+
+-- 6.11-C. Створення послуги групового заняття з опціональним шаблоном розкладу
+CREATE OR REPLACE FUNCTION sp_create_group_class_service(
+    p_item_name VARCHAR,
+    p_price NUMERIC,
+    p_hall_id INT DEFAULT NULL,
+    p_coach_id INT DEFAULT NULL,
     p_day_of_week INT DEFAULT NULL,
     p_start_time TIME DEFAULT NULL,
-    p_duration_minutes INT DEFAULT NULL,
-    p_hall_id INT DEFAULT NULL,
-    p_coach_id INT DEFAULT NULL
+    p_duration_minutes INT DEFAULT 60,
+    p_description TEXT DEFAULT NULL
 )
 RETURNS TABLE (
     item_id INT,
     classtype_id INT,
-    template_id INT,
-    message TEXT
+    template_id INT
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -1098,58 +1166,39 @@ DECLARE
     v_template_id INT := NULL;
     v_duration_min INT := COALESCE(p_duration_minutes, 60);
 BEGIN
-    IF p_price IS NULL OR p_price < 0 THEN
-        RAISE EXCEPTION 'Ціна послуги повинна бути невід''ємною!';
+    -- Створення базової позиції прайсу з категорією Group training
+    v_item_id := sp_create_price_item(
+        p_item_name    => p_item_name,
+        p_category     => 'Group training'::service_category,
+        p_price        => p_price,
+        p_description  => p_description
+    );
+
+    -- Створюємо або прив'язуємо ClassTypes
+    SELECT ID_ClassType INTO v_classtype_id
+    FROM ClassTypes
+    WHERE TypeName = trim(p_item_name);
+
+    IF v_classtype_id IS NOT NULL THEN
+        UPDATE ClassTypes
+        SET ID_Item = v_item_id
+        WHERE ID_ClassType = v_classtype_id;
+    ELSE
+        INSERT INTO ClassTypes (TypeName, ID_Item)
+        VALUES (trim(p_item_name), v_item_id)
+        RETURNING ID_ClassType INTO v_classtype_id;
     END IF;
 
-    IF p_item_name IS NULL OR length(trim(p_item_name)) = 0 THEN
-        RAISE EXCEPTION 'Назва послуги не може бути порожньою!';
+    -- Якщо передано розклад, валідуємо доступність залу та створюємо шаблон
+    IF p_day_of_week IS NOT NULL AND p_start_time IS NOT NULL AND p_hall_id IS NOT NULL AND p_coach_id IS NOT NULL THEN
+        PERFORM fn_assert_hall_available(p_hall_id);
+
+        INSERT INTO GroupScheduleTemplates (ID_ClassType, DayOfWeek, StartTime, DurationMinutes, ID_Hall, ID_Coach)
+        VALUES (v_classtype_id, p_day_of_week, p_start_time, v_duration_min, p_hall_id, p_coach_id)
+        RETURNING ID_Template INTO v_template_id;
     END IF;
 
-    -- Створюємо запис у PriceList (валідація через каст до service_category)
-    INSERT INTO PriceList (ItemName, Category, Price, PriceStartDate, PriceEndDate, Description)
-    VALUES (trim(p_item_name), p_category::service_category, p_price, CURRENT_DATE, NULL, p_description)
-    RETURNING ID_Item INTO v_item_id;
-
-    IF p_category = 'Membership' THEN
-        IF p_duration_days IS NULL OR p_duration_days <= 0 THEN
-            RAISE EXCEPTION 'Для категорії Membership тривалість абонемента (duration_days) є обов''язковою і повинна бути більшою за 0!';
-        END IF;
-        IF p_max_freezing_days IS NOT NULL AND p_max_freezing_days < 0 THEN
-            RAISE EXCEPTION 'Кількість днів заморозки не може бути від''ємною!';
-        END IF;
-
-        INSERT INTO PriceListSubs (ID_Item, DurationDays, MaxFreezingDays)
-        VALUES (v_item_id, p_duration_days, COALESCE(p_max_freezing_days, 0));
-
-    ELSIF p_category = 'Group training' THEN
-        -- Створюємо або прив'язуємо ClassTypes
-        SELECT ID_ClassType INTO v_classtype_id
-        FROM ClassTypes
-        WHERE TypeName = trim(p_item_name);
-
-        IF v_classtype_id IS NOT NULL THEN
-            UPDATE ClassTypes
-            SET ID_Item = v_item_id
-            WHERE ID_ClassType = v_classtype_id;
-        ELSE
-            INSERT INTO ClassTypes (TypeName, ID_Item)
-            VALUES (trim(p_item_name), v_item_id)
-            RETURNING ID_ClassType INTO v_classtype_id;
-        END IF;
-
-        -- Якщо передано розклад, створюємо шаблон і генеруємо екземпляри
-        IF p_day_of_week IS NOT NULL AND p_start_time IS NOT NULL AND p_hall_id IS NOT NULL AND p_coach_id IS NOT NULL THEN
-            INSERT INTO GroupScheduleTemplates (ID_ClassType, DayOfWeek, StartTime, DurationMinutes, ID_Hall, ID_Coach)
-            VALUES (v_classtype_id, p_day_of_week, p_start_time, v_duration_min, p_hall_id, p_coach_id)
-            RETURNING ID_Template INTO v_template_id;
-
-            CALL sp_generate_weekly_group_instances(1);
-        END IF;
-
-    END IF;
-
-    RETURN QUERY SELECT v_item_id, v_classtype_id, v_template_id, 'Послугу успішно створено під ключ'::TEXT;
+    RETURN QUERY SELECT v_item_id, v_classtype_id, v_template_id;
 END;
 $$;
 
@@ -1223,7 +1272,9 @@ GRANT EXECUTE ON FUNCTION sp_fire_employee TO hr_role, director_role;
 
 -- Керування послугами та прайс-листом (директор)
 GRANT EXECUTE ON FUNCTION sp_update_price_tariff(INT, NUMERIC) TO director_role;
-GRANT EXECUTE ON FUNCTION sp_create_service_turnkey(VARCHAR, VARCHAR, NUMERIC, TEXT, INT, INT, INT, TIME, INT, INT, INT) TO director_role;
+GRANT EXECUTE ON FUNCTION sp_create_price_item(VARCHAR, service_category, NUMERIC, TEXT) TO director_role;
+GRANT EXECUTE ON FUNCTION sp_create_membership_service(VARCHAR, NUMERIC, INT, INT, TEXT) TO director_role;
+GRANT EXECUTE ON FUNCTION sp_create_group_class_service(VARCHAR, NUMERIC, INT, INT, INT, TIME, INT, TEXT) TO director_role;
 GRANT EXECUTE ON FUNCTION sp_deactivate_price_item(INT) TO director_role;
 
 
