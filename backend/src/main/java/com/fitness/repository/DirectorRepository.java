@@ -4,6 +4,7 @@ import com.fitness.config.DynamicDataSourceService;
 import com.fitness.dto.director.*;
 import com.fitness.dto.guest.HallDto;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,16 +17,36 @@ import java.util.Map;
 @Transactional
 public class DirectorRepository {
 
+    private static final RowMapper<PeriodCategoryRevenueRecord> PERIOD_REVENUE_ROW_MAPPER = (rs, rowNum) -> new PeriodCategoryRevenueRecord(
+            rs.getString("PeriodLabel"),
+            rs.getDate("PeriodStart") != null ? rs.getDate("PeriodStart").toLocalDate() : null,
+            rs.getDate("PeriodEnd") != null ? rs.getDate("PeriodEnd").toLocalDate() : null,
+            new RevenueReportItem(
+                    rs.getString("Category"),
+                    rs.getLong("Sales_Count"),
+                    rs.getBigDecimal("Full_Price_Total"),
+                    rs.getBigDecimal("Actual_Revenue"),
+                    rs.getBigDecimal("Total_Discounts"),
+                    rs.getLong("Promo_Code_Usage"),
+                    rs.getObject("RevenueSharePercent") != null ? rs.getDouble("RevenueSharePercent") : 0.0,
+                    rs.getBigDecimal("CumulativeRevenue")
+            )
+    );
+
     private final DynamicDataSourceService dataSourceService;
 
     public DirectorRepository(DynamicDataSourceService dataSourceService) {
         this.dataSourceService = dataSourceService;
     }
 
-    /**
-     * D1-1: Revenue report - monthly breakdown
-     */
-    public List<PeriodCategoryRevenueRecord> fetchMonthlyRevenue(LocalDate fromDate, LocalDate toDate) {
+    private List<PeriodCategoryRevenueRecord> executePeriodicRevenueQuery(
+            String dateTruncUnit,
+            String intervalUnit,
+            String endIntervalUnit,
+            String labelSqlExpression,
+            LocalDate fromDate,
+            LocalDate toDate
+    ) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String sql = """
             WITH Bounds AS (
@@ -35,11 +56,11 @@ public class DirectorRepository {
             ),
             Periods AS (
                 SELECT 
-                    date_trunc('month', d)::DATE AS PeriodStart,
-                    (date_trunc('month', d) + INTERVAL '1 month - 1 day')::DATE AS PeriodEnd,
-                    TO_CHAR(d, 'YYYY-MM') AS PeriodLabel
+                    date_trunc('%1$s', d)::DATE AS PeriodStart,
+                    (date_trunc('%1$s', d) + INTERVAL '%3$s')::DATE AS PeriodEnd,
+                    %4$s AS PeriodLabel
                 FROM Bounds b,
-                     generate_series(date_trunc('month', b.StartDate::TIMESTAMP), date_trunc('month', b.EndDate::TIMESTAMP), INTERVAL '1 month') d
+                     generate_series(date_trunc('%1$s', b.StartDate::TIMESTAMP), date_trunc('%1$s', b.EndDate::TIMESTAMP), INTERVAL '%2$s') d
             ),
             Categories AS (
                 SELECT unnest(ARRAY['Membership', 'Personal training', 'Group training', 'Extra']) AS Category
@@ -100,120 +121,37 @@ public class DirectorRepository {
                 CumulativeRevenue
             FROM ReportWithMetrics
             ORDER BY PeriodStart ASC, Actual_Revenue DESC, Category ASC
-            """;
+            """.formatted(dateTruncUnit, intervalUnit, endIntervalUnit, labelSqlExpression);
 
-        return jdbc.query(sql, (rs, rowNum) -> new PeriodCategoryRevenueRecord(
-                rs.getString("PeriodLabel"),
-                rs.getDate("PeriodStart") != null ? rs.getDate("PeriodStart").toLocalDate() : null,
-                rs.getDate("PeriodEnd") != null ? rs.getDate("PeriodEnd").toLocalDate() : null,
-                new RevenueReportItem(
-                        rs.getString("Category"),
-                        rs.getLong("Sales_Count"),
-                        rs.getBigDecimal("Full_Price_Total"),
-                        rs.getBigDecimal("Actual_Revenue"),
-                        rs.getBigDecimal("Total_Discounts"),
-                        rs.getLong("Promo_Code_Usage"),
-                        rs.getObject("RevenueSharePercent") != null ? rs.getDouble("RevenueSharePercent") : 0.0,
-                        rs.getBigDecimal("CumulativeRevenue")
-                )
-        ), fromDate, toDate, fromDate, fromDate, toDate, toDate);
+        return jdbc.query(sql, PERIOD_REVENUE_ROW_MAPPER, fromDate, toDate, fromDate, fromDate, toDate, toDate);
+    }
+
+    /**
+     * D1-1: Revenue report - monthly breakdown
+     */
+    public List<PeriodCategoryRevenueRecord> fetchMonthlyRevenue(LocalDate fromDate, LocalDate toDate) {
+        return executePeriodicRevenueQuery(
+                "month",
+                "1 month",
+                "1 month - 1 day",
+                "TO_CHAR(d, 'YYYY-MM')",
+                fromDate,
+                toDate
+        );
     }
 
     /**
      * D1-2: Revenue report - weekly breakdown
      */
     public List<PeriodCategoryRevenueRecord> fetchWeeklyRevenue(LocalDate fromDate, LocalDate toDate) {
-        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = """
-            WITH Bounds AS (
-                SELECT 
-                    COALESCE(?::DATE, (SELECT MIN(SaleDate)::DATE FROM Sales), CURRENT_DATE) AS StartDate,
-                    COALESCE(?::DATE, CURRENT_DATE) AS EndDate
-            ),
-            Periods AS (
-                SELECT 
-                    date_trunc('week', d)::DATE AS PeriodStart,
-                    (date_trunc('week', d) + INTERVAL '6 days')::DATE AS PeriodEnd,
-                    TO_CHAR(date_trunc('week', d)::DATE, 'DD.MM.YYYY') || ' – ' || TO_CHAR((date_trunc('week', d) + INTERVAL '6 days')::DATE, 'DD.MM.YYYY') || ' (Тиждень ' || TO_CHAR(d, 'IW') || ')' AS PeriodLabel
-                FROM Bounds b,
-                     generate_series(date_trunc('week', b.StartDate::TIMESTAMP), date_trunc('week', b.EndDate::TIMESTAMP), INTERVAL '1 week') d
-            ),
-            Categories AS (
-                SELECT unnest(ARRAY['Membership', 'Personal training', 'Group training', 'Extra']) AS Category
-            ),
-            PeriodCategories AS (
-                SELECT p.PeriodLabel, p.PeriodStart, p.PeriodEnd, c.Category
-                FROM Periods p
-                CROSS JOIN Categories c
-            ),
-            AggregatedSales AS (
-                SELECT 
-                    pc.PeriodLabel,
-                    pc.PeriodStart,
-                    pc.PeriodEnd,
-                    pc.Category,
-                    COUNT(s.ID_Sale) AS Sales_Count,
-                    COALESCE(SUM(pl.Price), 0.00) AS Full_Price_Total,
-                    COALESCE(SUM(s.SalePrice), 0.00) AS Actual_Revenue,
-                    COALESCE(SUM(pl.Price - s.SalePrice), 0.00) AS Total_Discounts,
-                    COUNT(ap.ID_Promo) AS Promo_Code_Usage
-                FROM PeriodCategories pc
-                LEFT JOIN (
-                    Sales s JOIN PriceList pl ON s.ID_Item = pl.ID_Item
-                ) ON pc.Category = pl.Category
-                 AND s.SaleDate >= pc.PeriodStart::TIMESTAMP
-                 AND s.SaleDate < (pc.PeriodEnd + INTERVAL '1 day')
-                 AND (?::DATE IS NULL OR s.SaleDate >= ?::TIMESTAMP)
-                 AND (?::DATE IS NULL OR s.SaleDate < (?::DATE + INTERVAL '1 day'))
-                LEFT JOIN AppliedPromo ap ON s.ID_Sale = ap.ID_Sale
-                GROUP BY pc.PeriodLabel, pc.PeriodStart, pc.PeriodEnd, pc.Category
-            ),
-            ReportWithMetrics AS (
-                SELECT 
-                    PeriodLabel,
-                    PeriodStart,
-                    PeriodEnd,
-                    Category,
-                    Sales_Count,
-                    Full_Price_Total,
-                    Actual_Revenue,
-                    Total_Discounts,
-                    Promo_Code_Usage,
-                    ROUND((Actual_Revenue / NULLIF(SUM(Actual_Revenue) OVER (PARTITION BY PeriodLabel), 0)) * 100, 2) AS RevenueSharePercent,
-                    SUM(Actual_Revenue) OVER (PARTITION BY PeriodLabel ORDER BY Actual_Revenue DESC, Category ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumulativeRevenue
-                FROM AggregatedSales
-            )
-            SELECT 
-                PeriodLabel,
-                PeriodStart,
-                PeriodEnd,
-                Category,
-                Sales_Count,
-                Full_Price_Total,
-                Actual_Revenue,
-                Total_Discounts,
-                Promo_Code_Usage,
-                RevenueSharePercent,
-                CumulativeRevenue
-            FROM ReportWithMetrics
-            ORDER BY PeriodStart ASC, Actual_Revenue DESC, Category ASC
-            """;
-
-        return jdbc.query(sql, (rs, rowNum) -> new PeriodCategoryRevenueRecord(
-                rs.getString("PeriodLabel"),
-                rs.getDate("PeriodStart") != null ? rs.getDate("PeriodStart").toLocalDate() : null,
-                rs.getDate("PeriodEnd") != null ? rs.getDate("PeriodEnd").toLocalDate() : null,
-                new RevenueReportItem(
-                        rs.getString("Category"),
-                        rs.getLong("Sales_Count"),
-                        rs.getBigDecimal("Full_Price_Total"),
-                        rs.getBigDecimal("Actual_Revenue"),
-                        rs.getBigDecimal("Total_Discounts"),
-                        rs.getLong("Promo_Code_Usage"),
-                        rs.getObject("RevenueSharePercent") != null ? rs.getDouble("RevenueSharePercent") : 0.0,
-                        rs.getBigDecimal("CumulativeRevenue")
-                )
-        ), fromDate, toDate, fromDate, fromDate, toDate, toDate);
+        return executePeriodicRevenueQuery(
+                "week",
+                "1 week",
+                "6 days",
+                "TO_CHAR(date_trunc('week', d)::DATE, 'DD.MM.YYYY') || ' – ' || TO_CHAR((date_trunc('week', d) + INTERVAL '6 days')::DATE, 'DD.MM.YYYY') || ' (Тиждень ' || TO_CHAR(d, 'IW') || ')'",
+                fromDate,
+                toDate
+        );
     }
 
     /**
