@@ -30,7 +30,8 @@ export function switchDirectorTab(tabId) {
     initRevenueFilterEvents();
     const fromInput = document.getElementById('revenue-from-date');
     const toInput = document.getElementById('revenue-to-date');
-    loadRevenueReport(fromInput?.value || null, toInput?.value || null);
+    const groupBySelect = document.getElementById('revenue-group-by');
+    loadRevenueReport(fromInput?.value || null, toInput?.value || null, groupBySelect?.value || 'TOTAL');
   }
   else if (tabId === 'd2') renderD2Attendance();
   else if (tabId === 'd3') renderD3Coaches();
@@ -40,7 +41,7 @@ export function switchDirectorTab(tabId) {
 }
 
 /**
- * FIT-82: Initialise event handlers for director revenue filter controls
+ * FIT-82 / FIT-86: Initialise event handlers for director revenue filter controls
  */
 export function initRevenueFilterEvents() {
   if (revenueFilterBound) return;
@@ -49,20 +50,31 @@ export function initRevenueFilterEvents() {
   const btnReset = document.getElementById('btn-reset-revenue-filter');
   const fromInput = document.getElementById('revenue-from-date');
   const toInput = document.getElementById('revenue-to-date');
+  const groupBySelect = document.getElementById('revenue-group-by');
 
   if (!btnApply || !btnReset) return;
 
   btnApply.addEventListener('click', () => {
     const from = fromInput?.value ? fromInput.value.trim() : null;
     const to = toInput?.value ? toInput.value.trim() : null;
+    const groupBy = groupBySelect?.value || 'TOTAL';
 
     if (from && to && from > to) {
       showToast('Дата "З" не може бути більшою за дату "По"', 'warning');
       return;
     }
 
-    loadRevenueReport(from, to);
+    loadRevenueReport(from, to, groupBy);
   });
+
+  if (groupBySelect) {
+    groupBySelect.addEventListener('change', () => {
+      const from = fromInput?.value ? fromInput.value.trim() : null;
+      const to = toInput?.value ? toInput.value.trim() : null;
+      const groupBy = groupBySelect.value || 'TOTAL';
+      loadRevenueReport(from, to, groupBy);
+    });
+  }
 
   btnReset.addEventListener('click', () => {
     if (fromInput) {
@@ -73,50 +85,65 @@ export function initRevenueFilterEvents() {
       toInput.value = '';
       if (toInput._flatpickr) toInput._flatpickr.clear();
     }
-    loadRevenueReport(null, null);
+    if (groupBySelect) {
+      groupBySelect.value = 'TOTAL';
+    }
+    loadRevenueReport(null, null, 'TOTAL');
   });
 
   revenueFilterBound = true;
 }
 
 /**
- * FIT-82: Load director revenue report with optional date bounds
+ * Helper to render category table rows HTML from category list
+ */
+function buildCategoryRowsHtml(categories) {
+  if (!Array.isArray(categories) || !categories.length) {
+    return '<tr><td colspan="6" class="text-center text-xs text-slate-400 py-4">Немає фінансових операцій</td></tr>';
+  }
+  return categories.map(d => {
+    const actual = parseFloat(d.actualRevenue || 0);
+    const full = parseFloat(d.fullPriceTotal || 0);
+    const disc = parseFloat(d.totalDiscounts || 0);
+    const count = parseInt(d.salesCount || 0);
+    return `
+      <tr>
+        <td class="font-bold text-white font-heading">${d.category || '—'}</td>
+        <td class="font-mono text-slate-300">${count}</td>
+        <td class="font-mono">${full.toFixed(2)} грн</td>
+        <td class="font-bold text-cyan-400 font-mono">${actual.toFixed(2)} грн</td>
+        <td class="text-blue-400 font-mono">${disc.toFixed(2)} грн</td>
+        <td class="font-mono">${d.promoCodeUsage || 0}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+/**
+ * FIT-82 / FIT-86: Load director revenue report with optional date bounds and period grouping
  * @param {string|null} fromDate
  * @param {string|null} toDate
+ * @param {string} groupBy ('TOTAL' | 'MONTH' | 'WEEK')
  */
-export async function loadRevenueReport(fromDate = null, toDate = null) {
+export async function loadRevenueReport(fromDate = null, toDate = null, groupBy = 'TOTAL') {
   let totalRevenue = 0;
-  let totalFullPrice = 0;
   let totalDiscounts = 0;
   let totalCount = 0;
-  let rowsHtml = '';
 
   try {
-    const items = await directorApi.getRevenue(fromDate, toDate);
-    if (Array.isArray(items)) {
-      items.forEach(d => {
-        const actual = parseFloat(d.actualRevenue || 0);
-        const full = parseFloat(d.fullPriceTotal || 0);
-        const disc = parseFloat(d.totalDiscounts || 0);
-        const count = parseInt(d.salesCount || 0);
+    const periodReports = await directorApi.getRevenue(fromDate, toDate, groupBy);
+    const list = Array.isArray(periodReports) ? periodReports : [];
 
-        totalRevenue += actual;
-        totalFullPrice += full;
-        totalDiscounts += disc;
-        totalCount += count;
-
-        rowsHtml += `
-          <tr>
-            <td class="font-bold text-white font-heading">${d.category}</td>
-            <td class="font-mono text-slate-300">${count}</td>
-            <td class="font-mono">${full.toFixed(2)} грн</td>
-            <td class="font-bold text-cyan-400 font-mono">${actual.toFixed(2)} грн</td>
-            <td class="text-blue-400 font-mono">${disc.toFixed(2)} грн</td>
-            <td class="font-mono">${d.promoCodeUsage || 0}</td>
-          </tr>
-        `;
-      });
-    }
+    // Calculate aggregated overall metrics across all periods
+    list.forEach(p => {
+      totalRevenue += parseFloat(p.totalRevenue || 0);
+      totalCount += parseInt(p.totalSalesCount || 0);
+      if (Array.isArray(p.categories)) {
+        p.categories.forEach(c => {
+          totalDiscounts += parseFloat(c.totalDiscounts || 0);
+        });
+      }
+    });
 
     const revEl = document.getElementById('d1-total-revenue');
     if (revEl) revEl.textContent = `${totalRevenue.toFixed(2)} грн`;
@@ -124,8 +151,77 @@ export async function loadRevenueReport(fromDate = null, toDate = null) {
     if (countEl) countEl.textContent = totalCount;
     const discEl = document.getElementById('d1-total-discounts');
     if (discEl) discEl.textContent = `${totalDiscounts.toFixed(2)} грн`;
+
+    const totalTableCard = document.getElementById('d1-total-table-card');
+    const periodsContainer = document.getElementById('d1-periods-container');
     const tbody = document.getElementById('d1-category-tbody');
-    if (tbody) tbody.innerHTML = rowsHtml || '<tr><td colspan="6" class="text-center text-xs text-slate-400 py-4">Немає фінансових операцій</td></tr>';
+
+    if (groupBy === 'TOTAL' || !groupBy) {
+      if (totalTableCard) totalTableCard.classList.remove('hidden');
+      if (periodsContainer) {
+        periodsContainer.classList.add('hidden');
+        periodsContainer.innerHTML = '';
+      }
+
+      // First item's categories or aggregated categories
+      const firstPeriod = list[0];
+      const categories = firstPeriod && Array.isArray(firstPeriod.categories) ? firstPeriod.categories : [];
+      if (tbody) {
+        tbody.innerHTML = buildCategoryRowsHtml(categories);
+      }
+    } else {
+      // Group by MONTH or WEEK: show list of period sections
+      if (totalTableCard) totalTableCard.classList.add('hidden');
+      if (periodsContainer) {
+        periodsContainer.classList.remove('hidden');
+
+        if (!list.length) {
+          periodsContainer.innerHTML = `
+            <div class="card p-5 border-subtle text-center text-xs text-slate-400 py-6">
+              Немає фінансових операцій за вибраний період
+            </div>
+          `;
+        } else {
+          periodsContainer.innerHTML = list.map(p => {
+            const periodRev = parseFloat(p.totalRevenue || 0);
+            const periodSales = parseInt(p.totalSalesCount || 0);
+            const periodRowsHtml = buildCategoryRowsHtml(p.categories || []);
+
+            return `
+              <div class="card p-5 border-subtle space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-subtle pb-3">
+                  <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+                    <h4 class="font-bold text-white text-sm font-heading">${p.periodLabel || 'Період'}</h4>
+                  </div>
+                  <div class="flex items-center gap-4 text-xs font-mono">
+                    <span class="text-slate-400">Угод: <b class="text-white">${periodSales}</b></span>
+                    <span class="text-slate-400">Виручка: <b class="text-cyan-400">${periodRev.toFixed(2)} грн</b></span>
+                  </div>
+                </div>
+                <div class="table-responsive">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Категорія</th>
+                        <th>Кількість угод</th>
+                        <th>Базова вартість</th>
+                        <th>Фактична виручка</th>
+                        <th>Знижки</th>
+                        <th>Використань промо</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${periodRowsHtml}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+    }
   } catch (err) {
     console.warn('API D1 error:', err);
     showToast('Помилка завантаження звіту про виручку', 'error');

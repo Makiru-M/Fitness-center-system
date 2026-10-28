@@ -30,11 +30,12 @@ public class DirectorController {
      * D1: Revenue report
      */
     @GetMapping("/reports/revenue")
-    public ResponseEntity<List<RevenueReportItem>> getRevenueReport(
+    public ResponseEntity<List<RevenuePeriodReport>> getRevenueReport(
             @RequestParam(value = "fromDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
-            @RequestParam(value = "toDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+            @RequestParam(value = "toDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(value = "groupBy", defaultValue = "TOTAL") String groupBy
     ) {
-        return ResponseEntity.ok(directorRepository.getRevenueReport(fromDate, toDate));
+        return ResponseEntity.ok(directorRepository.getRevenueReport(fromDate, toDate, groupBy));
     }
 
     /**

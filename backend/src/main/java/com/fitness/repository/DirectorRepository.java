@@ -23,55 +23,288 @@ public class DirectorRepository {
     }
 
     /**
-     * D1: Revenue report - single analytical query with CTE, window share percentage and cumulative sum
+     * D1: Revenue report - periodic analytical report (TOTAL, MONTH, WEEK)
      */
-    public List<RevenueReportItem> getRevenueReport(LocalDate fromDate, LocalDate toDate) {
+    public List<RevenuePeriodReport> getRevenueReport(LocalDate fromDate, LocalDate toDate, String groupBy) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = """
-            WITH Categories AS (
-                SELECT unnest(ARRAY['Membership', 'Personal training', 'Group training', 'Extra']) AS Category
-            ),
-            CategorySales AS (
-                SELECT 
-                    c.Category,
-                    COUNT(s.ID_Sale) AS Sales_Count,
-                    COALESCE(SUM(pl.Price), 0.00) AS Full_Price_Total,
-                    COALESCE(SUM(s.SalePrice), 0.00) AS Actual_Revenue,
-                    COALESCE(SUM(pl.Price - s.SalePrice), 0.00) AS Total_Discounts,
-                    COUNT(ap.ID_Promo) AS Promo_Code_Usage
-                FROM Categories c
-                LEFT JOIN (
-                    Sales s 
-                    JOIN PriceList pl ON s.ID_Item = pl.ID_Item
-                    AND (?::DATE IS NULL OR s.SaleDate >= ?::TIMESTAMP)
-                    AND (?::DATE IS NULL OR s.SaleDate < (?::DATE + INTERVAL '1 day'))
-                ) ON c.Category = pl.Category
-                LEFT JOIN AppliedPromo ap ON s.ID_Sale = ap.ID_Sale
-                GROUP BY c.Category
-            )
-            SELECT 
-                Category,
-                Sales_Count,
-                Full_Price_Total,
-                Actual_Revenue,
-                Total_Discounts,
-                Promo_Code_Usage,
-                ROUND((Actual_Revenue / NULLIF(SUM(Actual_Revenue) OVER (), 0)) * 100, 2) AS RevenueSharePercent,
-                SUM(Actual_Revenue) OVER (ORDER BY Actual_Revenue DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumulativeRevenue
-            FROM CategorySales
-            ORDER BY Actual_Revenue DESC
-            """;
+        String mode = groupBy != null ? groupBy.trim().toUpperCase() : "TOTAL";
 
-        return jdbc.query(sql, (rs, rowNum) -> new RevenueReportItem(
-                rs.getString("Category"),
-                rs.getLong("Sales_Count"),
-                rs.getBigDecimal("Full_Price_Total"),
-                rs.getBigDecimal("Actual_Revenue"),
-                rs.getBigDecimal("Total_Discounts"),
-                rs.getLong("Promo_Code_Usage"),
-                rs.getObject("RevenueSharePercent") != null ? rs.getDouble("RevenueSharePercent") : 0.0,
-                rs.getBigDecimal("CumulativeRevenue")
-        ), fromDate, fromDate, toDate, toDate);
+        if ("MONTH".equals(mode)) {
+            String sql = """
+                WITH Bounds AS (
+                    SELECT 
+                        COALESCE(?::DATE, (SELECT MIN(SaleDate)::DATE FROM Sales), CURRENT_DATE) AS StartDate,
+                        COALESCE(?::DATE, CURRENT_DATE) AS EndDate
+                ),
+                Periods AS (
+                    SELECT 
+                        date_trunc('month', d)::DATE AS PeriodStart,
+                        (date_trunc('month', d) + INTERVAL '1 month - 1 day')::DATE AS PeriodEnd,
+                        TO_CHAR(d, 'YYYY-MM') AS PeriodLabel
+                    FROM Bounds b,
+                         generate_series(date_trunc('month', b.StartDate::TIMESTAMP), date_trunc('month', b.EndDate::TIMESTAMP), INTERVAL '1 month') d
+                ),
+                Categories AS (
+                    SELECT unnest(ARRAY['Membership', 'Personal training', 'Group training', 'Extra']) AS Category
+                ),
+                PeriodCategories AS (
+                    SELECT p.PeriodLabel, p.PeriodStart, p.PeriodEnd, c.Category
+                    FROM Periods p
+                    CROSS JOIN Categories c
+                ),
+                AggregatedSales AS (
+                    SELECT 
+                        pc.PeriodLabel,
+                        pc.PeriodStart,
+                        pc.PeriodEnd,
+                        pc.Category,
+                        COUNT(s.ID_Sale) AS Sales_Count,
+                        COALESCE(SUM(pl.Price), 0.00) AS Full_Price_Total,
+                        COALESCE(SUM(s.SalePrice), 0.00) AS Actual_Revenue,
+                        COALESCE(SUM(pl.Price - s.SalePrice), 0.00) AS Total_Discounts,
+                        COUNT(ap.ID_Promo) AS Promo_Code_Usage
+                    FROM PeriodCategories pc
+                    LEFT JOIN (
+                        Sales s 
+                        JOIN PriceList pl ON s.ID_Item = pl.ID_Item
+                        AND s.SaleDate >= pc.PeriodStart::TIMESTAMP
+                        AND s.SaleDate < (pc.PeriodEnd + INTERVAL '1 day')
+                        AND (?::DATE IS NULL OR s.SaleDate >= ?::TIMESTAMP)
+                        AND (?::DATE IS NULL OR s.SaleDate < (?::DATE + INTERVAL '1 day'))
+                    ) ON pc.Category = pl.Category
+                    LEFT JOIN AppliedPromo ap ON s.ID_Sale = ap.ID_Sale
+                    GROUP BY pc.PeriodLabel, pc.PeriodStart, pc.PeriodEnd, pc.Category
+                ),
+                ReportWithMetrics AS (
+                    SELECT 
+                        PeriodLabel,
+                        PeriodStart,
+                        PeriodEnd,
+                        Category,
+                        Sales_Count,
+                        Full_Price_Total,
+                        Actual_Revenue,
+                        Total_Discounts,
+                        Promo_Code_Usage,
+                        ROUND((Actual_Revenue / NULLIF(SUM(Actual_Revenue) OVER (PARTITION BY PeriodLabel), 0)) * 100, 2) AS RevenueSharePercent,
+                        SUM(Actual_Revenue) OVER (PARTITION BY PeriodLabel ORDER BY Actual_Revenue DESC, Category ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumulativeRevenue
+                    FROM AggregatedSales
+                )
+                SELECT 
+                    PeriodLabel,
+                    PeriodStart,
+                    PeriodEnd,
+                    Category,
+                    Sales_Count,
+                    Full_Price_Total,
+                    Actual_Revenue,
+                    Total_Discounts,
+                    Promo_Code_Usage,
+                    RevenueSharePercent,
+                    CumulativeRevenue
+                FROM ReportWithMetrics
+                ORDER BY PeriodStart ASC, Actual_Revenue DESC, Category ASC
+                """;
+
+            return executePeriodicReportQuery(jdbc, sql, fromDate, toDate);
+        } else if ("WEEK".equals(mode)) {
+            String sql = """
+                WITH Bounds AS (
+                    SELECT 
+                        COALESCE(?::DATE, (SELECT MIN(SaleDate)::DATE FROM Sales), CURRENT_DATE) AS StartDate,
+                        COALESCE(?::DATE, CURRENT_DATE) AS EndDate
+                ),
+                Periods AS (
+                    SELECT 
+                        date_trunc('week', d)::DATE AS PeriodStart,
+                        (date_trunc('week', d) + INTERVAL '6 days')::DATE AS PeriodEnd,
+                        'Тиждень ' || TO_CHAR(d, 'IYYY-IW') AS PeriodLabel
+                    FROM Bounds b,
+                         generate_series(date_trunc('week', b.StartDate::TIMESTAMP), date_trunc('week', b.EndDate::TIMESTAMP), INTERVAL '1 week') d
+                ),
+                Categories AS (
+                    SELECT unnest(ARRAY['Membership', 'Personal training', 'Group training', 'Extra']) AS Category
+                ),
+                PeriodCategories AS (
+                    SELECT p.PeriodLabel, p.PeriodStart, p.PeriodEnd, c.Category
+                    FROM Periods p
+                    CROSS JOIN Categories c
+                ),
+                AggregatedSales AS (
+                    SELECT 
+                        pc.PeriodLabel,
+                        pc.PeriodStart,
+                        pc.PeriodEnd,
+                        pc.Category,
+                        COUNT(s.ID_Sale) AS Sales_Count,
+                        COALESCE(SUM(pl.Price), 0.00) AS Full_Price_Total,
+                        COALESCE(SUM(s.SalePrice), 0.00) AS Actual_Revenue,
+                        COALESCE(SUM(pl.Price - s.SalePrice), 0.00) AS Total_Discounts,
+                        COUNT(ap.ID_Promo) AS Promo_Code_Usage
+                    FROM PeriodCategories pc
+                    LEFT JOIN (
+                        Sales s 
+                        JOIN PriceList pl ON s.ID_Item = pl.ID_Item
+                        AND s.SaleDate >= pc.PeriodStart::TIMESTAMP
+                        AND s.SaleDate < (pc.PeriodEnd + INTERVAL '1 day')
+                        AND (?::DATE IS NULL OR s.SaleDate >= ?::TIMESTAMP)
+                        AND (?::DATE IS NULL OR s.SaleDate < (?::DATE + INTERVAL '1 day'))
+                    ) ON pc.Category = pl.Category
+                    LEFT JOIN AppliedPromo ap ON s.ID_Sale = ap.ID_Sale
+                    GROUP BY pc.PeriodLabel, pc.PeriodStart, pc.PeriodEnd, pc.Category
+                ),
+                ReportWithMetrics AS (
+                    SELECT 
+                        PeriodLabel,
+                        PeriodStart,
+                        PeriodEnd,
+                        Category,
+                        Sales_Count,
+                        Full_Price_Total,
+                        Actual_Revenue,
+                        Total_Discounts,
+                        Promo_Code_Usage,
+                        ROUND((Actual_Revenue / NULLIF(SUM(Actual_Revenue) OVER (PARTITION BY PeriodLabel), 0)) * 100, 2) AS RevenueSharePercent,
+                        SUM(Actual_Revenue) OVER (PARTITION BY PeriodLabel ORDER BY Actual_Revenue DESC, Category ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumulativeRevenue
+                    FROM AggregatedSales
+                )
+                SELECT 
+                    PeriodLabel,
+                    PeriodStart,
+                    PeriodEnd,
+                    Category,
+                    Sales_Count,
+                    Full_Price_Total,
+                    Actual_Revenue,
+                    Total_Discounts,
+                    Promo_Code_Usage,
+                    RevenueSharePercent,
+                    CumulativeRevenue
+                FROM ReportWithMetrics
+                ORDER BY PeriodStart ASC, Actual_Revenue DESC, Category ASC
+                """;
+
+            return executePeriodicReportQuery(jdbc, sql, fromDate, toDate);
+        } else {
+            // "TOTAL"
+            String sql = """
+                WITH Categories AS (
+                    SELECT unnest(ARRAY['Membership', 'Personal training', 'Group training', 'Extra']) AS Category
+                ),
+                CategorySales AS (
+                    SELECT 
+                        c.Category,
+                        COUNT(s.ID_Sale) AS Sales_Count,
+                        COALESCE(SUM(pl.Price), 0.00) AS Full_Price_Total,
+                        COALESCE(SUM(s.SalePrice), 0.00) AS Actual_Revenue,
+                        COALESCE(SUM(pl.Price - s.SalePrice), 0.00) AS Total_Discounts,
+                        COUNT(ap.ID_Promo) AS Promo_Code_Usage
+                    FROM Categories c
+                    LEFT JOIN (
+                        Sales s 
+                        JOIN PriceList pl ON s.ID_Item = pl.ID_Item
+                        AND (?::DATE IS NULL OR s.SaleDate >= ?::TIMESTAMP)
+                        AND (?::DATE IS NULL OR s.SaleDate < (?::DATE + INTERVAL '1 day'))
+                    ) ON c.Category = pl.Category
+                    LEFT JOIN AppliedPromo ap ON s.ID_Sale = ap.ID_Sale
+                    GROUP BY c.Category
+                )
+                SELECT 
+                    Category,
+                    Sales_Count,
+                    Full_Price_Total,
+                    Actual_Revenue,
+                    Total_Discounts,
+                    Promo_Code_Usage,
+                    ROUND((Actual_Revenue / NULLIF(SUM(Actual_Revenue) OVER (), 0)) * 100, 2) AS RevenueSharePercent,
+                    SUM(Actual_Revenue) OVER (ORDER BY Actual_Revenue DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumulativeRevenue
+                FROM CategorySales
+                ORDER BY Actual_Revenue DESC, Category ASC
+                """;
+
+            List<RevenueReportItem> items = jdbc.query(sql, (rs, rowNum) -> new RevenueReportItem(
+                    rs.getString("Category"),
+                    rs.getLong("Sales_Count"),
+                    rs.getBigDecimal("Full_Price_Total"),
+                    rs.getBigDecimal("Actual_Revenue"),
+                    rs.getBigDecimal("Total_Discounts"),
+                    rs.getLong("Promo_Code_Usage"),
+                    rs.getObject("RevenueSharePercent") != null ? rs.getDouble("RevenueSharePercent") : 0.0,
+                    rs.getBigDecimal("CumulativeRevenue")
+            ), fromDate, fromDate, toDate, toDate);
+
+            BigDecimal totalRevenue = items.stream()
+                    .map(RevenueReportItem::actualRevenue)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            long totalSalesCount = items.stream()
+                    .mapToLong(RevenueReportItem::salesCount)
+                    .sum();
+
+            RevenuePeriodReport report = new RevenuePeriodReport(
+                    "Всього за період",
+                    fromDate,
+                    toDate,
+                    totalRevenue,
+                    totalSalesCount,
+                    items
+            );
+            return List.of(report);
+        }
+    }
+
+    private List<RevenuePeriodReport> executePeriodicReportQuery(JdbcTemplate jdbc, String sql, LocalDate fromDate, LocalDate toDate) {
+        java.util.Map<String, PeriodCollector> periodMap = new java.util.LinkedHashMap<>();
+
+        jdbc.query(sql, rs -> {
+            String label = rs.getString("PeriodLabel");
+            LocalDate start = rs.getDate("PeriodStart") != null ? rs.getDate("PeriodStart").toLocalDate() : null;
+            LocalDate end = rs.getDate("PeriodEnd") != null ? rs.getDate("PeriodEnd").toLocalDate() : null;
+
+            PeriodCollector collector = periodMap.computeIfAbsent(label, k -> new PeriodCollector(label, start, end));
+            RevenueReportItem item = new RevenueReportItem(
+                    rs.getString("Category"),
+                    rs.getLong("Sales_Count"),
+                    rs.getBigDecimal("Full_Price_Total"),
+                    rs.getBigDecimal("Actual_Revenue"),
+                    rs.getBigDecimal("Total_Discounts"),
+                    rs.getLong("Promo_Code_Usage"),
+                    rs.getObject("RevenueSharePercent") != null ? rs.getDouble("RevenueSharePercent") : 0.0,
+                    rs.getBigDecimal("CumulativeRevenue")
+            );
+            collector.items.add(item);
+        }, fromDate, toDate, fromDate, fromDate, toDate, toDate);
+
+        List<RevenuePeriodReport> result = new java.util.ArrayList<>();
+        for (PeriodCollector col : periodMap.values()) {
+            BigDecimal totalRevenue = col.items.stream()
+                    .map(RevenueReportItem::actualRevenue)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            long totalSalesCount = col.items.stream()
+                    .mapToLong(RevenueReportItem::salesCount)
+                    .sum();
+            result.add(new RevenuePeriodReport(
+                    col.label,
+                    col.start,
+                    col.end,
+                    totalRevenue,
+                    totalSalesCount,
+                    col.items
+            ));
+        }
+        return result;
+    }
+
+    private static class PeriodCollector {
+        final String label;
+        final LocalDate start;
+        final LocalDate end;
+        final List<RevenueReportItem> items = new java.util.ArrayList<>();
+
+        PeriodCollector(String label, LocalDate start, LocalDate end) {
+            this.label = label;
+            this.start = start;
+            this.end = end;
+        }
     }
 
     /**

@@ -6,10 +6,11 @@
 import { apiFetch } from './apiClient.js';
 
 export const directorApi = {
-  getRevenue(fromDate = null, toDate = null) {
+  getRevenue(fromDate = null, toDate = null, groupBy = 'TOTAL') {
     const params = new URLSearchParams();
     if (fromDate) params.append('fromDate', fromDate);
     if (toDate) params.append('toDate', toDate);
+    if (groupBy) params.append('groupBy', groupBy);
     const qs = params.toString() ? `?${params.toString()}` : '';
     return apiFetch(`/director/reports/revenue${qs}`);
   },

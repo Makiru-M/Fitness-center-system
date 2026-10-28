@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="uk" class="dark">
 <head>
   <meta charset="UTF-8">
@@ -2039,6 +2039,14 @@
                 <label for="revenue-to-date" class="form-label block text-xs mb-1.5 text-slate-300">Дата по:</label>
                 <input type="date" id="revenue-to-date" class="form-input text-xs font-mono w-full">
               </div>
+              <div class="flex flex-col gap-1 min-w-[150px]">
+                <label for="revenue-group-by" class="text-2xs text-slate-400 font-semibold uppercase tracking-wider">Періодичність</label>
+                <select id="revenue-group-by" class="form-input text-xs font-mono">
+                  <option value="TOTAL" selected>Всього за період</option>
+                  <option value="MONTH">По місяцях</option>
+                  <option value="WEEK">По тижнях</option>
+                </select>
+              </div>
               <div class="flex items-center gap-2 shrink-0">
                 <button type="button" id="btn-apply-revenue-filter" class="btn btn-primary btn-sm flex items-center gap-1.5">
                   <i class="fa-solid fa-filter text-xs"></i> Застосувати
@@ -2065,24 +2073,29 @@
               </div>
             </div>
 
-            <div class="card p-5 border-subtle">
-              <h3 class="font-bold text-white text-sm font-heading mb-3">Виручка за категоріями послуг</h3>
-              <div class="table-responsive">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Категорія</th>
-                      <th>Кількість угод</th>
-                      <th>Базова вартість</th>
-                      <th>Фактична виручка</th>
-                      <th>Знижки</th>
-                      <th>Використань промо</th>
-                    </tr>
-                  </thead>
-                  <tbody id="d1-category-tbody">
-                    <!-- Populated by JS -->
-                  </tbody>
-                </table>
+            <div id="d1-revenue-content" class="space-y-4">
+              <div id="d1-total-table-card" class="card p-5 border-subtle">
+                <h3 class="font-bold text-white text-sm font-heading mb-3">Виручка за категоріями послуг</h3>
+                <div class="table-responsive">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Категорія</th>
+                        <th>Кількість угод</th>
+                        <th>Базова вартість</th>
+                        <th>Фактична виручка</th>
+                        <th>Знижки</th>
+                        <th>Використань промо</th>
+                      </tr>
+                    </thead>
+                    <tbody id="d1-category-tbody">
+                      <!-- Populated by JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div id="d1-periods-container" class="space-y-4 hidden">
+                <!-- Populated by JS for MONTH / WEEK -->
               </div>
             </div>
           </div>
