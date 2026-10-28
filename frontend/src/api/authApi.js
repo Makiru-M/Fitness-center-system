@@ -6,6 +6,14 @@
 import { apiFetch } from './apiClient.js';
 
 export const authApi = {
+  getSession() {
+    return apiFetch('/auth/me');
+  },
+
+  getProfile() {
+    return apiFetch('/auth/profile');
+  },
+
   login(username, password) {
     return apiFetch('/auth/login', {
       method: 'POST',

@@ -5,6 +5,8 @@ import com.fitness.exception.AuthenticationRequiredException;
 import com.fitness.dto.auth.CurrentUserResponse;
 import com.fitness.dto.auth.LoginResponse;
 import com.fitness.dto.auth.ProfileInfo;
+import com.fitness.dto.auth.SessionResponse;
+import com.fitness.dto.auth.UserProfileResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -47,6 +49,28 @@ public class AuthRepository {
                 profile.entityId(),
                 profile.description()
         );
+    }
+
+    /**
+     * Resolve session details (username, role, permissions) without querying business tables.
+     */
+    public SessionResponse getSessionInfo() {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String username = jdbc.queryForObject("SELECT SESSION_USER", String.class);
+        String role = determineRole(jdbc, username);
+        List<String> permissions = resolvePermissions(role);
+        return new SessionResponse(username, role, permissions);
+    }
+
+    /**
+     * Resolve business profile details for the authenticated user.
+     */
+    public UserProfileResponse getUserProfile() {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String username = jdbc.queryForObject("SELECT SESSION_USER", String.class);
+        String role = determineRole(jdbc, username);
+        ProfileInfo profile = resolveProfile(jdbc, username, role);
+        return new UserProfileResponse(profile.entityId(), profile.fullName(), profile.phone(), profile.birthDate(), profile.description());
     }
 
     /**

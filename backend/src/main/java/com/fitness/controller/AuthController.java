@@ -1,8 +1,9 @@
 package com.fitness.controller;
 
-import com.fitness.dto.auth.CurrentUserResponse;
 import com.fitness.dto.auth.LoginRequest;
 import com.fitness.dto.auth.LoginResponse;
+import com.fitness.dto.auth.SessionResponse;
+import com.fitness.dto.auth.UserProfileResponse;
 import com.fitness.repository.AuthRepository;
 import com.fitness.security.SecurityContextHolder;
 import com.fitness.security.SessionRegistry;
@@ -47,12 +48,19 @@ public class AuthController {
     }
 
     /**
-     * Get information about current authenticated user and permissions.
+     * Get information about current authenticated user session and permissions.
      */
     @GetMapping("/me")
-    public ResponseEntity<CurrentUserResponse> me() {
-        CurrentUserResponse userInfo = authRepository.getCurrentUserInfo();
-        return ResponseEntity.ok(userInfo);
+    public ResponseEntity<SessionResponse> me() {
+        return ResponseEntity.ok(authRepository.getSessionInfo());
+    }
+
+    /**
+     * Get profile information for current authenticated user.
+     */
+    @GetMapping("/profile")
+    public ResponseEntity<UserProfileResponse> profile() {
+        return ResponseEntity.ok(authRepository.getUserProfile());
     }
 
     /**
