@@ -61,7 +61,7 @@ public class DirectorRepository {
                 %s
             ),
             Categories AS (
-                SELECT unnest(enum_range(NULL::service_category))::text AS Category
+                SELECT unnest(enum_range(NULL::service_category)) AS Category
             ),
             PeriodCategories AS (
                 SELECT p.PeriodLabel, p.PeriodStart, p.PeriodEnd, c.Category
