@@ -356,14 +356,10 @@ DECLARE
     v_client_id INT;
     v_sale_id INT;
     v_sub_id INT;
-    v_base_price DECIMAL(10,2);
-    v_discount INT := 0;
-    v_promo_id INT := NULL;
     v_final_price DECIMAL(10,2);
     v_duration INT;
     v_max_freeze INT;
     v_end_date DATE;
-    v_manager_id INT;
 BEGIN
     IF p_phone !~ '^\+380\d{9}$' THEN
         RAISE EXCEPTION 'Некоректний формат номера телефону. Очікується формат +380XXXXXXXXX.';
@@ -388,47 +384,10 @@ BEGIN
         VALUES (v_client_id, p_medical_notes);
     END IF;
 
-    -- Перевірка товару/абонемента у прайсі
-    SELECT Price INTO v_base_price FROM PriceList WHERE ID_Item = p_item_id;
-    IF v_base_price IS NULL THEN
-        RAISE EXCEPTION 'Позицію з ID % не знайдено в PriceList!', p_item_id;
-    END IF;
-
-    -- Перевірка промокоду
-    IF p_promo_code IS NOT NULL AND length(trim(p_promo_code)) > 0 THEN
-        SELECT ID_Promo, DiscountPercent INTO v_promo_id, v_discount
-        FROM PromoCodes
-        WHERE CodeText = p_promo_code AND ExpiryDate >= CURRENT_DATE;
-    END IF;
-
-    -- Розрахунок фінальної ціни
-    IF v_discount > 0 THEN
-        v_final_price := ROUND(v_base_price * (1.0 - (v_discount::NUMERIC / 100.0)), 2);
-    ELSE
-        v_final_price := v_base_price;
-    END IF;
-
-    -- Визначення відповідального менеджера (дефолтний менеджер із персоналу)
-    SELECT ID_Staff INTO v_manager_id 
-    FROM Staff 
-    WHERE ID_Position IN (SELECT ID_Position FROM Positions WHERE PositionName IN ('Менеджер клієнтів', 'Менеджер по роботі з клієнтами', 'HR Менеджер'))
-    ORDER BY ID_Staff
-    LIMIT 1;
-
-    IF v_manager_id IS NULL THEN
-        SELECT ID_Staff INTO v_manager_id FROM Staff LIMIT 1;
-    END IF;
-
-    -- Фіксація факту продажу
-    INSERT INTO Sales (ID_Client, ID_Item, SalePrice, ID_Manager, SaleDate)
-    VALUES (v_client_id, p_item_id, v_final_price, v_manager_id, CURRENT_TIMESTAMP)
-    RETURNING ID_Sale INTO v_sale_id;
-
-    -- Фіксація застосованого промокоду
-    IF v_promo_id IS NOT NULL THEN
-        INSERT INTO AppliedPromo (ID_Sale, ID_Promo)
-        VALUES (v_sale_id, v_promo_id);
-    END IF;
+    -- Оформлення продажу та застосування промокоду через єдину функцію
+    SELECT out_sale_id, out_final_price
+    INTO v_sale_id, v_final_price
+    FROM fn_process_sale_with_promo(v_client_id, NULL, p_item_id, p_promo_code, NULL);
 
     -- Якщо це абонемент (наявний у PriceListSubs), активуємо підписку
     SELECT DurationDays, MaxFreezingDays INTO v_duration, v_max_freeze
