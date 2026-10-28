@@ -139,8 +139,95 @@ FROM PT_Changelog cl
 LEFT JOIN PT_TimeChangeDetails tcd ON cl.ID_PTLog = tcd.ID_PTLog
 ORDER BY cl.ChangeTimestamp DESC;
 
+-- 8.5. Публічна вітрина тренерів клубу з показниками активності
+CREATE OR REPLACE VIEW v_PublicCoaches AS
+WITH CoachGroupAgg AS (
+    SELECT 
+        gst.ID_Coach,
+        COUNT(DISTINCT gci.ID_Instance) AS GroupClassesCount,
+        ROUND(COALESCE(AVG(gci.ActualAttendance), 0), 2) AS AvgGroupSize
+    FROM GroupScheduleTemplates gst
+    JOIN GroupClassInstances gci ON gst.ID_Template = gci.ID_Template 
+         AND gci.ClassStatus IN ('Completed', 'Attended')
+    GROUP BY gst.ID_Coach
+),
+CoachPersonalAgg AS (
+    SELECT 
+        pt.ID_Coach,
+        COUNT(DISTINCT pt.ID_Personal) AS IndividualClientsCount
+    FROM PersonalTrainings pt
+    WHERE pt.TrainingStatus IN ('Completed', 'Attended')
+    GROUP BY pt.ID_Coach
+)
+SELECT 
+    c.ID_Coach,
+    s.FullName,
+    sp.ID_Spec,
+    sp.SpecName,
+    c.Biography,
+    COALESCE(ga.GroupClassesCount, 0) AS GroupClassesCount,
+    COALESCE(ga.AvgGroupSize, 0) AS AvgGroupSize,
+    COALESCE(pa.IndividualClientsCount, 0) AS IndividualClientsCount
+FROM Coaches c
+JOIN Staff s ON c.ID_Staff = s.ID_Staff
+JOIN Specializations sp ON c.ID_Spec = sp.ID_Spec
+LEFT JOIN CoachGroupAgg ga ON c.ID_Coach = ga.ID_Coach
+LEFT JOIN CoachPersonalAgg pa ON c.ID_Coach = pa.ID_Coach
+WHERE s.FireDate IS NULL;
+
+-- 8.6. Журнал заявок на зміну розкладу персональних тренувань
+CREATE OR REPLACE VIEW v_ScheduleChangeRequests AS
+SELECT 
+    cl.ID_PTLog, 
+    cl.ID_Personal, 
+    s_coach.FullName AS CoachName, 
+    c.FullName AS ClientName,
+    cl.RequestType, 
+    cl.Reason, 
+    cl.ChangeTimestamp, 
+    pt.TrainingDateTime AS CurrentDateTime,
+    tcd.NewDateTime AS ProposedDateTime, 
+    cl.Status
+FROM PT_Changelog cl
+JOIN PersonalTrainings pt ON cl.ID_Personal = pt.ID_Personal
+JOIN Coaches co ON pt.ID_Coach = co.ID_Coach
+JOIN Staff s_coach ON co.ID_Staff = s_coach.ID_Staff
+JOIN Sales s ON pt.ID_Sale = s.ID_Sale
+JOIN Clients c ON s.ID_Client = c.ID_Client
+LEFT JOIN PT_TimeChangeDetails tcd ON cl.ID_PTLog = tcd.ID_PTLog;
+
 -- Права доступу до аналітичних представлень для директора
 GRANT SELECT ON v_AttendanceReport TO director_role;
 GRANT SELECT ON v_CoachPerformance TO director_role;
 GRANT SELECT ON v_ProblemSituations TO director_role;
 GRANT SELECT ON v_PersonalTrainingsAudit TO director_role;
+GRANT SELECT ON v_PublicCoaches TO guest, client_role, manager_role, director_role;
+GRANT SELECT ON v_ScheduleChangeRequests TO manager_role, director_role;
+
+-- 8.7. Доступні групові заняття клубу з розрахунком вільних місць
+CREATE OR REPLACE VIEW v_AvailableGroupClasses AS
+SELECT 
+    gci.ID_Instance,
+    gst.ID_Template,
+    ct.TypeName AS Title,
+    st.FullName AS CoachName,
+    h.HallName,
+    gci.ClassDate,
+    gci.ClassStartTime AS StartTime,
+    gst.DurationMinutes,
+    gci.ClassStatus::TEXT AS Status,
+    gci.ActualAttendance,
+    h.MaxCapacity,
+    GREATEST(h.MaxCapacity - gci.ActualAttendance, 0) AS AvailableSpots,
+    pl.Price AS Price
+FROM GroupClassInstances gci
+JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
+JOIN ClassTypes ct ON gst.ID_ClassType = ct.ID_ClassType
+LEFT JOIN PriceList pl ON ct.ID_Item = pl.ID_Item
+JOIN Halls h ON gst.ID_Hall = h.ID_Hall
+JOIN Coaches co ON gst.ID_Coach = co.ID_Coach
+JOIN Staff st ON co.ID_Staff = st.ID_Staff
+WHERE gci.ClassStatus = 'Scheduled'
+  AND gci.ClassDate >= CURRENT_DATE;
+
+GRANT SELECT ON v_AvailableGroupClasses TO guest, client_role, manager_role, coach_role, director_role;

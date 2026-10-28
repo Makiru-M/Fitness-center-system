@@ -426,20 +426,7 @@ public class ManagerRepository {
      * Get pending and recent schedule change requests from coaches.
      */
     public List<ScheduleChangeRequestDto> getScheduleRequests() {
-        String sql = """
-            SELECT cl.ID_PTLog, cl.ID_Personal, s_coach.FullName AS CoachName, c.FullName AS ClientName,
-                   cl.RequestType, cl.Reason, cl.ChangeTimestamp, pt.TrainingDateTime AS CurrentDateTime,
-                   tcd.NewDateTime AS ProposedDateTime, cl.Status
-            FROM PT_Changelog cl
-            JOIN PersonalTrainings pt ON cl.ID_Personal = pt.ID_Personal
-            JOIN Coaches coach ON pt.ID_Coach = coach.ID_Coach
-            JOIN Staff s_coach ON coach.ID_Staff = s_coach.ID_Staff
-            JOIN Sales sale ON pt.ID_Sale = sale.ID_Sale
-            JOIN Clients c ON sale.ID_Client = c.ID_Client
-            LEFT JOIN PT_TimeChangeDetails tcd ON cl.ID_PTLog = tcd.ID_PTLog
-            WHERE cl.ChangeInitiator = 'Coach'
-            ORDER BY CASE WHEN cl.Status = 'Pending' THEN 0 ELSE 1 END, cl.ChangeTimestamp DESC
-            """;
+        String sql = "SELECT * FROM v_ScheduleChangeRequests ORDER BY ChangeTimestamp DESC";
 
         return getJdbcTemplate().query(sql, (rs, rowNum) -> new ScheduleChangeRequestDto(
                 rs.getInt("ID_PTLog"),

@@ -52,49 +52,13 @@ public class GuestRepository {
      */
     public List<CoachPublicDto> getCoaches(Integer specializationId) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        StringBuilder sql = new StringBuilder("""
-            WITH CoachGroupAgg AS (
-                SELECT 
-                    gst.ID_Coach,
-                    COUNT(DISTINCT gci.ID_Instance) AS GroupClassesCount,
-                    ROUND(COALESCE(AVG(gci.ActualAttendance), 0), 2) AS AvgGroupSize
-                FROM GroupScheduleTemplates gst
-                JOIN GroupClassInstances gci ON gst.ID_Template = gci.ID_Template 
-                     AND gci.ClassStatus IN ('Completed', 'Attended')
-                GROUP BY gst.ID_Coach
-            ),
-            CoachPersonalAgg AS (
-                SELECT 
-                    pt.ID_Coach,
-                    COUNT(DISTINCT pt.ID_Personal) AS IndividualClientsCount
-                FROM PersonalTrainings pt
-                WHERE pt.TrainingStatus IN ('Completed', 'Attended')
-                GROUP BY pt.ID_Coach
-            )
-            SELECT 
-                c.ID_Coach,
-                s.FullName,
-                sp.SpecName,
-                c.Biography,
-                COALESCE(ga.GroupClassesCount, 0) AS GroupClassesCount,
-                COALESCE(ga.AvgGroupSize, 0) AS AvgGroupSize,
-                COALESCE(pa.IndividualClientsCount, 0) AS IndividualClientsCount
-            FROM Coaches c
-            JOIN Staff s ON c.ID_Staff = s.ID_Staff
-            JOIN Specializations sp ON c.ID_Spec = sp.ID_Spec
-            LEFT JOIN CoachGroupAgg ga ON c.ID_Coach = ga.ID_Coach
-            LEFT JOIN CoachPersonalAgg pa ON c.ID_Coach = pa.ID_Coach
-            WHERE s.FireDate IS NULL
-            """);
-
+        StringBuilder sql = new StringBuilder("SELECT * FROM v_PublicCoaches WHERE 1=1 ");
         List<Object> params = new java.util.ArrayList<>();
         if (specializationId != null) {
-            sql.append(" AND c.ID_Spec = ? ");
+            sql.append(" AND ID_Spec = ? ");
             params.add(specializationId);
         }
-
-        sql.append(" ORDER BY GroupClassesCount DESC, IndividualClientsCount DESC");
-
+        sql.append(" ORDER BY FullName ASC");
         return jdbc.query(sql.toString(), (rs, rowNum) -> new CoachPublicDto(
                 rs.getInt("ID_Coach"),
                 rs.getString("FullName"),
@@ -105,7 +69,6 @@ public class GuestRepository {
                 rs.getInt("IndividualClientsCount")
         ), params.toArray());
     }
-
     /**
      * G3: View Price List (Active items only for public guests)
      */

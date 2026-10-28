@@ -203,37 +203,29 @@ public class ClientRepository {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
         String sql = """
             SELECT 
-                gci.ID_Instance,
-                gst.ID_Template,
-                ct.TypeName AS Title,
-                st.FullName AS CoachName,
-                h.HallName,
-                gci.ClassDate,
-                gci.ClassStartTime AS StartTime,
-                gst.DurationMinutes,
-                gci.ClassStatus::TEXT AS Status,
-                gci.ActualAttendance,
-                h.MaxCapacity,
-                GREATEST(h.MaxCapacity - gci.ActualAttendance, 0) AS AvailableSpots,
+                v.ID_Instance,
+                v.ID_Template,
+                v.Title,
+                v.CoachName,
+                v.HallName,
+                v.ClassDate,
+                v.StartTime,
+                v.DurationMinutes,
+                v.Status,
+                v.ActualAttendance,
+                v.MaxCapacity,
+                v.AvailableSpots,
                 EXISTS (
                     SELECT 1 FROM GroupClassBookings gcb
                     JOIN Sales s ON gcb.ID_Sale = s.ID_Sale
                     JOIN Clients cl ON s.ID_Client = cl.ID_Client
-                    WHERE gcb.ID_Instance = gci.ID_Instance
+                    WHERE gcb.ID_Instance = v.ID_Instance
                       AND gcb.BookingStatus = 'Scheduled'
                       AND cl.DB_User = SESSION_USER
                 ) AS IsBookedByMe,
-                pl.Price AS Price
-            FROM GroupClassInstances gci
-            JOIN GroupScheduleTemplates gst ON gci.ID_Template = gst.ID_Template
-            JOIN ClassTypes ct ON gst.ID_ClassType = ct.ID_ClassType
-            LEFT JOIN PriceList pl ON ct.ID_Item = pl.ID_Item
-            JOIN Halls h ON gst.ID_Hall = h.ID_Hall
-            JOIN Coaches co ON gst.ID_Coach = co.ID_Coach
-            JOIN Staff st ON co.ID_Staff = st.ID_Staff
-            WHERE gci.ClassStatus = 'Scheduled'
-              AND gci.ClassDate >= CURRENT_DATE
-            ORDER BY gci.ClassDate ASC, gci.ClassStartTime ASC
+                v.Price
+            FROM v_AvailableGroupClasses v
+            ORDER BY v.ClassDate ASC, v.StartTime ASC
             """;
 
         return jdbc.query(sql, (rs, rowNum) -> new AvailableGroupClassDto(
