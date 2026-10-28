@@ -3,8 +3,8 @@ package com.fitness.repository;
 import com.fitness.config.DynamicDataSourceService;
 import com.fitness.dto.director.*;
 import com.fitness.dto.guest.HallDto;
+import com.fitness.mapper.PeriodCategoryRevenueRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,22 +16,6 @@ import java.util.Map;
 @Repository
 @Transactional
 public class DirectorRepository {
-
-    private static final RowMapper<PeriodCategoryRevenueRecord> PERIOD_REVENUE_ROW_MAPPER = (rs, rowNum) -> new PeriodCategoryRevenueRecord(
-            rs.getString("PeriodLabel"),
-            rs.getDate("PeriodStart") != null ? rs.getDate("PeriodStart").toLocalDate() : null,
-            rs.getDate("PeriodEnd") != null ? rs.getDate("PeriodEnd").toLocalDate() : null,
-            new RevenueReportItem(
-                    rs.getString("Category"),
-                    rs.getLong("Sales_Count"),
-                    rs.getBigDecimal("Full_Price_Total"),
-                    rs.getBigDecimal("Actual_Revenue"),
-                    rs.getBigDecimal("Total_Discounts"),
-                    rs.getLong("Promo_Code_Usage"),
-                    rs.getObject("RevenueSharePercent") != null ? rs.getDouble("RevenueSharePercent") : 0.0,
-                    rs.getBigDecimal("CumulativeRevenue")
-            )
-    );
 
     private final DynamicDataSourceService dataSourceService;
 
@@ -123,7 +107,7 @@ public class DirectorRepository {
             ORDER BY PeriodStart ASC, Actual_Revenue DESC, Category ASC
             """.formatted(dateTruncUnit, intervalUnit, endIntervalUnit, labelSqlExpression);
 
-        return jdbc.query(sql, PERIOD_REVENUE_ROW_MAPPER, fromDate, toDate, fromDate, fromDate, toDate, toDate);
+        return jdbc.query(sql, PeriodCategoryRevenueRowMapper.INSTANCE, fromDate, toDate, fromDate, fromDate, toDate, toDate);
     }
 
     /**
