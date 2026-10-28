@@ -44,10 +44,9 @@ public class ClientRepository {
                 rs.getString("NotesText")
         ));
 
-        if (list.isEmpty()) {
-            throw new BusinessLogicException("Профіль клієнта не знайдено для поточного користувача.");
-        }
-        return list.get(0);
+        return list.stream()
+                .findFirst()
+                .orElseThrow(() -> new BusinessLogicException("Профіль клієнта не знайдено для поточного користувача."));
     }
 
     /**

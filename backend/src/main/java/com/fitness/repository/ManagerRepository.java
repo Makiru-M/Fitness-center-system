@@ -183,8 +183,8 @@ public class ManagerRepository {
             (rs, rowNum) -> rs.getDate("EndDate").toLocalDate(),
             req.clientId()
         );
-        if (!activeEnds.isEmpty()) {
-            LocalDate activeEnd = activeEnds.get(0);
+        LocalDate activeEnd = activeEnds.stream().findFirst().orElse(null);
+        if (activeEnd != null) {
             long daysUntilEnd = ChronoUnit.DAYS.between(LocalDate.now(), activeEnd);
             if (daysUntilEnd > 7) {
                 throw new BusinessLogicException("Оформити новий абонемент можна не раніше ніж за 7 днів до закінчення діючого (доступно з " + activeEnd.minusDays(7) + ").");
@@ -200,11 +200,7 @@ public class ManagerRepository {
                     "SELECT s.ID_Staff FROM Staff s WHERE s.DB_User = SESSION_USER",
                     (rs, rowNum) -> rs.getInt(1)
             );
-            if (!sessionStaff.isEmpty()) {
-                managerId = sessionStaff.get(0);
-            } else {
-                managerId = getDefaultClientManagerId(jdbc);
-            }
+            managerId = sessionStaff.stream().findFirst().orElseGet(() -> getDefaultClientManagerId(jdbc));
         }
 
         // Validate manager position: only Client Managers can sell subscriptions
@@ -219,11 +215,10 @@ public class ManagerRepository {
                 managerId
         );
 
-        if (posList.isEmpty()) {
-            throw new BusinessLogicException("Співробітника для оформлення не знайдено.");
-        }
-
-        String posName = posList.get(0).trim();
+        String posName = posList.stream()
+                .findFirst()
+                .orElseThrow(() -> new BusinessLogicException("Співробітника для оформлення не знайдено."))
+                .trim();
         String posLower = posName.toLowerCase();
 
         boolean isDirectorOrHr = posLower.contains("директор") || posLower.contains("hr");
@@ -259,9 +254,7 @@ public class ManagerRepository {
         if (clientId == null && req.phone() != null) {
             List<Integer> ids = jdbc.query("SELECT ID_Client FROM Clients WHERE Phone = ?",
                     (rs, rowNum) -> rs.getInt("ID_Client"), req.phone());
-            if (!ids.isEmpty()) {
-                clientId = ids.get(0);
-            }
+            clientId = ids.stream().findFirst().orElse(null);
         }
         if (clientId == null) {
             throw new BusinessLogicException("Клієнта не знайдено.");
@@ -347,10 +340,12 @@ public class ManagerRepository {
                 req.clientSubId(), req.clientSubId(), req.clientSubId()
         );
 
-        if (rows.isEmpty()) throw new BusinessLogicException("У клієнта немає активного абонемента для заморозки.");
-        int targetSubId = (int) rows.get(0)[0];
-        int remaining = (int) rows.get(0)[1];
-        LocalDate endDate = (LocalDate) rows.get(0)[2];
+        Object[] targetRow = rows.stream()
+                .findFirst()
+                .orElseThrow(() -> new BusinessLogicException("У клієнта немає активного абонемента для заморозки."));
+        int targetSubId = (int) targetRow[0];
+        int remaining = (int) targetRow[1];
+        LocalDate endDate = (LocalDate) targetRow[2];
 
         if (remaining < freezeDays) {
             throw new BusinessLogicException("Недостатньо днів заморозки. Залишок: " + remaining + ", запитано: " + freezeDays);
@@ -422,7 +417,7 @@ public class ManagerRepository {
                         "SELECT ID_Instance FROM GroupClassBookings WHERE ID_Booking = ?",
                         (rs, rowNum) -> rs.getInt(1), req.bookingId()
                 );
-                Integer targetInstanceId = !instanceIds.isEmpty() ? instanceIds.get(0) : req.bookingId();
+                Integer targetInstanceId = instanceIds.stream().findFirst().orElse(req.bookingId());
 
                 jdbc.update(
                         "UPDATE GroupClassInstances SET ClassDate = ?, ClassStartTime = ? WHERE ID_Instance = ?",
@@ -461,8 +456,9 @@ public class ManagerRepository {
                 """,
                 (rs, rowNum) -> rs.getInt(1)
         );
-        if (!list.isEmpty()) {
-            return list.get(0);
+        Integer staffId = list.stream().findFirst().orElse(null);
+        if (staffId != null) {
+            return staffId;
         }
         return jdbc.queryForObject("SELECT ID_Staff FROM Staff WHERE FireDate IS NULL LIMIT 1", Integer.class);
     }
@@ -517,11 +513,9 @@ public class ManagerRepository {
                 logId
         );
 
-        if (rows.isEmpty()) {
-            throw new BusinessLogicException("Запит на зміну розкладу з ID " + logId + " не знайдено.");
-        }
-
-        Object[] logRow = rows.get(0);
+        Object[] logRow = rows.stream()
+                .findFirst()
+                .orElseThrow(() -> new BusinessLogicException("Запит на зміну розкладу з ID " + logId + " не знайдено."));
         Integer personalId = (Integer) logRow[1];
         String requestType = (String) logRow[2];
         String status = (String) logRow[3];
@@ -536,10 +530,10 @@ public class ManagerRepository {
                     (rs, rowNum) -> rs.getTimestamp("NewDateTime").toLocalDateTime(),
                     logId
             );
-            if (timeRows.isEmpty() || timeRows.get(0) == null) {
-                throw new BusinessLogicException("Для запиту на перенесення не вказано новий час у PT_TimeChangeDetails.");
-            }
-            LocalDateTime newDateTime = timeRows.get(0);
+            LocalDateTime newDateTime = timeRows.stream()
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst()
+                    .orElseThrow(() -> new BusinessLogicException("Для запиту на перенесення не вказано новий час у PT_TimeChangeDetails."));
 
             if (newDateTime.isBefore(LocalDateTime.now())) {
                 throw new BusinessLogicException("Неможливо погодити запит: запропонований час перенесення вже минув.");
@@ -562,10 +556,10 @@ public class ManagerRepository {
         int updated = jdbc.update("UPDATE PT_Changelog SET Status = 'Rejected' WHERE ID_PTLog = ? AND Status = 'Pending'", logId);
         if (updated == 0) {
             var exists = jdbc.query("SELECT Status FROM PT_Changelog WHERE ID_PTLog = ?", (rs, rowNum) -> rs.getString("Status"), logId);
-            if (exists.isEmpty()) {
-                throw new BusinessLogicException("Запит на зміну розкладу з ID " + logId + " не знайдено.");
-            }
-            throw new BusinessLogicException("Неможливо відхилити: запит вже оброблено (статус: " + exists.get(0) + ").");
+            String currStatus = exists.stream()
+                    .findFirst()
+                    .orElseThrow(() -> new BusinessLogicException("Запит на зміну розкладу з ID " + logId + " не знайдено."));
+            throw new BusinessLogicException("Неможливо відхилити: запит вже оброблено (статус: " + currStatus + ").");
         }
     }
 }

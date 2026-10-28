@@ -147,10 +147,9 @@ public class CoachRepository {
                     (rs, rowNum) -> rs.getTimestamp("EndDateTime").toLocalDateTime(),
                     personalId
             );
-            if (items.isEmpty()) {
-                throw new IllegalArgumentException("Персональне тренування з ID " + personalId + " не знайдено.");
-            }
-            LocalDateTime endTime = items.get(0);
+            LocalDateTime endTime = items.stream()
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Персональне тренування з ID " + personalId + " не знайдено."));
             throw new IllegalArgumentException("Неможливо відмітити тренування як проведене: заняття ще не завершилося (час закінчення: " + endTime + ").");
         }
     }
@@ -184,10 +183,9 @@ public class CoachRepository {
                     (rs, rowNum) -> rs.getTimestamp("EndDateTime").toLocalDateTime(),
                     instanceId
             );
-            if (items.isEmpty()) {
-                throw new IllegalArgumentException("Групове заняття з ID " + instanceId + " не знайдено.");
-            }
-            LocalDateTime endTime = items.get(0);
+            LocalDateTime endTime = items.stream()
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Групове заняття з ID " + instanceId + " не знайдено."));
             throw new IllegalArgumentException("Неможливо відмітити групове заняття як проведене: воно ще не завершилося (час закінчення: " + endTime + ").");
         }
     }

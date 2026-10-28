@@ -86,11 +86,9 @@ public class AuthRepository {
             LIMIT 1
             """;
         List<String> roles = jdbc.query(sql, (rs, rowNum) -> rs.getString("rolname"));
-        if (!roles.isEmpty()) {
-            return roles.get(0);
-        }
-
-        throw new AuthenticationRequiredException("Роль користувача не визначена або відсутні необхідні привілеї в системі.");
+        return roles.stream()
+                .findFirst()
+                .orElseThrow(() -> new AuthenticationRequiredException("Роль користувача не визначена або відсутні необхідні привілеї в системі."));
     }
 
     private ProfileInfo resolveProfile(JdbcTemplate jdbc, String username, String role) {
@@ -109,7 +107,8 @@ public class AuthRepository {
                         rs.getDate("BirthDate") != null ? rs.getDate("BirthDate").toLocalDate() : null,
                         rs.getString("PositionName")
                 ), username);
-                if (!list.isEmpty()) return list.get(0);
+                ProfileInfo info = list.stream().findFirst().orElse(null);
+                if (info != null) return info;
             } else if ("coach_role".equals(role)) {
                 String sql = """
                     SELECT c.ID_Coach, s.FullName, s.Phone, s.BirthDate, sp.SpecName
@@ -125,7 +124,8 @@ public class AuthRepository {
                         rs.getDate("BirthDate") != null ? rs.getDate("BirthDate").toLocalDate() : null,
                         "Тренер (" + rs.getString("SpecName") + ")"
                 ), username);
-                if (!list.isEmpty()) return list.get(0);
+                ProfileInfo info = list.stream().findFirst().orElse(null);
+                if (info != null) return info;
             } else if ("client_role".equals(role)) {
                 String sql = """
                     SELECT ID_Client, FullName, Phone, BirthDate
@@ -139,7 +139,8 @@ public class AuthRepository {
                         rs.getDate("BirthDate") != null ? rs.getDate("BirthDate").toLocalDate() : null,
                         "Клієнт клубу"
                 ), username);
-                if (!list.isEmpty()) return list.get(0);
+                ProfileInfo info = list.stream().findFirst().orElse(null);
+                if (info != null) return info;
             }
         } catch (Exception e) {
             log.warn("Could not resolve specific profile info for user [{}]: {}", username, e.getMessage());

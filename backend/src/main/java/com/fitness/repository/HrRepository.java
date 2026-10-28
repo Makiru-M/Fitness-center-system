@@ -39,7 +39,7 @@ public class HrRepository {
                 req.biography()
         );
 
-        return list.isEmpty() ? null : list.get(0);
+        return list.stream().findFirst().orElse(null);
     }
 
     /**
@@ -74,11 +74,10 @@ public class HrRepository {
             (rs, rowNum) -> rs.getString("DB_User"),
             req.staffId()
         );
-        String dbUser = null;
-        if (!targetUser.isEmpty()) {
-            dbUser = targetUser.get(0);
+        String dbUser = targetUser.stream().findFirst().orElse(null);
+        if (dbUser != null) {
             String currentSessionUser = jdbc.queryForObject("SELECT SESSION_USER", String.class);
-            if (dbUser != null && dbUser.equalsIgnoreCase(currentSessionUser)) {
+            if (dbUser.equalsIgnoreCase(currentSessionUser)) {
                 throw new BusinessLogicException("Співробітник не може звільнити сам себе.");
             }
         }
@@ -110,7 +109,7 @@ public class HrRepository {
                 hireDate
         );
 
-        return list.isEmpty() ? null : list.get(0);
+        return list.stream().findFirst().orElse(null);
     }
 
     /**
