@@ -4,8 +4,9 @@
  * Module: views/guestView.js
  */
 
-import { AppState, setCurrentUser, setActiveRole, findPromo } from '../state/state.js';
+import { AppState, setCurrentUser, setActiveRole, setAuthToken, setRefreshToken, findPromo } from '../state/state.js';
 import { guestApi } from '../api/guestApi.js';
+import { authApi } from '../api/authApi.js';
 import { showToast } from '../components/toast.js';
 import { updateHeaderUI, renderRoleNav, switchRoleView } from '../components/navigation.js';
 
@@ -366,13 +367,26 @@ export async function handleG1Registration(e) {
     });
 
     const finalDbUser = res.dbUsername || dbUser;
+    
+    // Automatically login newly created client to get tokens
+    try {
+      const loginRes = await authApi.login(finalDbUser, password);
+      if (loginRes.token) {
+        setAuthToken(loginRes.token);
+      }
+      if (loginRes.refreshToken) {
+        setRefreshToken(loginRes.refreshToken);
+      }
+    } catch (loginErr) {
+      console.warn('Auto-login after registration failed:', loginErr);
+    }
+
     const userObj = {
       dbUser: finalDbUser,
       name: fullName,
       role: 'client',
       clientId: res.clientId,
-      pos: 'Клієнт',
-      pass: password
+      pos: 'Клієнт'
     };
     setCurrentUser(userObj);
     setActiveRole('client');

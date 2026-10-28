@@ -2,8 +2,11 @@ package com.fitness.controller;
 
 import com.fitness.dto.auth.LoginRequest;
 import com.fitness.dto.auth.LoginResponse;
+import com.fitness.dto.auth.RefreshTokenRequest;
 import com.fitness.dto.auth.SessionResponse;
+import com.fitness.dto.auth.TokenRefreshResponse;
 import com.fitness.dto.auth.UserProfileResponse;
+import com.fitness.exception.AuthenticationRequiredException;
 import com.fitness.repository.AuthRepository;
 import com.fitness.security.SecurityContextHolder;
 import com.fitness.security.SessionRegistry;
@@ -36,6 +39,7 @@ public class AuthController {
         // Register session in memory
         UserSession session = new UserSession(
                 response.token(),
+                response.refreshToken(),
                 response.username(),
                 req.password(),
                 response.role(),
@@ -45,6 +49,16 @@ public class AuthController {
         sessionRegistry.register(session);
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Refresh session access token using a valid refresh token with token rotation.
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<TokenRefreshResponse> refresh(@RequestBody RefreshTokenRequest req) {
+        return sessionRegistry.rotateTokens(req.refreshToken())
+                .map(ResponseEntity::ok)
+                .orElseThrow(() -> new AuthenticationRequiredException("Недійсний або прострочений Refresh Token. Потрібна повторна авторизація."));
     }
 
     /**

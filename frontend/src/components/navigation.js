@@ -4,7 +4,7 @@
  * Module: components/navigation.js
  */
 
-import { AppState, TEST_ACCOUNTS, STORAGE_KEYS, setCurrentUser, setActiveRole, setAuthToken } from '../state/state.js';
+import { AppState, TEST_ACCOUNTS, STORAGE_KEYS, setCurrentUser, setActiveRole, setAuthToken, setRefreshToken, getRefreshToken, clearRefreshToken } from '../state/state.js';
 import { checkHealth } from '../api/apiClient.js';
 import { authApi } from '../api/authApi.js';
 import { showToast } from './toast.js';
@@ -81,20 +81,50 @@ export async function initApp() {
     await checkHealth();
     setServerOnline(true);
 
-    // If an authenticated user was persisted, ensure fresh session token from backend
-    if (AppState.currentUser && AppState.currentUser.dbUser && AppState.currentUser.pass) {
+    // Validate session with backend or refresh if token expired
+    if (AppState.currentUser) {
       try {
-        const loginRes = await authApi.login(AppState.currentUser.dbUser, AppState.currentUser.pass);
-        if (loginRes && loginRes.token) {
-          setAuthToken(loginRes.token);
+        const session = await authApi.getSession();
+        if (session && session.role) {
+          const role = session.role.replace(/_role$/, '').toLowerCase();
+          setActiveRole(role);
         }
-      } catch (authErr) {
-        console.warn('Initial session refresh note:', authErr);
+      } catch (sessionErr) {
+        console.warn('Initial session check failed, attempting token refresh...', sessionErr);
+        const rf = getRefreshToken();
+        if (rf) {
+          try {
+            const refreshRes = await authApi.refresh(rf);
+            if (refreshRes && refreshRes.accessToken && refreshRes.refreshToken) {
+              setAuthToken(refreshRes.accessToken);
+              setRefreshToken(refreshRes.refreshToken);
+              const sessionAfterRefresh = await authApi.getSession();
+              if (sessionAfterRefresh && sessionAfterRefresh.role) {
+                const role = sessionAfterRefresh.role.replace(/_role$/, '').toLowerCase();
+                setActiveRole(role);
+              }
+            } else {
+              throw new Error('Refresh response invalid');
+            }
+          } catch (rfErr) {
+            console.warn('Token refresh on startup failed, resetting to guest:', rfErr);
+            setCurrentUser(null);
+            setAuthToken(null);
+            clearRefreshToken();
+            setActiveRole('guest');
+          }
+        } else {
+          setCurrentUser(null);
+          setAuthToken(null);
+          setActiveRole('guest');
+        }
       }
     }
 
     // Guarantee hero pass price is fetched strictly from API immediately
     renderGuestPriceList().catch(e => console.warn('Hero price load error:', e));
+    updateHeaderUI();
+    renderRoleNav();
     switchRoleView(AppState.activeRole);
   } catch (err) {
     console.warn('Initial server check failed: backend is offline', err);
@@ -275,6 +305,7 @@ export async function handleAuthAction() {
     }
     setCurrentUser(null);
     setAuthToken(null);
+    clearRefreshToken();
     setActiveRole('guest');
     showToast('Ви успішно вийшли з облікового запису.', 'info');
     updateHeaderUI();
@@ -298,6 +329,7 @@ export async function quickSwitchRole(role) {
   if (targetRole === 'guest') {
     setCurrentUser(null);
     setAuthToken(null);
+    clearRefreshToken();
     setActiveRole('guest');
     showToast('Перемкнено на гостьовий режим', 'info');
   } else if (matchedUserKey) {
@@ -305,13 +337,15 @@ export async function quickSwitchRole(role) {
     try {
       const res = await authApi.login(matchedUserKey, account.pass);
       setAuthToken(res.token);
+      if (res.refreshToken) {
+        setRefreshToken(res.refreshToken);
+      }
       const userObj = {
         dbUser: res.username,
         name: res.fullName,
         role: targetRole,
         pos: res.role ? res.role.toUpperCase() : account.pos,
-        entityId: res.entityId,
-        pass: account.pass
+        entityId: res.entityId
       };
       setCurrentUser(userObj);
       setActiveRole(targetRole);
@@ -319,6 +353,7 @@ export async function quickSwitchRole(role) {
     } catch (err) {
       setCurrentUser(null);
       setAuthToken(null);
+      clearRefreshToken();
       setActiveRole('guest');
       updateHeaderUI();
       renderRoleNav();
@@ -343,13 +378,15 @@ export async function fillAndLogin(dbUser, role) {
   try {
     const res = await authApi.login(dbUser, account.pass);
     setAuthToken(res.token);
+    if (res.refreshToken) {
+      setRefreshToken(res.refreshToken);
+    }
     const userObj = {
       dbUser: res.username,
       name: res.fullName,
       role: targetRole,
       pos: res.role ? res.role.toUpperCase() : account.pos,
-      entityId: res.entityId,
-      pass: account.pass
+      entityId: res.entityId
     };
     setCurrentUser(userObj);
     setActiveRole(targetRole);
@@ -357,6 +394,7 @@ export async function fillAndLogin(dbUser, role) {
   } catch (err) {
     setCurrentUser(null);
     setAuthToken(null);
+    clearRefreshToken();
     setActiveRole('guest');
     updateHeaderUI();
     renderRoleNav();
@@ -378,14 +416,16 @@ export async function handleLoginForm(e) {
   try {
     const res = await authApi.login(dbUser, pass);
     setAuthToken(res.token);
+    if (res.refreshToken) {
+      setRefreshToken(res.refreshToken);
+    }
     const targetRole = (res.role || 'guest').replace(/_role$/, '').toLowerCase();
     const userObj = {
       dbUser: res.username,
       name: res.fullName,
       role: targetRole,
       pos: res.role ? res.role.toUpperCase() : 'КОРИСТУВАЧ',
-      entityId: res.entityId,
-      pass: pass
+      entityId: res.entityId
     };
     setCurrentUser(userObj);
     setActiveRole(targetRole);
@@ -397,6 +437,7 @@ export async function handleLoginForm(e) {
     console.warn('API Login failed:', err);
     setCurrentUser(null);
     setAuthToken(null);
+    clearRefreshToken();
     setActiveRole('guest');
     updateHeaderUI();
     renderRoleNav();
@@ -407,6 +448,7 @@ export async function handleLoginForm(e) {
 export function loginAsGuest() {
   setCurrentUser(null);
   setAuthToken(null);
+  clearRefreshToken();
   setActiveRole('guest');
   updateHeaderUI();
   renderRoleNav();

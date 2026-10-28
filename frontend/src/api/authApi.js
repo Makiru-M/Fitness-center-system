@@ -21,6 +21,13 @@ export const authApi = {
     });
   },
 
+  refresh(refreshToken) {
+    return apiFetch('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken })
+    });
+  },
+
   logout() {
     return apiFetch('/auth/logout', {
       method: 'POST'

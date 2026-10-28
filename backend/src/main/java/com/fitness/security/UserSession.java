@@ -4,6 +4,7 @@ import java.time.Instant;
 
 public class UserSession {
     private final String token;
+    private final String refreshToken;
     private final String username;
     private final String password;
     private final String role;
@@ -12,8 +13,9 @@ public class UserSession {
     private final Instant createdAt;
     private Instant lastAccessedAt;
 
-    public UserSession(String token, String username, String password, String role, String fullName, Integer entityId) {
+    public UserSession(String token, String refreshToken, String username, String password, String role, String fullName, Integer entityId) {
         this.token = token;
+        this.refreshToken = refreshToken;
         this.username = username;
         this.password = password;
         this.role = role;
@@ -25,6 +27,10 @@ public class UserSession {
 
     public String getToken() {
         return token;
+    }
+
+    public String getRefreshToken() {
+        return refreshToken;
     }
 
     public String getUsername() {

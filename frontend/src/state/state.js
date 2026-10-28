@@ -7,6 +7,7 @@
 export const STORAGE_KEYS = {
   API_URL: 'fc_api_url',
   AUTH_TOKEN: 'fc_auth_token',
+  REFRESH_TOKEN: 'fitness_refresh_token',
   CURRENT_USER: 'fc_current_user'
 };
 
@@ -98,4 +99,20 @@ export function setAuthToken(token) {
     localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
     sessionStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
   }
+}
+
+export function setRefreshToken(token) {
+  if (token) {
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+  }
+}
+
+export function getRefreshToken() {
+  return localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+}
+
+export function clearRefreshToken() {
+  localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
 }

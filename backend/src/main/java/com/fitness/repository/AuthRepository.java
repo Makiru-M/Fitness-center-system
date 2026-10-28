@@ -41,8 +41,10 @@ public class AuthRepository {
         ProfileInfo profile = resolveProfile(jdbc, username, role);
 
         String token = UUID.randomUUID().toString();
+        String refreshToken = UUID.randomUUID().toString();
         return new LoginResponse(
                 token,
+                refreshToken,
                 username,
                 role,
                 profile.fullName(),
@@ -71,28 +73,6 @@ public class AuthRepository {
         String role = determineRole(jdbc, username);
         ProfileInfo profile = resolveProfile(jdbc, username, role);
         return new UserProfileResponse(profile.entityId(), profile.fullName(), profile.phone(), profile.birthDate(), profile.description());
-    }
-
-    /**
-     * Resolve current user details from existing connection.
-     */
-    public CurrentUserResponse getCurrentUserInfo() {
-        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String username = jdbc.queryForObject("SELECT SESSION_USER", String.class);
-        String role = determineRole(jdbc, username);
-        ProfileInfo profile = resolveProfile(jdbc, username, role);
-
-        List<String> permissions = resolvePermissions(role);
-
-        return new CurrentUserResponse(
-                username,
-                role,
-                profile.fullName(),
-                profile.entityId(),
-                profile.phone(),
-                profile.birthDate(),
-                permissions
-        );
     }
 
     private String determineRole(JdbcTemplate jdbc, String username) {

@@ -4,7 +4,7 @@
  * Module: api/apiClient.js
  */
 
-import { AppState } from '../state/state.js';
+import { AppState, setAuthToken, setRefreshToken, getRefreshToken, clearRefreshToken, setCurrentUser, setActiveRole } from '../state/state.js';
 
 /**
  * Perform a health ping against the Spring Boot backend
@@ -75,13 +75,6 @@ export async function apiFetch(endpoint, options = {}) {
 
   if (activeToken) {
     headers['X-Auth-Token'] = activeToken;
-  }
-
-  if (activeUser && activeUser.pass) {
-    headers['Authorization'] = 'Basic ' + btoa(`${activeUser.dbUser}:${activeUser.pass}`);
-    headers['X-Auth-User'] = activeUser.dbUser;
-    headers['X-Auth-Password'] = activeUser.pass;
-  } else if (activeToken) {
     headers['Authorization'] = `Bearer ${activeToken}`;
   }
 
@@ -104,31 +97,43 @@ export async function apiFetch(endpoint, options = {}) {
       return data;
     }
 
-    // Auto-recovery: if token expired or server restarted, silently re-login and retry
-    if ((res.status === 401 || res.status === 403) && activeUser && activeUser.pass && !options._isRetry) {
-      console.warn(`[API Auth] 🔄 Token expired or server restarted (${res.status}). Attempting silent re-auth for [${activeUser.dbUser}]...`);
-      try {
-        const authRes = await fetch(`${AppState.apiBaseUrl}/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: activeUser.dbUser,
-            password: activeUser.pass
-          })
-        });
+    // Refresh Token Rotation on 401
+    const isAuthEndpoint = cleanEndpoint === '/auth/login' || cleanEndpoint === '/auth/refresh';
+    if (res.status === 401 && !isAuthEndpoint && !options._isRetry) {
+      const currentRefreshToken = getRefreshToken();
+      if (currentRefreshToken) {
+        console.warn(`[API Auth] 🔄 Token expired (401). Attempting Refresh Token rotation...`);
+        try {
+          const refreshRes = await fetch(`${AppState.apiBaseUrl}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: currentRefreshToken })
+          });
 
-        if (authRes.ok) {
-          const authData = await authRes.json();
-          if (authData.token) {
-            AppState.authToken = authData.token;
-            localStorage.setItem('fc_auth_token', authData.token);
-            console.log(`[API Auth] ✅ Silent re-auth successful, new token acquired. Retrying request...`);
-            return apiFetch(endpoint, { ...options, _isRetry: true });
+          if (refreshRes.ok) {
+            const refreshData = await refreshRes.json();
+            if (refreshData.accessToken && refreshData.refreshToken) {
+              setAuthToken(refreshData.accessToken);
+              setRefreshToken(refreshData.refreshToken);
+              console.log(`[API Auth] ✅ Token rotation successful. Retrying original request...`);
+              return apiFetch(endpoint, { ...options, _isRetry: true });
+            }
           }
+          console.warn('[API Auth] ❌ Token rotation response not ok or missing tokens.');
+        } catch (refreshErr) {
+          console.warn('[API Auth] ❌ Token rotation failed with error:', refreshErr);
         }
-      } catch (reAuthErr) {
-        console.warn('[API Auth] Silent re-auth failed:', reAuthErr);
       }
+
+      // If rotation failed or no refresh token available, reset session to guest
+      console.warn('[API Auth] 🚪 Session expired and refresh failed. Clearing tokens and resetting to guest...');
+      setAuthToken(null);
+      clearRefreshToken();
+      setCurrentUser(null);
+      setActiveRole('guest');
+      if (typeof window.updateHeaderUI === 'function') window.updateHeaderUI();
+      if (typeof window.renderRoleNav === 'function') window.renderRoleNav();
+      if (typeof window.switchRoleView === 'function') window.switchRoleView('guest');
     }
 
     console.warn(`%c[API Response] ⚠️ ${res.status} ${fullUrl}`, 'color: #dc2626; font-weight: bold;', data);
