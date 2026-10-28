@@ -153,9 +153,9 @@ public class ClientRepository {
     /**
      * Cl6: Insert personal training cancellation audit log
      */
-    public int insertPersonalTrainingCancelLog(Integer bookingId, String reason) {
+    public void insertPersonalTrainingCancelLog(Integer bookingId, String reason) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        return jdbc.update(
+        jdbc.update(
                 "INSERT INTO PT_Changelog (ID_Personal, RequestType, Reason, ChangeInitiator, ChangeTimestamp, Status) VALUES (?, 'Cancel', ?, 'Client', CURRENT_TIMESTAMP, 'Approved')",
                 bookingId, reason
         );

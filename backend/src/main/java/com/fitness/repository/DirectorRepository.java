@@ -32,19 +32,31 @@ public class DirectorRepository {
             LocalDate toDate
     ) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = """
-            WITH Bounds AS (
-                SELECT 
-                    COALESCE(?::DATE, (SELECT MIN(SaleDate)::DATE FROM Sales), CURRENT_DATE) AS StartDate,
-                    COALESCE(?::DATE, CURRENT_DATE) AS EndDate
-            ),
-            Periods AS (
-                SELECT 
+        String periodsCte = "total".equalsIgnoreCase(dateTruncUnit)
+                ? """
+                SELECT
+                    b.StartDate AS PeriodStart,
+                    b.EndDate AS PeriodEnd,
+                    'Всього за період' AS PeriodLabel
+                FROM Bounds b
+                """
+                : """
+                SELECT
                     date_trunc('%1$s', d)::DATE AS PeriodStart,
                     (date_trunc('%1$s', d) + INTERVAL '%3$s')::DATE AS PeriodEnd,
                     %4$s AS PeriodLabel
                 FROM Bounds b,
                      generate_series(date_trunc('%1$s', b.StartDate::TIMESTAMP), date_trunc('%1$s', b.EndDate::TIMESTAMP), INTERVAL '%2$s') d
+                """.formatted(dateTruncUnit, intervalUnit, endIntervalUnit, labelSqlExpression);
+
+        String sql = """
+            WITH Bounds AS (
+                SELECT
+                    COALESCE(?::DATE, (SELECT MIN(SaleDate)::DATE FROM Sales), CURRENT_DATE) AS StartDate,
+                    COALESCE(?::DATE, CURRENT_DATE) AS EndDate
+            ),
+            Periods AS (
+                %s
             ),
             Categories AS (
                 SELECT unnest(ARRAY['Membership', 'Personal training', 'Group training', 'Extra']) AS Category
@@ -55,7 +67,7 @@ public class DirectorRepository {
                 CROSS JOIN Categories c
             ),
             AggregatedSales AS (
-                SELECT 
+                SELECT
                     pc.PeriodLabel,
                     pc.PeriodStart,
                     pc.PeriodEnd,
@@ -77,7 +89,7 @@ public class DirectorRepository {
                 GROUP BY pc.PeriodLabel, pc.PeriodStart, pc.PeriodEnd, pc.Category
             ),
             ReportWithMetrics AS (
-                SELECT 
+                SELECT
                     PeriodLabel,
                     PeriodStart,
                     PeriodEnd,
@@ -91,7 +103,7 @@ public class DirectorRepository {
                     SUM(Actual_Revenue) OVER (PARTITION BY PeriodLabel ORDER BY Actual_Revenue DESC, Category ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumulativeRevenue
                 FROM AggregatedSales
             )
-            SELECT 
+            SELECT
                 PeriodLabel,
                 PeriodStart,
                 PeriodEnd,
@@ -105,7 +117,7 @@ public class DirectorRepository {
                 CumulativeRevenue
             FROM ReportWithMetrics
             ORDER BY PeriodStart ASC, Actual_Revenue DESC, Category ASC
-            """.formatted(dateTruncUnit, intervalUnit, endIntervalUnit, labelSqlExpression);
+            """.formatted(periodsCte);
 
         return jdbc.query(sql, PeriodCategoryRevenueRowMapper.INSTANCE, fromDate, toDate, fromDate, fromDate, toDate, toDate);
     }
@@ -142,57 +154,7 @@ public class DirectorRepository {
      * D1-3: Revenue report - total aggregate breakdown
      */
     public List<PeriodCategoryRevenueRecord> fetchTotalRevenue(LocalDate fromDate, LocalDate toDate) {
-        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = """
-            WITH Categories AS (
-                SELECT unnest(ARRAY['Membership', 'Personal training', 'Group training', 'Extra']) AS Category
-            ),
-            CategorySales AS (
-                SELECT 
-                    c.Category,
-                    COUNT(s.ID_Sale) AS Sales_Count,
-                    COALESCE(SUM(pl.Price), 0.00) AS Full_Price_Total,
-                    COALESCE(SUM(s.SalePrice), 0.00) AS Actual_Revenue,
-                    COALESCE(SUM(pl.Price - s.SalePrice), 0.00) AS Total_Discounts,
-                    COUNT(ap.ID_Promo) AS Promo_Code_Usage
-                FROM Categories c
-                LEFT JOIN (
-                    Sales s 
-                    JOIN PriceList pl ON s.ID_Item = pl.ID_Item
-                    AND (?::DATE IS NULL OR s.SaleDate >= ?::TIMESTAMP)
-                    AND (?::DATE IS NULL OR s.SaleDate < (?::DATE + INTERVAL '1 day'))
-                ) ON c.Category = pl.Category
-                LEFT JOIN AppliedPromo ap ON s.ID_Sale = ap.ID_Sale
-                GROUP BY c.Category
-            )
-            SELECT 
-                Category,
-                Sales_Count,
-                Full_Price_Total,
-                Actual_Revenue,
-                Total_Discounts,
-                Promo_Code_Usage,
-                ROUND((Actual_Revenue / NULLIF(SUM(Actual_Revenue) OVER (), 0)) * 100, 2) AS RevenueSharePercent,
-                SUM(Actual_Revenue) OVER (ORDER BY Actual_Revenue DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumulativeRevenue
-            FROM CategorySales
-            ORDER BY Actual_Revenue DESC, Category ASC
-            """;
-
-        return jdbc.query(sql, (rs, rowNum) -> new PeriodCategoryRevenueRecord(
-                "Всього за період",
-                fromDate,
-                toDate,
-                new RevenueReportItem(
-                        rs.getString("Category"),
-                        rs.getLong("Sales_Count"),
-                        rs.getBigDecimal("Full_Price_Total"),
-                        rs.getBigDecimal("Actual_Revenue"),
-                        rs.getBigDecimal("Total_Discounts"),
-                        rs.getLong("Promo_Code_Usage"),
-                        rs.getObject("RevenueSharePercent") != null ? rs.getDouble("RevenueSharePercent") : 0.0,
-                        rs.getBigDecimal("CumulativeRevenue")
-                )
-        ), fromDate, fromDate, toDate, toDate);
+        return executePeriodicRevenueQuery("total", null, null, null, fromDate, toDate);
     }
 
     /**
