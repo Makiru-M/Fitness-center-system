@@ -162,14 +162,6 @@ public class DirectorController {
     }
 
     /**
-     * Lab_4 View: Share of group class clients taking individual trainings
-     */
-    @GetMapping("/views/group-individual-share")
-    public ResponseEntity<List<GroupIndividualShareItem>> getGroupIndividualShareView() {
-        return ResponseEntity.ok(directorRepository.getGroupIndividualShareView());
-    }
-
-    /**
      * D10: Update price tariff (versioning)
      */
     @PutMapping("/prices/{id}")

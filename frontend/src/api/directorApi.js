@@ -93,10 +93,6 @@ export const directorApi = {
     });
   },
 
-  getGroupIndividualShareView() {
-    return apiFetch('/director/views/group-individual-share');
-  },
-
   getPrices(includeArchived = false) {
     return apiFetch(`/director/prices?includeArchived=${includeArchived}`);
   },

@@ -392,23 +392,6 @@ public class DirectorRepository {
     }
 
     /**
-     * View v_GroupIndividualClientsShare from Lab_4.sql
-     */
-    public List<GroupIndividualShareItem> getGroupIndividualShareView() {
-        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = "SELECT * FROM v_GroupIndividualClientsShare ORDER BY PersonalTrainingSharePercent DESC";
-
-        return jdbc.query(sql, (rs, rowNum) -> new GroupIndividualShareItem(
-                rs.getInt("ID_Template"),
-                rs.getString("GroupType"),
-                rs.getInt("DayOfWeek"),
-                rs.getTime("StartTime").toLocalTime(),
-                rs.getLong("TotalGroupClients"),
-                rs.getLong("ClientsWithPersonalTrainings"),
-                rs.getDouble("PersonalTrainingSharePercent")
-        ));
-    }
-    /**
      * D10: Update price tariff (versioning via sp_update_price_tariff)
      */
     public Map<String, Object> updatePriceTariff(Integer itemId, BigDecimal newPrice) {
