@@ -356,10 +356,7 @@ BEGIN
         PERFORM fn_get_client_name(v_client_id);
     END IF;
 
-    -- Валідація дати та часу тренування
-    IF p_training_datetime < CURRENT_TIMESTAMP THEN
-        RAISE EXCEPTION 'Дата та час персонального тренування не можуть бути в минулому.';
-    END IF;
+    -- Валідація дати та часу тренування гарантується тригером trg_check_pt_reschedule_past на PersonalTrainings
 
     -- Валідація зали (наявність та активний статус)
     PERFORM fn_assert_hall_available(p_hall_id);
@@ -631,14 +628,8 @@ DECLARE
     v_old_end_date     DATE;
     v_current_status   VARCHAR(20);
 BEGIN
-    IF p_freeze_start_date < CURRENT_DATE THEN
-        RAISE EXCEPTION 'Дата початку заморозки не може бути в минулому.';
-    END IF;
-
+    -- Коректність періоду заморозки (не в минулому та EndDate > StartDate) гарантується тригером trg_check_freezing_dates на FreezingLogs
     v_freeze_days := p_freeze_end_date - p_freeze_start_date;
-    IF v_freeze_days <= 0 THEN
-        RAISE EXCEPTION 'Дата закінчення заморозки повинна бути пізнішою за дату початку.';
-    END IF;
 
     -- Перевіряємо, що абонемент існує і належить поточному користувачу сесії (SESSION_USER)
     SELECT cs.RemainingFreezingDays, cs.EndDate, cs.CurrentStatus
