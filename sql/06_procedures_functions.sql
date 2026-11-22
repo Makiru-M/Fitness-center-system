@@ -122,7 +122,7 @@ BEGIN
 
         SELECT ID_Item, Price INTO v_item_id, v_base_price
         FROM PriceList
-        WHERE Category = p_item_category
+        WHERE Category = p_item_category::service_category
         ORDER BY PriceStartDate DESC, ID_Item ASC
         LIMIT 1;
 
@@ -1258,7 +1258,7 @@ GRANT EXECUTE ON PROCEDURE sp_book_group_class(INTEGER, INTEGER, INTEGER, VARCHA
 GRANT EXECUTE ON PROCEDURE sp_cancel_group_booking(INTEGER) TO client_role, manager_role;
 GRANT EXECUTE ON PROCEDURE sp_freeze_client_subscription(INTEGER, DATE, DATE, VARCHAR) TO client_role;
 GRANT EXECUTE ON PROCEDURE sp_unfreeze_client_subscription(INTEGER) TO client_role;
-GRANT EXECUTE ON PROCEDURE sp_generate_weekly_group_instances(INTEGER) TO director_role, manager_role, client_role, coach_role;
+GRANT EXECUTE ON PROCEDURE sp_generate_weekly_group_instances(INTEGER) TO director_role, manager_role, client_role, coach_role, scheduler_service_role;
 
 -- Реєстрація клієнтів та відвідувань (гості, менеджери)
 GRANT EXECUTE ON FUNCTION sp_register_client TO guest, manager_role, director_role;

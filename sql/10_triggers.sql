@@ -339,23 +339,37 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+DECLARE
+    v_client_id        INTEGER;
+    v_latest_status    VARCHAR(20);
+    v_sub_end_date     DATE;
 BEGIN
-    IF NEW.ID_Sale IS NULL THEN
+    IF NEW.ID_Sale IS NOT NULL THEN
+        SELECT ID_Client INTO v_client_id
+        FROM Sales
+        WHERE ID_Sale = NEW.ID_Sale;
+    END IF;
+
+    IF v_client_id IS NULL THEN
         RAISE EXCEPTION 'Неможливо перевірити абонемент: не вказано дійсний чек продажу або клієнта.';
     END IF;
 
-    BEGIN
-        PERFORM fn_assert_active_subscription_by_sale(NEW.ID_Sale);
-    EXCEPTION
-        WHEN OTHERS THEN
-            IF SQLERRM LIKE '%заморожено%' THEN
-                RAISE EXCEPTION 'Запис неможливий: ваш абонемент заморожено. Будь ласка, розморозьте абонемент перед записом на тренування.';
-            ELSIF SQLERRM LIKE '%немає активного дійсного абонемента%' OR SQLERRM LIKE '%не знайдено%' THEN
-                RAISE EXCEPTION 'Запис неможливий: відсутній активний абонемент.';
-            ELSE
-                RAISE;
-            END IF;
-    END;
+    SELECT cs.CurrentStatus, cs.EndDate
+    INTO v_latest_status, v_sub_end_date
+    FROM ClientSubscriptions cs
+    JOIN Sales s ON cs.ID_Sale = s.ID_Sale
+    WHERE s.ID_Client = v_client_id
+      AND cs.EndDate >= CURRENT_DATE
+    ORDER BY cs.EndDate DESC, cs.ID_ClientSub DESC
+    LIMIT 1;
+
+    IF v_latest_status = 'Frozen' THEN
+        RAISE EXCEPTION 'Запис неможливий: ваш абонемент заморожено. Будь ласка, розморозьте абонемент перед записом на тренування.';
+    END IF;
+
+    IF v_latest_status IS NULL OR v_latest_status <> 'Active' THEN
+        RAISE EXCEPTION 'Запис неможливий: відсутній активний абонемент.';
+    END IF;
 
     RETURN NEW;
 END;

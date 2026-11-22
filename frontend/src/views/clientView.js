@@ -187,7 +187,7 @@ export async function renderClientDashboard() {
     const nameHeading = document.getElementById('client-name-heading');
     if (nameHeading) nameHeading.textContent = profile.fullName;
     const detailsSub = document.getElementById('client-details-sub');
-    if (detailsSub) detailsSub.textContent = `Телефон: ${profile.phone} | ID: #${profile.clientId} | Логін: ${profile.dbUser}`;
+    if (detailsSub) detailsSub.textContent = `Телефон: ${profile.phone} | Логін: ${profile.dbUser}`;
 
     function isTrivialMedNotes(str) {
       if (!str) return true;

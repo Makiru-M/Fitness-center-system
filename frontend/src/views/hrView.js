@@ -129,8 +129,8 @@ export async function renderHrCoachesTable(searchTerm = '') {
 
     if (!coaches.length) {
       tbody.innerHTML = term 
-        ? `<tr><td colspan="7" class="text-center text-xs text-slate-400 py-6">Тренерів не знайдено за запитом "${term}"</td></tr>`
-        : '<tr><td colspan="7" class="text-center text-xs text-slate-400 py-6">Немає зареєстрованих тренерів</td></tr>';
+        ? `<tr><td colspan="6" class="text-center text-xs text-slate-400 py-6">Тренерів не знайдено за запитом "${term}"</td></tr>`
+        : '<tr><td colspan="6" class="text-center text-xs text-slate-400 py-6">Немає зареєстрованих тренерів</td></tr>';
       return;
     }
 
@@ -145,7 +145,6 @@ export async function renderHrCoachesTable(searchTerm = '') {
         (currentStaffId && c.staffId === currentStaffId)
       );
       row.innerHTML = `
-        <td class="font-mono text-xs text-slate-400">#${c.coachId || c.staffId}</td>
         <td class="font-bold text-white font-heading">${c.fullName}</td>
         <td class="font-mono text-xs text-slate-300">${c.phone}</td>
         <td><span class="badge badge-scheduled shrink-0">${c.specializationName || c.specName || 'Тренер'}</span></td>
@@ -210,8 +209,8 @@ export async function renderHrStaffTable(searchTerm = '') {
 
     if (!staffMembers.length) {
       tbody.innerHTML = term
-        ? `<tr><td colspan="7" class="text-center text-xs text-slate-400 py-6">Співробітників не знайдено за запитом "${term}"</td></tr>`
-        : '<tr><td colspan="7" class="text-center text-xs text-slate-400 py-6">Немає зареєстрованого адміністративного персоналу</td></tr>';
+        ? `<tr><td colspan="6" class="text-center text-xs text-slate-400 py-6">Співробітників не знайдено за запитом "${term}"</td></tr>`
+        : '<tr><td colspan="6" class="text-center text-xs text-slate-400 py-6">Немає зареєстрованого адміністративного персоналу</td></tr>';
       return;
     }
 
@@ -226,7 +225,6 @@ export async function renderHrStaffTable(searchTerm = '') {
         (currentStaffId && st.staffId === currentStaffId)
       );
       row.innerHTML = `
-        <td class="font-mono text-xs text-slate-400">#${st.staffId}</td>
         <td class="font-bold text-white font-heading">${st.fullName}</td>
         <td class="font-mono text-xs text-slate-300">${st.phone}</td>
         <td><span class="badge badge-neutral shrink-0">${st.positionName || 'Менеджер'}</span></td>

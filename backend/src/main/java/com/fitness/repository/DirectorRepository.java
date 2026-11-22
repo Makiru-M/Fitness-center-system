@@ -160,11 +160,43 @@ public class DirectorRepository {
     }
 
     /**
-     * D2: Attendance report - analytical view v_AttendanceReport
+     * D2: Attendance report - with optional date range filter
      */
-    public List<AttendanceReportItem> getAttendanceReport() {
+    public List<AttendanceReportItem> getAttendanceReport(LocalDate fromDate, LocalDate toDate) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = "SELECT * FROM v_AttendanceReport";
+        if (fromDate == null && toDate == null) {
+            String sql = "SELECT * FROM v_AttendanceReport";
+            return jdbc.query(sql, (rs, rowNum) -> new AttendanceReportItem(
+                    rs.getString("HallName"),
+                    rs.getLong("TotalVisits"),
+                    rs.getLong("UniqueClients"),
+                    rs.getString("PeakHours"),
+                    rs.getDouble("OccupancyPercent"),
+                    rs.getObject("MaxCapacity") != null ? rs.getInt("MaxCapacity") : null
+            ));
+        }
+
+        String sql = """
+            SELECT 
+                h.HallName,
+                h.MaxCapacity,
+                COUNT(v.ID_Visit) AS TotalVisits,
+                COUNT(DISTINCT s.ID_Client) AS UniqueClients,
+                COALESCE(
+                    LPAD(MODE() WITHIN GROUP (ORDER BY EXTRACT(HOUR FROM v.CheckInTime)::INT)::TEXT, 2, '0') || ':00 - ' || 
+                    LPAD((MODE() WITHIN GROUP (ORDER BY EXTRACT(HOUR FROM v.CheckInTime)::INT) + 1)::TEXT, 2, '0') || ':00',
+                    '—'
+                ) AS PeakHours,
+                ROUND(LEAST(100.0, (COUNT(v.ID_Visit)::NUMERIC / NULLIF(h.MaxCapacity, 0)) * 100), 1) AS OccupancyPercent
+            FROM Halls h
+            LEFT JOIN Visits v ON h.ID_Hall = v.ID_Hall
+                 AND (?::DATE IS NULL OR v.CheckInTime >= ?::TIMESTAMP)
+                 AND (?::DATE IS NULL OR v.CheckInTime < (?::DATE + INTERVAL '1 day'))
+            LEFT JOIN Sales s ON v.ID_Sale = s.ID_Sale
+            WHERE (h.IsActive IS NULL OR h.IsActive = TRUE)
+            GROUP BY h.ID_Hall, h.HallName, h.MaxCapacity
+            ORDER BY TotalVisits DESC, h.HallName ASC
+            """;
 
         return jdbc.query(sql, (rs, rowNum) -> new AttendanceReportItem(
                 rs.getString("HallName"),
@@ -173,15 +205,91 @@ public class DirectorRepository {
                 rs.getString("PeakHours"),
                 rs.getDouble("OccupancyPercent"),
                 rs.getObject("MaxCapacity") != null ? rs.getInt("MaxCapacity") : null
-        ));
+        ), fromDate, fromDate, toDate, toDate);
     }
 
     /**
-     * D3: Coach popularity ranking - analytical view v_CoachPerformance
+     * D3: Coach popularity ranking - with optional date range filter
      */
-    public List<CoachPerformanceDto> getCoachPopularity() {
+    public List<CoachPerformanceDto> getCoachPopularity(LocalDate fromDate, LocalDate toDate) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
-        String sql = "SELECT * FROM v_CoachPerformance";
+        if (fromDate == null && toDate == null) {
+            String sql = "SELECT * FROM v_CoachPerformance";
+            return jdbc.query(sql, (rs, rowNum) -> new CoachPerformanceDto(
+                    rs.getInt("CoachId"),
+                    rs.getString("FullName"),
+                    rs.getString("SpecName"),
+                    rs.getLong("PersonalCount"),
+                    rs.getLong("IndividualClientsCount"),
+                    rs.getLong("GroupCount"),
+                    rs.getLong("TotalClasses"),
+                    rs.getDouble("AvgGroupSize"),
+                    rs.getDouble("Kpi"),
+                    rs.getLong("RankByGroupClasses"),
+                    rs.getLong("RankByAvgGroupSize"),
+                    rs.getLong("RankByIndividualClients"),
+                    rs.getLong("KpiRank")
+            ));
+        }
+
+        String sql = """
+            WITH GroupStats AS (
+                SELECT 
+                    gst.ID_Coach,
+                    COUNT(gci.ID_Instance) AS GroupClassesCount,
+                    ROUND(COALESCE(AVG(gci.ActualAttendance), 0), 2) AS AvgGroupSize
+                FROM GroupScheduleTemplates gst
+                JOIN GroupClassInstances gci ON gst.ID_Template = gci.ID_Template
+                WHERE gci.ClassStatus IN ('Completed', 'Attended')
+                  AND (?::DATE IS NULL OR gci.ClassDate >= ?::DATE)
+                  AND (?::DATE IS NULL OR gci.ClassDate <= ?::DATE)
+                GROUP BY gst.ID_Coach
+            ),
+            PersonalStats AS (
+                SELECT 
+                    pt.ID_Coach,
+                    COUNT(DISTINCT sl.ID_Client) AS IndividualClientsCount,
+                    COUNT(pt.ID_Personal) AS CompletedPersonalClassesCount
+                FROM PersonalTrainings pt
+                JOIN Sales sl ON pt.ID_Sale = sl.ID_Sale
+                WHERE pt.TrainingStatus IN ('Completed', 'Attended')
+                  AND (?::DATE IS NULL OR pt.TrainingDateTime >= ?::TIMESTAMP)
+                  AND (?::DATE IS NULL OR pt.TrainingDateTime < (?::DATE + INTERVAL '1 day'))
+                GROUP BY pt.ID_Coach
+            ),
+            CoachStats AS (
+                SELECT 
+                    c.ID_Coach AS CoachId,
+                    s.FullName,
+                    sp.SpecName,
+                    COALESCE(gs.GroupClassesCount, 0) AS GroupClassesCount,
+                    COALESCE(gs.AvgGroupSize, 0) AS AvgGroupSize,
+                    COALESCE(ps.IndividualClientsCount, 0) AS IndividualClientsCount,
+                    COALESCE(ps.CompletedPersonalClassesCount, 0) AS PersonalCount
+                FROM Coaches c
+                JOIN Staff s ON c.ID_Staff = s.ID_Staff
+                JOIN Specializations sp ON c.ID_Spec = sp.ID_Spec
+                LEFT JOIN GroupStats gs ON c.ID_Coach = gs.ID_Coach
+                LEFT JOIN PersonalStats ps ON c.ID_Coach = ps.ID_Coach
+                WHERE s.FireDate IS NULL
+            )
+            SELECT 
+                CoachId,
+                FullName,
+                SpecName,
+                PersonalCount,
+                IndividualClientsCount,
+                GroupClassesCount AS GroupCount,
+                (PersonalCount + GroupClassesCount) AS TotalClasses,
+                AvgGroupSize,
+                DENSE_RANK() OVER (ORDER BY GroupClassesCount DESC) AS RankByGroupClasses,
+                DENSE_RANK() OVER (ORDER BY AvgGroupSize DESC) AS RankByAvgGroupSize,
+                DENSE_RANK() OVER (ORDER BY IndividualClientsCount DESC) AS RankByIndividualClients,
+                DENSE_RANK() OVER (ORDER BY (PersonalCount * 1.5 + GroupClassesCount * AvgGroupSize) DESC) AS KpiRank,
+                ROUND((PersonalCount * 1.5 + GroupClassesCount * AvgGroupSize)::NUMERIC, 1) AS Kpi
+            FROM CoachStats
+            ORDER BY KpiRank ASC, TotalClasses DESC
+            """;
 
         return jdbc.query(sql, (rs, rowNum) -> new CoachPerformanceDto(
                 rs.getInt("CoachId"),
@@ -197,11 +305,59 @@ public class DirectorRepository {
                 rs.getLong("RankByAvgGroupSize"),
                 rs.getLong("RankByIndividualClients"),
                 rs.getLong("KpiRank")
-        ));
+        ), fromDate, fromDate, toDate, toDate, fromDate, fromDate, toDate, toDate);
     }
 
     /**
-     * D5: Problematic areas and risk analysis - analytical view v_ProblemSituations
+     * D-Manager: Manager performance and revenue report
+     */
+    public List<ManagerPerformanceDto> getManagerPerformance(LocalDate fromDate, LocalDate toDate) {
+        JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
+        String sql = """
+            WITH ManagerSales AS (
+                SELECT 
+                    st.ID_Staff AS ManagerId,
+                    st.FullName,
+                    st.Phone,
+                    COUNT(s.ID_Sale) AS SalesCount,
+                    COALESCE(SUM(s.SalePrice), 0.00) AS TotalRevenue,
+                    COALESCE(SUM(pl.Price - s.SalePrice), 0.00) AS TotalDiscounts
+                FROM Staff st
+                JOIN Positions pos ON st.ID_Position = pos.ID_Position
+                LEFT JOIN Sales s ON st.ID_Staff = s.ID_Manager
+                     AND (?::DATE IS NULL OR s.SaleDate >= ?::TIMESTAMP)
+                     AND (?::DATE IS NULL OR s.SaleDate < (?::DATE + INTERVAL '1 day'))
+                LEFT JOIN PriceList pl ON s.ID_Item = pl.ID_Item
+                WHERE pos.PositionName ILIKE '%менеджер%' AND st.FireDate IS NULL
+                GROUP BY st.ID_Staff, st.FullName, st.Phone
+            )
+            SELECT 
+                ManagerId,
+                FullName,
+                Phone,
+                SalesCount,
+                TotalRevenue,
+                TotalDiscounts,
+                ROUND((TotalRevenue / NULLIF(SUM(TotalRevenue) OVER (), 0)) * 100, 2) AS RevenueSharePercent,
+                DENSE_RANK() OVER (ORDER BY TotalRevenue DESC, SalesCount DESC) AS RevenueRank
+            FROM ManagerSales
+            ORDER BY RevenueRank ASC, FullName ASC
+            """;
+
+        return jdbc.query(sql, (rs, rowNum) -> new ManagerPerformanceDto(
+                rs.getInt("ManagerId"),
+                rs.getString("FullName"),
+                rs.getString("Phone"),
+                rs.getLong("SalesCount"),
+                rs.getBigDecimal("TotalRevenue"),
+                rs.getBigDecimal("TotalDiscounts"),
+                rs.getObject("RevenueSharePercent") != null ? rs.getDouble("RevenueSharePercent") : 0.0,
+                rs.getLong("RevenueRank")
+        ), fromDate, fromDate, toDate, toDate);
+    }
+
+    /**
+     * D4: Problematic areas and risk analysis - analytical view v_ProblemSituations
      */
     public List<ProblemAreaDto> getIssuesAnalysis() {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -216,7 +372,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D6: Change log audit - analytical view v_PersonalTrainingsAudit
+     * D5: Change log audit - analytical view v_PersonalTrainingsAudit
      */
     public List<PersonalTrainingAuditLogDto> getAuditLog() {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -235,7 +391,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D7: Create new subscription type
+     * D6: Create new subscription type
      */
     public Integer createSubscriptionType(CreateSubscriptionTypeRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -260,7 +416,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D10: Create single/extra price list service
+     * D9: Create single/extra price list service
      */
     public Integer createService(CreateServiceRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -272,7 +428,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D8: Commission hall into operation
+     * D7: Commission hall into operation
      */
     public Integer commissionHall(CommissionHallRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -283,7 +439,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D8: Decommission hall (archive hall / set IsActive = FALSE)
+     * D7: Decommission hall (archive hall / set IsActive = FALSE)
      */
     public void decommissionHall(Integer hallId) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -291,7 +447,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D8: Get archived halls (IsActive = FALSE)
+     * D7: Get archived halls (IsActive = FALSE)
      */
     public List<HallDto> getArchivedHalls() {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -304,7 +460,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D8: Recommission hall (set IsActive = TRUE)
+     * D7: Recommission hall (set IsActive = TRUE)
      */
     public void recommissionHall(Integer hallId) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -312,7 +468,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D9: Create promo code
+     * D8: Create promo code
      */
     public Integer createPromoCode(CreatePromoCodeRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -323,7 +479,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D11: Create group schedule template
+     * D10: Create group schedule template
      */
     public Integer createScheduleTemplate(CreateScheduleTemplateRequest req) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -336,7 +492,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D10: Update price tariff (versioning via sp_update_price_tariff)
+     * D9: Update price tariff (versioning via sp_update_price_tariff)
      */
     public Map<String, Object> updatePriceTariff(Integer itemId, BigDecimal newPrice) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -345,7 +501,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D10: Create membership service in price list (via sp_create_membership_service)
+     * D9: Create membership service in price list (via sp_create_membership_service)
      */
     public Integer createMembershipService(String itemName, BigDecimal price, Integer durationDays, Integer maxFreezingDays, String description) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -354,7 +510,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D10: Create group class service in price list (via sp_create_group_class_service)
+     * D9: Create group class service in price list (via sp_create_group_class_service)
      */
     public Map<String, Object> createGroupClassService(String itemName, BigDecimal price, Integer hallId, Integer coachId, Integer dayOfWeek, LocalTime startTime, Integer durationMinutes, String description) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -363,7 +519,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D10: Create price item in price list (via sp_create_price_item)
+     * D9: Create price item in price list (via sp_create_price_item)
      */
     public Integer createPriceItem(String itemName, String category, BigDecimal price, String description) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();
@@ -372,7 +528,7 @@ public class DirectorRepository {
     }
 
     /**
-     * D10: Deactivate / soft delete price item (via sp_deactivate_price_item)
+     * D9: Deactivate / soft delete price item (via sp_deactivate_price_item)
      */
     public Map<String, Object> deactivatePriceItem(Integer itemId) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();

@@ -3,7 +3,7 @@
 -- ------------------------------------------------------------------------------
 
 -- Доступ до схеми public
-GRANT USAGE ON SCHEMA public TO guest, client_role, manager_role, hr_role, coach_role, director_role;
+GRANT USAGE ON SCHEMA public TO guest, client_role, manager_role, hr_role, coach_role, director_role, scheduler_service_role;
 
 -- 5.1. ДИРЕКТОР (director_role): повний контроль
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO director_role;
@@ -60,6 +60,9 @@ GRANT SELECT, INSERT ON PT_Changelog TO client_role;
 GRANT SELECT, INSERT ON PT_TimeChangeDetails TO client_role;
 GRANT SELECT, INSERT, UPDATE (BookingStatus) ON GroupClassBookings TO client_role;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO client_role;
+
+-- 5.7. ПЛАНУВАЛЬНИК ЗАДАЧ (scheduler_service_role): фонова генерація розкладу
+GRANT SELECT ON GroupScheduleTemplates, ClassTypes, PriceList TO scheduler_service_role;
 
 -- 5.6. ГІСТЬ (guest): вітрина клубу
 GRANT SELECT ON 

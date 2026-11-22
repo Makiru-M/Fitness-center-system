@@ -526,7 +526,7 @@ export async function renderM2ClientsTable(searchTerm = '') {
 
     tbody.innerHTML = '';
     if (!cachedClients.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center text-xs text-slate-400 py-6">Клієнтів не знайдено за заданим критерієм</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-xs text-slate-400 py-6">Клієнтів не знайдено за заданим критерієм</td></tr>';
       return;
     }
 
@@ -547,7 +547,6 @@ export async function renderM2ClientsTable(searchTerm = '') {
       const activeSubscriptionEndDate = c.activeSubscriptionEndDate || c.activeSubEndDate;
       const activeSubscriptionStatus = c.activeSubscriptionStatus || c.activeSubStatus;
       row.innerHTML = `
-        <td class="font-mono text-xs text-slate-400">#${c.clientId}</td>
         <td>
           <span class="font-bold text-white font-heading text-sm block leading-snug">${c.fullName}</span>
         </td>

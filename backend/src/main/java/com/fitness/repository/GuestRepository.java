@@ -77,7 +77,7 @@ public class GuestRepository {
     }
 
     /**
-     * G3 / D10: View Price List with optional archived items
+     * G3 / D9: View Price List with optional archived items
      */
     public List<PriceListItemDto> getPriceList(boolean includeArchived) {
         JdbcTemplate jdbc = dataSourceService.getJdbcTemplate();

@@ -8,7 +8,8 @@ export const STORAGE_KEYS = {
   API_URL: 'fc_api_url',
   AUTH_TOKEN: 'fc_auth_token',
   REFRESH_TOKEN: 'fitness_refresh_token',
-  CURRENT_USER: 'fc_current_user'
+  CURRENT_USER: 'fc_current_user',
+  THEME: 'fc_theme'
 };
 
 export const TEST_ACCOUNTS = {

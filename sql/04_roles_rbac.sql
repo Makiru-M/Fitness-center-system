@@ -23,6 +23,9 @@ BEGIN
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'director_role') THEN
         CREATE ROLE director_role;
     END IF;
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'scheduler_service_role') THEN
+        CREATE ROLE scheduler_service_role;
+    END IF;
 
     -- 2. Публічний гість (guest_user) для неавторизованого перегляду та реєстрації
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'guest_user') THEN
@@ -30,6 +33,14 @@ BEGIN
     ELSE
         ALTER USER guest_user WITH PASSWORD 'guest_pass_2026';
         GRANT guest TO guest_user;
+    END IF;
+
+    -- 3. Технічний користувач планувальника фонових задач (app_scheduler)
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'app_scheduler') THEN
+        CREATE USER app_scheduler WITH PASSWORD 'scheduler_pass_2026' IN ROLE scheduler_service_role;
+    ELSE
+        ALTER USER app_scheduler WITH PASSWORD 'scheduler_pass_2026';
+        GRANT scheduler_service_role TO app_scheduler;
     END IF;
 END
 $$;

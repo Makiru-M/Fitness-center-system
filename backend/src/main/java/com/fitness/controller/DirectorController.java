@@ -46,20 +46,37 @@ public class DirectorController {
      * D2: Attendance report
      */
     @GetMapping("/reports/attendance")
-    public ResponseEntity<List<AttendanceReportItem>> getAttendanceReport() {
-        return ResponseEntity.ok(directorRepository.getAttendanceReport());
+    public ResponseEntity<List<AttendanceReportItem>> getAttendanceReport(
+            @RequestParam(value = "fromDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(value = "toDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        return ResponseEntity.ok(directorRepository.getAttendanceReport(fromDate, toDate));
     }
 
     /**
      * D3: Coach popularity ranking
      */
     @GetMapping("/reports/coach-popularity")
-    public ResponseEntity<List<CoachPerformanceDto>> getCoachPopularity() {
-        return ResponseEntity.ok(directorRepository.getCoachPopularity());
+    public ResponseEntity<List<CoachPerformanceDto>> getCoachPopularity(
+            @RequestParam(value = "fromDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(value = "toDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        return ResponseEntity.ok(directorRepository.getCoachPopularity(fromDate, toDate));
     }
 
     /**
-     * D5: Analysis of problematic areas (expired subscriptions, high no-shows)
+     * D-Manager: Manager performance and revenue report
+     */
+    @GetMapping("/reports/manager-performance")
+    public ResponseEntity<List<ManagerPerformanceDto>> getManagerPerformance(
+            @RequestParam(value = "fromDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(value = "toDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate
+    ) {
+        return ResponseEntity.ok(directorRepository.getManagerPerformance(fromDate, toDate));
+    }
+
+    /**
+     * D4: Analysis of problematic areas (expired subscriptions, high no-shows)
      */
     @GetMapping("/reports/issues")
     public ResponseEntity<List<ProblemAreaDto>> getIssuesReport() {
@@ -67,7 +84,7 @@ public class DirectorController {
     }
 
     /**
-     * D6: Audit log of changes (PT_Changelog)
+     * D5: Audit log of changes (PT_Changelog)
      */
     @GetMapping("/reports/audit-log")
     public ResponseEntity<List<PersonalTrainingAuditLogDto>> getAuditLog() {
@@ -75,7 +92,7 @@ public class DirectorController {
     }
 
     /**
-     * D7: Create new subscription type
+     * D6: Create new subscription type
      */
     @PostMapping("/subscriptions")
     public ResponseEntity<Map<String, Object>> createSubscriptionType(@RequestBody CreateSubscriptionTypeRequest request) {
@@ -87,7 +104,7 @@ public class DirectorController {
     }
 
     /**
-     * D10: Create price list service (single/extra service)
+     * D9: Create price list service (single/extra service)
      */
     @PostMapping("/services")
     public ResponseEntity<Map<String, Object>> createService(@RequestBody CreateServiceRequest request) {
@@ -99,7 +116,7 @@ public class DirectorController {
     }
 
     /**
-     * D8: Commission hall into operation
+     * D7: Commission hall into operation
      */
     @PostMapping("/halls")
     public ResponseEntity<Map<String, Object>> commissionHall(@RequestBody CommissionHallRequest request) {
@@ -111,7 +128,7 @@ public class DirectorController {
     }
 
     /**
-     * D8: Decommission hall from operation (archive)
+     * D7: Decommission hall from operation (archive)
      */
     @DeleteMapping("/halls/{hallId}")
     public ResponseEntity<Map<String, Object>> decommissionHall(@PathVariable Integer hallId) {
@@ -123,7 +140,7 @@ public class DirectorController {
     }
 
     /**
-     * D8: Get archived halls
+     * D7: Get archived halls
      */
     @GetMapping("/halls/archived")
     public ResponseEntity<List<HallDto>> getArchivedHalls() {
@@ -131,7 +148,7 @@ public class DirectorController {
     }
 
     /**
-     * D8: Recommission hall into operation
+     * D7: Recommission hall into operation
      */
     @PutMapping("/halls/{hallId}/recommission")
     public ResponseEntity<Map<String, Object>> recommissionHall(@PathVariable Integer hallId) {
@@ -143,7 +160,7 @@ public class DirectorController {
     }
 
     /**
-     * D9: Create promo code
+     * D8: Create promo code
      */
     @PostMapping("/promos")
     public ResponseEntity<Map<String, Object>> createPromoCode(@RequestBody CreatePromoCodeRequest request) {
@@ -155,7 +172,7 @@ public class DirectorController {
     }
 
     /**
-     * D11: Create group schedule template
+     * D10: Create group schedule template
      */
     @PostMapping("/schedule/templates")
     public ResponseEntity<Map<String, Object>> createScheduleTemplate(@RequestBody CreateScheduleTemplateRequest request) {
@@ -167,7 +184,7 @@ public class DirectorController {
     }
 
     /**
-     * D10: Update price tariff (versioning)
+     * D9: Update price tariff (versioning)
      */
     @PutMapping("/prices/{id}")
     public ResponseEntity<Map<String, Object>> updatePriceTariff(
@@ -182,7 +199,7 @@ public class DirectorController {
     }
 
     /**
-     * D10: Create turnkey service
+     * D9: Create turnkey service
      */
     @PostMapping("/services/turnkey")
     public ResponseEntity<Map<String, Object>> createTurnkeyService(@RequestBody CreateTurnkeyServiceRequest request) {
@@ -194,7 +211,7 @@ public class DirectorController {
     }
 
     /**
-     * D10: Get price list with optional archived items
+     * D9: Get price list with optional archived items
      */
     @GetMapping("/prices")
     public ResponseEntity<List<PriceListItemDto>> getPrices(
@@ -204,7 +221,7 @@ public class DirectorController {
     }
 
     /**
-     * D10: Deactivate / archive price item (Soft Delete)
+     * D9: Deactivate / archive price item (Soft Delete)
      */
     @DeleteMapping("/prices/{itemId}")
     public ResponseEntity<Map<String, Object>> deactivatePriceItem(@PathVariable("itemId") Integer itemId) {
@@ -217,7 +234,7 @@ public class DirectorController {
     }
 
     /**
-     * D11: Get all class types
+     * D10: Get all class types
      */
     @GetMapping("/class-types")
     public ResponseEntity<List<ClassTypePublicDto>> getClassTypes() {

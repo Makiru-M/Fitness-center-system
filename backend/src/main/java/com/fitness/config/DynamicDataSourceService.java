@@ -37,6 +37,8 @@ public class DynamicDataSourceService {
     private final String guestPassword;
     private final String adminUsername;
     private final String adminPassword;
+    private final String schedulerUsername;
+    private final String schedulerPassword;
 
     private final int maxPoolSize;
     private final int minIdle;
@@ -53,6 +55,8 @@ public class DynamicDataSourceService {
             @Value("${app.datasource.guest-password:${fitness.db.guest.password:guest_pass_2026}}") String guestPassword,
             @Value("${app.datasource.admin-username:postgres}") String adminUsername,
             @Value("${app.datasource.admin-password:postgres}") String adminPassword,
+            @Value("${app.datasource.scheduler-username:app_scheduler}") String schedulerUsername,
+            @Value("${app.datasource.scheduler-password:scheduler_pass_2026}") String schedulerPassword,
             @Value("${app.datasource.hikari.maximum-pool-size:5}") int maxPoolSize,
             @Value("${app.datasource.hikari.minimum-idle:1}") int minIdle,
             @Value("${app.datasource.hikari.idle-timeout:60000}") long idleTimeout,
@@ -64,6 +68,8 @@ public class DynamicDataSourceService {
         this.guestPassword = guestPassword;
         this.adminUsername = adminUsername;
         this.adminPassword = adminPassword;
+        this.schedulerUsername = schedulerUsername;
+        this.schedulerPassword = schedulerPassword;
         this.maxPoolSize = maxPoolSize;
         this.minIdle = minIdle;
         this.idleTimeout = idleTimeout;
@@ -80,14 +86,58 @@ public class DynamicDataSourceService {
     }
 
     @PostConstruct
-    public void initGuestUserIfNeeded() {
+    public void initSystemUsersIfNeeded() {
+        // 1. Перевірка / автоініціалізація guest_user
         try {
             testConnection(guestUsername, guestPassword);
             log.info("PostgreSQL guest user [{}] connection verified successfully.", guestUsername);
         } catch (Exception e) {
-            log.warn("Guest user [{}] connection test failed: {}. Attempting auto-provisioning via admin user [{}]...",
-                    guestUsername, e.getMessage(), adminUsername);
+            log.warn("Guest user [{}] connection test failed: {}. Attempting auto-provisioning...",
+                    guestUsername, e.getMessage());
             autoProvisionGuestUser();
+        }
+
+        // 2. Перевірка / автоініціалізація app_scheduler
+        try {
+            testConnection(schedulerUsername, schedulerPassword);
+            log.info("PostgreSQL scheduler user [{}] connection verified successfully.", schedulerUsername);
+        } catch (Exception e) {
+            log.warn("Scheduler user [{}] connection test failed: {}. Attempting auto-provisioning...",
+                    schedulerUsername, e.getMessage());
+            autoProvisionSchedulerUser();
+        }
+    }
+
+    private void autoProvisionSchedulerUser() {
+        try (Connection adminConn = DriverManager.getConnection(jdbcUrl, adminUsername, adminPassword);
+             Statement stmt = adminConn.createStatement()) {
+
+            String sql = """
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'scheduler_service_role') THEN
+                        CREATE ROLE scheduler_service_role;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = '%s') THEN
+                        CREATE USER "%s" WITH PASSWORD '%s' IN ROLE scheduler_service_role;
+                    ELSE
+                        ALTER USER "%s" WITH PASSWORD '%s';
+                        GRANT scheduler_service_role TO "%s";
+                    END IF;
+                    GRANT USAGE ON SCHEMA public TO scheduler_service_role;
+                    GRANT SELECT ON GroupScheduleTemplates, ClassTypes, PriceList TO scheduler_service_role;
+                    GRANT EXECUTE ON PROCEDURE sp_generate_weekly_group_instances(INTEGER) TO scheduler_service_role;
+                END $$;
+                """.formatted(schedulerUsername, schedulerUsername, schedulerPassword, schedulerUsername, schedulerPassword, schedulerUsername);
+
+            stmt.execute(sql);
+            log.info("Auto-provisioned PostgreSQL scheduler user [{}] successfully.", schedulerUsername);
+
+            dataSourceCache.remove(schedulerUsername + "::" + schedulerPassword);
+            testConnection(schedulerUsername, schedulerPassword);
+            log.info("PostgreSQL scheduler user [{}] now operational.", schedulerUsername);
+        } catch (Exception ex) {
+            log.error("Could not auto-provision scheduler user: {}", ex.getMessage());
         }
     }
 
@@ -190,8 +240,16 @@ public class DynamicDataSourceService {
     /**
      * Obtain a JdbcTemplate for system background operations using superuser/admin credentials.
      */
+    public JdbcTemplate getSchedulerJdbcTemplate() {
+        return getJdbcTemplateForUser(schedulerUsername, schedulerPassword);
+    }
+
+    /**
+     * @deprecated Runtime services should not use superuser privileges. Use getSchedulerJdbcTemplate() instead.
+     */
+    @Deprecated
     public JdbcTemplate getAdminJdbcTemplate() {
-        return getJdbcTemplateForUser(adminUsername, adminPassword);
+        return getSchedulerJdbcTemplate();
     }
 
     /**

@@ -15,6 +15,7 @@ export const COMBOBOX_TARGETS = [
   '#cl5-coach',
   '#m6-coach',
   '#hr3-coach',
+  '#d10-coach',
   '#d11-coach',
   '#d12-coach'
 ];

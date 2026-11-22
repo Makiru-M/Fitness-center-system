@@ -69,14 +69,14 @@ public class DirectorService {
     }
 
     /**
-     * D11: Get all class types
+     * D10: Get all class types
      */
     public List<ClassTypePublicDto> getClassTypes() {
         return directorRepository.getClassTypes();
     }
 
     /**
-     * D10: Create turnkey service routed to specialized procedures
+     * D9: Create turnkey service routed to specialized procedures
      */
     public Map<String, Object> createTurnkeyService(CreateTurnkeyServiceRequest req) {
         String category = req.category();

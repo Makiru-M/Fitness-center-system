@@ -2,6 +2,20 @@
 <html lang="uk" class="dark">
 <head>
   <meta charset="UTF-8">
+  <script>
+    (function() {
+      try {
+        var savedTheme = localStorage.getItem('fc_theme');
+        if (savedTheme === 'light') {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.classList.add('light');
+        } else if (savedTheme === 'dark') {
+          document.documentElement.classList.remove('light');
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FitnessClub IS — Автоматизована система фітнес-клубу</title>
   <meta name="description" content="Сучасна інформаційна система фітнес-клубу FitnessClub IS. Управління розкладом, абонементами, клієнтами, тренерами та аналітикою.">
@@ -132,7 +146,7 @@
   <!-- Custom Athletic Styles -->
   <link rel="stylesheet" href="styles.css?v=20261018_v11">
 </head>
-<body class="bg-base text-slate-100 min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
+<body class="bg-base text-main min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
 
   <!-- Toast Container -->
   <div id="toast-container"></div>
@@ -165,6 +179,11 @@
             <span id="mode-label">API: Онлайн</span>
             <i class="fa-solid fa-gear ml-2 text-slate-400 hover:text-cyan-400 transition"></i>
           </div>
+
+          <!-- Theme Toggle Button -->
+          <button id="theme-toggle-btn" onclick="toggleTheme()" class="inline-flex items-center justify-center w-8 h-8 rounded-lg border border-subtle bg-surface text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 transition-colors shadow-sm" title="Змінити тему (Світла / Темна)" aria-label="Змінити тему">
+            <i id="theme-toggle-icon" class="fa-solid fa-moon"></i>
+          </button>
 
           <!-- Current User Info & Auth Button -->
           <div id="user-profile-widget" class="flex items-center space-x-3 pl-3 border-l border-subtle">
@@ -672,32 +691,32 @@
             </button>
             <button onclick="switchClientTab('cl1')" id="tab-btn-cl1" class="nav-tab-btn">
               <i class="fa-solid fa-user-pen"></i>
-              <span>Cl1: Профіль</span>
+              <span>Профіль</span>
               <span class="task-badge">Cl1</span>
             </button>
             <button onclick="switchClientTab('cl2')" id="tab-btn-cl2" class="nav-tab-btn">
               <i class="fa-solid fa-arrows-rotate"></i>
-              <span>Cl2: Продовжити</span>
+              <span>Продовжити</span>
               <span class="task-badge">Cl2</span>
             </button>
             <button onclick="switchClientTab('cl3')" id="tab-btn-cl3" class="nav-tab-btn">
               <i class="fa-solid fa-snowflake"></i>
-              <span>Cl3: Заморозити</span>
+              <span>Заморозити</span>
               <span class="task-badge">Cl3</span>
             </button>
             <button onclick="switchClientTab('cl4')" id="tab-btn-cl4" class="nav-tab-btn">
               <i class="fa-solid fa-people-group"></i>
-              <span>Cl4: Групові</span>
+              <span>Групові</span>
               <span class="task-badge">Cl4</span>
             </button>
             <button onclick="switchClientTab('cl5')" id="tab-btn-cl5" class="nav-tab-btn">
               <i class="fa-solid fa-user-clock"></i>
-              <span>Cl5: Персональні</span>
+              <span>Персональні</span>
               <span class="task-badge">Cl5</span>
             </button>
             <button onclick="switchClientTab('cl6')" id="tab-btn-cl6" class="nav-tab-btn">
               <i class="fa-solid fa-calendar-xmark"></i>
-              <span>Cl6: Скасувати</span>
+              <span>Скасувати</span>
               <span class="task-badge">Cl6</span>
             </button>
           </nav>
@@ -984,42 +1003,42 @@
           <nav class="crm-nav-list">
             <button onclick="switchManagerTab('m4')" id="tab-btn-m4" class="nav-tab-btn active">
               <i class="fa-solid fa-barcode"></i>
-              <span>M4: Check-in</span>
+              <span>Check-in</span>
               <span class="task-badge">M4</span>
             </button>
             <button onclick="switchManagerTab('m1')" id="tab-btn-m1" class="nav-tab-btn">
               <i class="fa-solid fa-user-plus"></i>
-              <span>M1: Новий клієнт</span>
+              <span>Новий клієнт</span>
               <span class="task-badge">M1</span>
             </button>
             <button onclick="switchManagerTab('m2')" id="tab-btn-m2" class="nav-tab-btn">
               <i class="fa-solid fa-users"></i>
-              <span>M2: Реєстр клієнтів</span>
+              <span>Реєстр клієнтів</span>
               <span class="task-badge">M2</span>
             </button>
             <button onclick="switchManagerTab('m3')" id="tab-btn-m3" class="nav-tab-btn">
               <i class="fa-solid fa-cash-register"></i>
-              <span>M3: Продаж абонемента</span>
+              <span>Продаж абонемента</span>
               <span class="task-badge">M3</span>
             </button>
             <button onclick="switchManagerTab('m5')" id="tab-btn-m5" class="nav-tab-btn">
               <i class="fa-solid fa-people-roof"></i>
-              <span>M5: Запис на групове</span>
+              <span>Запис на групове</span>
               <span class="task-badge">M5</span>
             </button>
             <button onclick="switchManagerTab('m6')" id="tab-btn-m6" class="nav-tab-btn">
               <i class="fa-solid fa-user-clock"></i>
-              <span>M6: Персональне</span>
+              <span>Персональне</span>
               <span class="task-badge">M6</span>
             </button>
             <button onclick="switchManagerTab('m7')" id="tab-btn-m7" class="nav-tab-btn">
               <i class="fa-solid fa-snowflake"></i>
-              <span>M7: Заморозка</span>
+              <span>Заморозка</span>
               <span class="task-badge">M7</span>
             </button>
             <button onclick="switchManagerTab('m8')" id="tab-btn-m8" class="nav-tab-btn">
               <i class="fa-solid fa-calendar-xmark"></i>
-              <span>M8: Зміни розкладу</span>
+              <span>Зміни розкладу</span>
               <span class="task-badge">M8</span>
             </button>
           </nav>
@@ -1165,7 +1184,6 @@
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>ПІБ клієнта</th>
                     <th>Телефон</th>
                     <th>Абонемент</th>
@@ -1521,7 +1539,6 @@
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>ПІБ</th>
                     <th>Телефон</th>
                     <th>Спеціалізація</th>
@@ -1639,7 +1656,6 @@
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>ПІБ</th>
                     <th>Посада</th>
                     <th>Телефон</th>
@@ -1762,27 +1778,27 @@
           <nav class="crm-nav-list">
             <button onclick="switchCoachTab('c1')" id="tab-btn-c1" class="nav-tab-btn active">
               <i class="fa-solid fa-calendar-week"></i>
-              <span>C1: Розклад занять</span>
+              <span>Розклад занять</span>
               <span class="task-badge">C1</span>
             </button>
             <button onclick="switchCoachTab('c2')" id="tab-btn-c2" class="nav-tab-btn">
               <i class="fa-solid fa-clipboard-user"></i>
-              <span>C2: Список клієнтів</span>
+              <span>Список клієнтів</span>
               <span class="task-badge">C2</span>
             </button>
             <button onclick="switchCoachTab('c3')" id="tab-btn-c3" class="nav-tab-btn">
               <i class="fa-solid fa-check-double"></i>
-              <span>C3: Відмітка індивід.</span>
+              <span>Відмітка індивід.</span>
               <span class="task-badge">C3</span>
             </button>
             <button onclick="switchCoachTab('c4')" id="tab-btn-c4" class="nav-tab-btn">
               <i class="fa-solid fa-users-viewfinder"></i>
-              <span>C4: Відмітка групового</span>
+              <span>Відмітка групового</span>
               <span class="task-badge">C4</span>
             </button>
             <button onclick="switchCoachTab('c5')" id="tab-btn-c5" class="nav-tab-btn">
               <i class="fa-solid fa-code-pull-request"></i>
-              <span>C5: Запит на зміни</span>
+              <span>Запит на зміни</span>
               <span class="task-badge">C5</span>
             </button>
           </nav>
@@ -1968,57 +1984,62 @@
           <nav class="crm-nav-list">
             <button onclick="switchDirectorTab('d1')" id="tab-btn-d1" class="nav-tab-btn active">
               <i class="fa-solid fa-coins"></i>
-              <span>D1: Звіт по виручці</span>
+              <span>Звіт по виручці</span>
               <span class="task-badge">D1</span>
             </button>
             <button onclick="switchDirectorTab('d2')" id="tab-btn-d2" class="nav-tab-btn">
               <i class="fa-solid fa-chart-line"></i>
-              <span>D2: Відвідуваність</span>
+              <span>Відвідуваність</span>
               <span class="task-badge">D2</span>
             </button>
             <button onclick="switchDirectorTab('d3')" id="tab-btn-d3" class="nav-tab-btn">
               <i class="fa-solid fa-ranking-star"></i>
-              <span>D3: Рейтинг тренерів</span>
+              <span>Рейтинг тренерів</span>
               <span class="task-badge">D3</span>
+            </button>
+            <button onclick="switchDirectorTab('d4')" id="tab-btn-d4" class="nav-tab-btn">
+              <i class="fa-solid fa-user-tie"></i>
+              <span>Звіт по менеджерах</span>
+              <span class="task-badge">D4</span>
             </button>
             <button onclick="switchDirectorTab('d5')" id="tab-btn-d5" class="nav-tab-btn">
               <i class="fa-solid fa-triangle-exclamation"></i>
-              <span>D5: Проблемні місця</span>
+              <span>Проблемні місця</span>
               <span class="task-badge">D5</span>
             </button>
             <button onclick="switchDirectorTab('d6')" id="tab-btn-d6" class="nav-tab-btn">
               <i class="fa-solid fa-shield-halved"></i>
-              <span>D6: Журнал аудиту</span>
+              <span>Журнал аудиту</span>
               <span class="task-badge">D6</span>
             </button>
             <button onclick="switchDirectorTab('d7')" id="tab-btn-d7" class="nav-tab-btn">
               <i class="fa-solid fa-plus-circle"></i>
-              <span>D7: Новий абонемент</span>
+              <span>Новий абонемент</span>
               <span class="task-badge">D7</span>
             </button>
             <button onclick="switchDirectorTab('d8')" id="tab-btn-d8" class="nav-tab-btn">
               <i class="fa-solid fa-door-open"></i>
-              <span>D8: Керування залами</span>
+              <span>Керування залами</span>
               <span class="task-badge">D8</span>
             </button>
             <button onclick="switchDirectorTab('d9')" id="tab-btn-d9" class="nav-tab-btn">
               <i class="fa-solid fa-ticket"></i>
-              <span>D9: Створення промо</span>
+              <span>Створення промо</span>
               <span class="task-badge">D9</span>
             </button>
             <button onclick="switchDirectorTab('d10')" id="tab-btn-d10" class="nav-tab-btn">
               <i class="fa-solid fa-list-check"></i>
-              <span>D10: Послуги прайсу</span>
+              <span>Послуги прайсу</span>
               <span class="task-badge">D10</span>
             </button>
             <button onclick="switchDirectorTab('d11')" id="tab-btn-d11" class="nav-tab-btn">
               <i class="fa-solid fa-calendar-days"></i>
-              <span>D11: Розклад груп</span>
+              <span>Розклад груп</span>
               <span class="task-badge">D11</span>
             </button>
             <button onclick="switchDirectorTab('d12')" id="tab-btn-d12" class="nav-tab-btn">
               <i class="fa-solid fa-clock"></i>
-              <span>D12: Графік індивід.</span>
+              <span>Графік індивід.</span>
               <span class="task-badge">D12</span>
             </button>
           </nav>
@@ -2107,6 +2128,25 @@
                 <h3 class="text-base font-bold text-white font-heading" style="color: #ffffff !important;"><i class="fa-solid fa-chart-line text-cyan-400 mr-2"></i> Звіт по відвідуваності клубу</h3>
               </div>
             </div>
+            <!-- D2 Date Range Filter -->
+            <div class="card p-4 border-subtle flex flex-wrap items-end gap-3 sm:gap-4">
+              <div class="flex-1 min-w-[140px]">
+                <label for="d2-from-date" class="form-label block text-xs mb-1.5 text-slate-300">Дата з:</label>
+                <input type="date" id="d2-from-date" class="form-input text-xs font-mono w-full">
+              </div>
+              <div class="flex-1 min-w-[140px]">
+                <label for="d2-to-date" class="form-label block text-xs mb-1.5 text-slate-300">Дата по:</label>
+                <input type="date" id="d2-to-date" class="form-input text-xs font-mono w-full">
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button type="button" id="btn-apply-d2-filter" class="btn btn-primary btn-sm flex items-center gap-1.5">
+                  <i class="fa-solid fa-filter text-xs"></i> Застосувати
+                </button>
+                <button type="button" id="btn-reset-d2-filter" class="btn btn-secondary btn-sm flex items-center gap-1.5">
+                  <i class="fa-solid fa-rotate-left text-xs"></i> Скинути
+                </button>
+              </div>
+            </div>
             <div class="table-responsive">
               <table>
                 <thead>
@@ -2133,6 +2173,25 @@
                 <h3 class="text-base font-bold text-white font-heading" style="color: #ffffff !important;"><i class="fa-solid fa-ranking-star text-cyan-400 mr-2"></i> Рейтинг та продуктивність тренерів</h3>
               </div>
             </div>
+            <!-- D3 Date Range Filter -->
+            <div class="card p-4 border-subtle flex flex-wrap items-end gap-3 sm:gap-4">
+              <div class="flex-1 min-w-[140px]">
+                <label for="d3-from-date" class="form-label block text-xs mb-1.5 text-slate-300">Дата з:</label>
+                <input type="date" id="d3-from-date" class="form-input text-xs font-mono w-full">
+              </div>
+              <div class="flex-1 min-w-[140px]">
+                <label for="d3-to-date" class="form-label block text-xs mb-1.5 text-slate-300">Дата по:</label>
+                <input type="date" id="d3-to-date" class="form-input text-xs font-mono w-full">
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button type="button" id="btn-apply-d3-filter" class="btn btn-primary btn-sm flex items-center gap-1.5">
+                  <i class="fa-solid fa-filter text-xs"></i> Застосувати
+                </button>
+                <button type="button" id="btn-reset-d3-filter" class="btn btn-secondary btn-sm flex items-center gap-1.5">
+                  <i class="fa-solid fa-rotate-left text-xs"></i> Скинути
+                </button>
+              </div>
+            </div>
             <div class="table-responsive">
               <table>
                 <thead>
@@ -2152,6 +2211,74 @@
             </div>
           </div>
 
+
+          <!-- D4: Manager Performance Report -->
+          <div id="subtab-d4" class="director-pane hidden space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h3 class="text-base font-bold text-white font-heading" style="color: #ffffff !important;"><i class="fa-solid fa-user-tie text-cyan-400 mr-2"></i> D4: Результативність та прибуток менеджерів</h3>
+              </div>
+            </div>
+
+            <!-- Панель фільтрації дат -->
+            <div class="card p-4 border-subtle flex flex-wrap items-end gap-3 sm:gap-4">
+              <div class="flex-1 min-w-[140px]">
+                <label for="d4-from-date" class="form-label block text-xs mb-1.5 text-slate-300">Дата з:</label>
+                <input type="date" id="d4-from-date" class="form-input text-xs font-mono w-full">
+              </div>
+              <div class="flex-1 min-w-[140px]">
+                <label for="d4-to-date" class="form-label block text-xs mb-1.5 text-slate-300">Дата по:</label>
+                <input type="date" id="d4-to-date" class="form-input text-xs font-mono w-full">
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button type="button" id="btn-apply-d4-filter" class="btn btn-primary btn-sm flex items-center gap-1.5">
+                  <i class="fa-solid fa-filter text-xs"></i> Застосувати
+                </button>
+                <button type="button" id="btn-reset-d4-filter" class="btn btn-secondary btn-sm flex items-center gap-1.5">
+                  <i class="fa-solid fa-rotate-left text-xs"></i> Скинути
+                </button>
+              </div>
+            </div>
+
+            <!-- Метричні плашки -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="metric-box">
+                <span class="metric-label">Виручка від менеджерів</span>
+                <div id="d4-total-revenue" class="metric-value text-cyan-400">0.00 грн</div>
+                <span class="text-xs text-slate-400 mt-1 block font-mono">Фактичні надходження</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">Кількість угод</span>
+                <div id="d4-total-sales" class="metric-value text-white">0</div>
+                <span class="text-xs text-slate-400 mt-1 block font-mono">Оформлених продажів</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">Топ-менеджер</span>
+                <div id="d4-top-manager" class="metric-value text-white text-lg truncate">—</div>
+                <span class="text-xs text-slate-400 mt-1 block font-mono">Лідер за прибутком</span>
+              </div>
+            </div>
+
+            <!-- Таблиця результативності менеджерів -->
+            <div class="table-responsive">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ранг</th>
+                    <th>ПІБ менеджера</th>
+                    <th>Телефон</th>
+                    <th>Кількість угод</th>
+                    <th>Знижки</th>
+                    <th>Фактична виручка</th>
+                    <th>Частка в прибутку</th>
+                  </tr>
+                </thead>
+                <tbody id="d4-managers-tbody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           <!-- D5: Problem Spots Analysis -->
           <div id="subtab-d5" class="director-pane hidden space-y-4">
@@ -2189,7 +2316,6 @@
                 <thead>
                   <tr>
                     <th>Час запису</th>
-                    <th>ID тренування</th>
                     <th>Тип дії</th>
                     <th>Ініціатор</th>
                     <th>Причина</th>
@@ -2333,7 +2459,6 @@
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>Назва послуги</th>
                     <th>Категорія</th>
                     <th>Ціна (грн)</th>

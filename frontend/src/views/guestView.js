@@ -95,7 +95,7 @@ export async function renderGuestPriceList() {
           <h4 class="font-bold text-white text-base font-heading mb-1">${item.name}</h4>
           <p class="text-xs text-slate-400 mb-3 leading-relaxed">${item.desc || '—'}</p>
           ${item.durationDays ? `
-            <div class="text-[11px] text-slate-300 space-y-1 mb-4 bg-void p-2.5 rounded-lg border border-subtle font-mono" style="background-color: #060913 !important; border: 1px solid #1a2236 !important;">
+            <div class="text-[11px] text-secondary space-y-1 mb-4 bg-void p-2.5 rounded-lg border border-subtle font-mono">
               <div><i class="fa-regular fa-clock text-cyan-400 mr-1.5"></i> Тривалість: <b class="text-white">${item.durationDays} днів</b></div>
               <div><i class="fa-regular fa-snowflake text-blue-400 mr-1.5"></i> Заморозка: <b class="text-white">до ${item.maxFreezingDays || 0} днів</b></div>
             </div>

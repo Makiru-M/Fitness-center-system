@@ -7,7 +7,8 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
-:root {
+:root,
+html.dark {
   /* Core High-Energy Gym Palette */
   --bg-void: #060913;
   --bg-base: #080d1a;
@@ -63,6 +64,51 @@
   --radius-xl: 24px;
 }
 
+html.light,
+html:not(.dark) {
+  /* Core Light Palette */
+  --bg-void: #f1f5f9;
+  --bg-base: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f8fafc;
+  --bg-surface-hover: #f1f5f9;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+
+  /* Borders & Grids */
+  --border-subtle: #e2e8f0;
+  --border-medium: #cbd5e1;
+  --border-bright: #3b82f6;
+  --border-cyan: #06b6d4;
+
+  /* Brand Accents */
+  --cyan-primary: #0891b2;
+  --cyan-light: #06b6d4;
+  --cyan-glow: rgba(8, 145, 178, 0.2);
+  --blue-primary: #2563eb;
+  --blue-light: #3b82f6;
+  --blue-glow: rgba(37, 99, 235, 0.2);
+
+  /* Status Colors */
+  --status-success: #059669;
+  --status-success-bg: rgba(16, 185, 129, 0.1);
+  --status-warning: #d97706;
+  --status-warning-bg: rgba(245, 158, 11, 0.1);
+  --status-danger: #dc2626;
+  --status-danger-bg: rgba(239, 68, 68, 0.1);
+
+  /* Text Hierarchy */
+  --text-main: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+
+  /* Shadows & Glows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 4px 16px -2px rgba(15, 23, 42, 0.08), 0 0 0 1px var(--border-subtle);
+  --shadow-glow-cyan: 0 0 20px -3px rgba(6, 182, 212, 0.15);
+  --shadow-glow-blue: 0 0 20px -3px rgba(37, 99, 235, 0.15);
+}
+
 /* ==============================================================================
    Core Utility Classes (Surfaces, Borders, Text)
    ============================================================================== */
@@ -82,33 +128,61 @@
 .text-muted { color: var(--text-muted) !important; }
 .text-dim { color: var(--text-dim) !important; }
 
-/* Ensure dark consistency inside cards and tables */
-.card .bg-void,
-.tech-card .bg-void,
-#client-upcoming-list > div,
-#guest-pricelist-cards .bg-slate-50,
-#guest-pricelist-cards .bg-white,
-#guest-pricelist-cards [class*="bg-slate-"],
-.card .bg-slate-50,
-.card .bg-white,
-.card [class*="bg-slate-"] {
+/* Ensure surface consistency inside cards and tables */
+html.dark .card .bg-void,
+html.dark .tech-card .bg-void,
+html.dark #client-upcoming-list > div,
+html.dark #guest-pricelist-cards .bg-slate-50,
+html.dark #guest-pricelist-cards .bg-white,
+html.dark #guest-pricelist-cards [class*="bg-slate-"],
+html.dark .card .bg-slate-50,
+html.dark .card .bg-white,
+html.dark .card [class*="bg-slate-"] {
   background-color: var(--bg-void) !important;
   border-color: var(--border-subtle) !important;
   color: #cbd5e1 !important;
 }
 
-#guest-pricelist-cards .bg-slate-50 *,
-#guest-pricelist-cards .bg-white *,
-.card .bg-slate-50 *,
-.card .bg-white * {
+html.dark #guest-pricelist-cards .bg-slate-50 *,
+html.dark #guest-pricelist-cards .bg-white *,
+html.dark .card .bg-slate-50 *,
+html.dark .card .bg-white * {
   color: #cbd5e1 !important;
 }
 
-#guest-pricelist-cards .bg-slate-50 b,
-#guest-pricelist-cards .bg-white b,
-.card .bg-slate-50 b,
-.card .bg-white b {
+html.dark #guest-pricelist-cards .bg-slate-50 b,
+html.dark #guest-pricelist-cards .bg-white b,
+html.dark .card .bg-slate-50 b,
+html.dark .card .bg-white b {
   color: #ffffff !important;
+}
+
+html.light .card .bg-void,
+html.light .tech-card .bg-void,
+html.light #client-upcoming-list > div,
+html.light #guest-pricelist-cards .bg-slate-50,
+html.light #guest-pricelist-cards .bg-white,
+html.light #guest-pricelist-cards [class*="bg-slate-"],
+html.light .card .bg-slate-50,
+html.light .card .bg-white,
+html.light .card [class*="bg-slate-"] {
+  background-color: var(--bg-void) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-secondary) !important;
+}
+
+html.light #guest-pricelist-cards .bg-slate-50 *,
+html.light #guest-pricelist-cards .bg-white *,
+html.light .card .bg-slate-50 *,
+html.light .card .bg-white * {
+  color: var(--text-secondary) !important;
+}
+
+html.light #guest-pricelist-cards .bg-slate-50 b,
+html.light #guest-pricelist-cards .bg-white b,
+html.light .card .bg-slate-50 b,
+html.light .card .bg-white b {
+  color: var(--text-main) !important;
 }
 
 /* ==============================================================================
@@ -176,7 +250,7 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   letter-spacing: -0.02em;
   font-weight: 700;
-  color: #ffffff !important;
+  color: var(--text-main) !important;
 }
 
 .role-view h1, .role-view h2, .role-view h3, .role-view h4,
@@ -185,7 +259,7 @@ h1, h2, h3, h4, h5, h6 {
 .hr-pane h1, .hr-pane h2, .hr-pane h3,
 .director-pane h1, .director-pane h2, .director-pane h3,
 .client-pane h1, .client-pane h2, .client-pane h3 {
-  color: #ffffff !important;
+  color: var(--text-main) !important;
 }
 
 .font-mono {
@@ -392,7 +466,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .card h1, .card h2, .card h3, .card h4, .card h5, .card h6,
 .tech-card h1, .tech-card h2, .tech-card h3, .tech-card h4, .tech-card h5, .tech-card h6 {
-  color: #ffffff !important;
+  color: var(--text-main) !important;
 }
 
 .card p, .tech-card p {
@@ -890,7 +964,7 @@ select option {
 
 .modal-content h4,
 #modal-cl4-title {
-  color: #ffffff !important;
+  color: var(--text-main) !important;
 }
 
 .modal-body {
@@ -1024,10 +1098,10 @@ select option {
   right: 0;
   max-height: 240px;
   overflow-y: auto;
-  background-color: #0e1424 !important;
-  border: 1px solid #24304d !important;
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-medium) !important;
   border-radius: var(--radius-sm);
-  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.8), 0 0 15px -3px rgba(6, 182, 212, 0.15) !important;
+  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.3), 0 0 15px -3px rgba(6, 182, 212, 0.15) !important;
   z-index: 60;
   padding: 0.25rem 0;
 }
@@ -1038,7 +1112,7 @@ select option {
   justify-content: space-between;
   padding: 0.6rem 0.85rem;
   font-size: 0.8125rem;
-  color: #cbd5e1 !important;
+  color: var(--text-secondary) !important;
   background-color: transparent !important;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
@@ -1048,12 +1122,12 @@ select option {
 .combobox-item:hover,
 .combobox-item.active {
   background-color: rgba(6, 182, 212, 0.16) !important;
-  color: #22d3ee !important;
+  color: var(--cyan-primary) !important;
 }
 
 .combobox-item.selected {
   background-color: rgba(6, 182, 212, 0.24) !important;
-  color: #ffffff !important;
+  color: var(--text-main) !important;
   font-weight: 600;
 }
 
@@ -1109,5 +1183,242 @@ select option {
 
 #m3-price-display {
   color: #22d3ee !important;
+}
+
+/* ==============================================================================
+   Comprehensive Light Mode Overrides (Contrast, Backgrounds, Text, Tables)
+   ============================================================================== */
+html.light .text-white {
+  color: var(--text-main) !important;
+}
+
+/* Retain crisp white text on solid colored buttons, badges and alert badges */
+html.light .btn-primary,
+html.light .btn-cyan,
+html.light .btn-success,
+html.light .btn-danger,
+html.light .badge-cyan,
+html.light .badge-active,
+html.light .bg-cyan-500,
+html.light .bg-blue-600,
+html.light .bg-rose-500,
+html.light .bg-emerald-500 {
+  color: #ffffff !important;
+}
+
+html.light .btn-primary *,
+html.light .btn-cyan *,
+html.light .btn-success *,
+html.light .btn-danger * {
+  color: #ffffff !important;
+}
+
+/* Neutral Slate text overrides for Light Mode readability */
+html.light .text-slate-100 { color: var(--text-main) !important; }
+html.light .text-slate-200 { color: var(--text-secondary) !important; }
+html.light .text-slate-300 { color: var(--text-secondary) !important; }
+html.light .text-slate-400 { color: var(--text-muted) !important; }
+html.light .text-slate-500 { color: var(--text-dim) !important; }
+
+/* Hero Pass Card in Light Mode */
+html.light .hero-pass-card {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%) !important;
+  border: 1px solid rgba(6, 182, 212, 0.35) !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 0 15px -3px rgba(6, 182, 212, 0.15) !important;
+}
+html.light .hero-pass-card * {
+  color: var(--text-secondary);
+}
+html.light .hero-pass-card h4,
+html.light .hero-pass-card #hero-pass-name {
+  color: var(--text-main) !important;
+}
+html.light .hero-pass-card #hero-pass-price {
+  color: var(--cyan-primary) !important;
+}
+html.light .hero-pass-card .badge {
+  color: #ffffff !important;
+}
+html.light .hero-pass-card .btn-primary {
+  color: #ffffff !important;
+}
+
+/* Hero Banner container in Guest View */
+html.light #view-guest .bg-gradient-to-br {
+  background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%) !important;
+}
+html.light .hero-glow {
+  opacity: 0.5;
+}
+
+/* Login Screen Banner & Quick Login buttons */
+html.light #view-login .bg-gradient-to-br {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+  color: var(--text-secondary) !important;
+}
+html.light #view-login .bg-void {
+  background-color: var(--bg-surface-elevated) !important;
+  border-color: var(--border-subtle) !important;
+}
+html.light #view-login .bg-void:hover {
+  background-color: var(--bg-surface-hover) !important;
+  border-color: var(--cyan-primary) !important;
+}
+
+/* Client Profile Banner, Quick Actions & Upcoming List */
+html.light #view-client .bg-gradient-to-r {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+}
+html.light #client-upcoming-list > div,
+html.light #subtab-cl-dash .bg-void {
+  background-color: var(--bg-surface-elevated) !important;
+  border-color: var(--border-subtle) !important;
+}
+html.light #client-upcoming-list > div:hover,
+html.light #subtab-cl-dash .bg-void:hover {
+  background-color: var(--bg-surface-hover) !important;
+}
+
+/* High-Contrast Tables across all views (Client, Coach, HR, Manager, Director) */
+html.light table th,
+html.light .tech-table th {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+html.light table td,
+html.light .tech-table td {
+  color: #0f172a !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+html.light table tbody tr:hover td,
+html.light .tech-table tbody tr:hover td {
+  background-color: rgba(6, 182, 212, 0.05) !important;
+}
+
+/* Metric boxes & Dashboard widgets */
+html.light .metric-box {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important;
+}
+html.light .metric-box .metric-label {
+  color: #64748b !important;
+}
+html.light .metric-box #client-metric-expiry,
+html.light .metric-box #client-metric-freezing {
+  color: #0284c7 !important;
+}
+
+/* Sidebar navigation in Light Mode */
+html.light .crm-sidebar {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+html.light .nav-tab-btn {
+  color: #475569 !important;
+}
+html.light .nav-tab-btn:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+html.light .nav-tab-btn.active {
+  background-color: rgba(6, 182, 212, 0.12) !important;
+  color: #0891b2 !important;
+  border-color: rgba(6, 182, 212, 0.4) !important;
+}
+html.light .nav-tab-btn .task-badge {
+  background-color: #e2e8f0 !important;
+  color: #475569 !important;
+}
+html.light .nav-tab-btn.active .task-badge {
+  background-color: #0891b2 !important;
+  color: #ffffff !important;
+}
+
+/* Top Header in Light Mode */
+html.light header {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+html.light header h1 {
+  color: #0f172a !important;
+}
+html.light #current-user-name {
+  color: #0f172a !important;
+}
+html.light #current-user-role {
+  color: #0284c7 !important;
+}
+
+/* ==============================================================================
+   Flatpickr Light Mode Overrides
+   ============================================================================== */
+html.light .flatpickr-calendar {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 0 15px rgba(6, 182, 212, 0.1) !important;
+}
+html.light .flatpickr-calendar.arrowTop:before,
+html.light .flatpickr-calendar.arrowTop:after {
+  border-bottom-color: #ffffff !important;
+}
+html.light .flatpickr-calendar.arrowBottom:before,
+html.light .flatpickr-calendar.arrowBottom:after {
+  border-top-color: #ffffff !important;
+}
+html.light .flatpickr-months {
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0;
+}
+html.light .flatpickr-current-month .flatpickr-monthDropdown-months,
+html.light .flatpickr-current-month input.cur-year {
+  color: #0f172a !important;
+}
+html.light .flatpickr-months .flatpickr-prev-month,
+html.light .flatpickr-months .flatpickr-next-month {
+  color: #64748b !important;
+  fill: #64748b !important;
+}
+html.light .flatpickr-months .flatpickr-prev-month:hover,
+html.light .flatpickr-months .flatpickr-next-month:hover {
+  color: #0891b2 !important;
+  fill: #0891b2 !important;
+}
+html.light span.flatpickr-weekday {
+  background: #f8fafc !important;
+  color: #475569 !important;
+}
+html.light .flatpickr-day {
+  color: #1e293b !important;
+}
+html.light .flatpickr-day:hover {
+  background: #f1f5f9 !important;
+  color: #0891b2 !important;
+}
+html.light .flatpickr-day.selected,
+html.light .flatpickr-day.startRange,
+html.light .flatpickr-day.endRange {
+  background: #0891b2 !important;
+  border-color: #0891b2 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 10px rgba(8, 145, 178, 0.4) !important;
+}
+html.light .flatpickr-day.today {
+  border-color: #0891b2 !important;
+}
+html.light .flatpickr-day.flatpickr-disabled,
+html.light .flatpickr-day.flatpickr-disabled:hover {
+  color: #cbd5e1 !important;
+}
+html.light .flatpickr-time {
+  background: #f8fafc !important;
+  border-top: 1px solid #e2e8f0 !important;
+}
+html.light .flatpickr-time input {
+  color: #0891b2 !important;
+}
+html.light .flatpickr-time .flatpickr-time-separator {
+  color: #64748b !important;
 }
 

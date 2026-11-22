@@ -19,6 +19,7 @@ import { directorApi } from './api/directorApi.js';
 
 // Components
 import { showToast } from './components/toast.js';
+import { initTheme, toggleTheme } from './components/theme.js';
 import {
   initCombobox,
   makeSearchable,
@@ -179,26 +180,51 @@ import {
   initRevenueFilterEvents,
   renderD2Attendance,
   renderD3Coaches,
+  renderD4Managers,
+  renderManagerPerformance,
+  initD2FilterEvents,
+  initD3FilterEvents,
+  initD4FilterEvents,
+  initManagerFilterEvents,
+  renderD4Problems,
+  renderD5Audit,
   renderD5Problems,
   renderD6Audit,
   populateDirectorDropdowns,
+  handleD6CreateSub,
   handleD7CreateSub,
+  handleD7CreateHall,
   handleD8CreateHall,
+  handleD7DecommissionHall,
   handleD8DecommissionHall,
+  handleD7RecommissionHall,
   handleD8RecommissionHall,
+  handleD8CreatePromo,
   handleD9CreatePromo,
+  handleD9CreateService,
   handleD10CreateService,
+  renderD9PriceList,
   renderD10PriceList,
+  filterD9PriceList,
   filterD10PriceList,
+  openD9EditModal,
   openD10EditModal,
+  closeD9EditModal,
   closeD10EditModal,
+  handleD9UpdateTariff,
   handleD10UpdateTariff,
   confirmDeactivatePriceItem,
+  openD9CreateModal,
   openD10CreateModal,
+  closeD9CreateModal,
   closeD10CreateModal,
+  toggleD9CategoryFields,
   toggleD10CategoryFields,
+  handleD9CreateTurnkey,
   handleD10CreateTurnkey,
+  handleD10CreateTemplate,
   handleD11CreateTemplate,
+  handleD11Slot,
   handleD12Slot
 } from './views/directorView.js';
 
@@ -329,6 +355,10 @@ Object.assign(window, {
   closeGroupBookingModal,
   confirmGroupBooking,
 
+  // Theme
+  initTheme,
+  toggleTheme,
+
   // Guest View
   switchGuestTab,
   renderGuestPriceList,
@@ -438,40 +468,74 @@ Object.assign(window, {
   initRevenueFilterEvents,
   renderD2Attendance,
   renderD3Coaches,
+  renderD4Managers,
+  renderManagerPerformance,
+  initD2FilterEvents,
+  initD3FilterEvents,
+  initD4FilterEvents,
+  initManagerFilterEvents,
+  renderD4Problems,
+  renderD5Audit,
   renderD5Problems,
   renderD6Audit,
   populateDirectorDropdowns,
+  handleD6CreateSub,
   handleD7CreateSub,
+  handleD7CreateHall,
   handleD8CreateHall,
+  handleD7DecommissionHall,
   handleD8DecommissionHall,
+  handleD7RecommissionHall,
   handleD8RecommissionHall,
+  handleD8CreatePromo,
   handleD9CreatePromo,
+  handleD9CreateService,
   handleD10CreateService,
+  renderD9PriceList,
   renderD10PriceList,
+  filterD9PriceList,
   filterD10PriceList,
+  openD9EditModal,
   openD10EditModal,
+  closeD9EditModal,
   closeD10EditModal,
+  handleD9UpdateTariff,
   handleD10UpdateTariff,
   confirmDeactivatePriceItem,
+  openD9CreateModal,
   openD10CreateModal,
+  closeD9CreateModal,
   closeD10CreateModal,
+  toggleD9CategoryFields,
   toggleD10CategoryFields,
+  handleD9CreateTurnkey,
   handleD10CreateTurnkey,
+  handleD10CreateTemplate,
   handleD11CreateTemplate,
+  handleD11Slot,
   handleD12Slot
 });
 
+window.handleD7RecommissionHall = handleD7RecommissionHall;
 window.handleD8RecommissionHall = handleD8RecommissionHall;
 
 // Bootstrap application when DOM is ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     initApp();
     initFlatpickr();
     initRevenueFilterEvents();
+    initD2FilterEvents();
+    initD3FilterEvents();
+    initManagerFilterEvents();
   });
 } else {
+  initTheme();
   initApp();
   initFlatpickr();
   initRevenueFilterEvents();
+  initD2FilterEvents();
+  initD3FilterEvents();
+  initManagerFilterEvents();
 }

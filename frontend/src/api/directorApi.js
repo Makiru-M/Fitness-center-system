@@ -1,5 +1,5 @@
 /**
- * FitnessClub IS - Director API Service (D1 - D12)
+ * FitnessClub IS - Director API Service (D1 - D11)
  * Module: api/directorApi.js
  */
 
@@ -15,12 +15,28 @@ export const directorApi = {
     return apiFetch(`/director/reports/revenue${qs}`);
   },
 
-  getAttendance() {
-    return apiFetch('/director/reports/attendance');
+  getAttendance(fromDate = null, toDate = null) {
+    const params = new URLSearchParams();
+    if (fromDate) params.append('fromDate', fromDate);
+    if (toDate) params.append('toDate', toDate);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return apiFetch(`/director/reports/attendance${qs}`);
   },
 
-  getCoachPopularity() {
-    return apiFetch('/director/reports/coach-popularity');
+  getCoachPopularity(fromDate = null, toDate = null) {
+    const params = new URLSearchParams();
+    if (fromDate) params.append('fromDate', fromDate);
+    if (toDate) params.append('toDate', toDate);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return apiFetch(`/director/reports/coach-popularity${qs}`);
+  },
+
+  getManagerPerformance(fromDate = null, toDate = null) {
+    const params = new URLSearchParams();
+    if (fromDate) params.append('fromDate', fromDate);
+    if (toDate) params.append('toDate', toDate);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return apiFetch(`/director/reports/manager-performance${qs}`);
   },
 
   getIssues() {
